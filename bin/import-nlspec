@@ -1,0 +1,42 @@
+#!/usr/bin/env ruby
+
+require 'fileutils'
+require 'json'
+require 'open-uri'
+require 'pathname'
+require 'tmpdir'
+
+SPECS_PATH = 'Documentation/netlink/specs'
+
+@root = Pathname(__dir__)/'..'
+@update = ARGV.delete('--update')
+@kernel_repo = ARGV.shift or fail "Usage: #$0 [--update] /path/to/kernel.git"
+
+if @update
+  j = JSON.parse(URI.open('https://www.kernel.org/releases.json', &:read))
+  latest_stable = j.dig('latest_stable', 'version')
+  (@root/'NLSPEC_VERSION').write("#{latest_stable}\n")
+end
+
+@kernel_version = (@root/'NLSPEC_VERSION').read.chomp
+
+def sh(*cmdline) = system(*cmdline.flatten)
+def sh!(*cmdline) = system(*cmdline.flatten, exception: true)
+
+worktree = Pathname(Dir.mktmpdir)
+sh! %W[git -C #@kernel_repo worktree add --no-checkout #{worktree} v#@kernel_version]
+begin
+  sh! %W[git -C #{worktree} sparse-checkout set #{SPECS_PATH} LICENSES]
+  sh! %W[git -C #{worktree} checkout]
+
+  nlspec_dir = (@root/'nlspec').tap(&:mkpath)
+  (worktree/SPECS_PATH).each_child do |y|
+    FileUtils.cp(y, nlspec_dir)
+  end
+  FileUtils.cp(worktree/'LICENSES/preferred/BSD-3-Clause', nlspec_dir)
+  msg = "Import #{SPECS_PATH} from Linux v#{@kernel_version}"
+  sh %W[git -C #@root add nlspec NLSPEC_VERSION]
+  sh %W[git -C #@root commit nlspec NLSPEC_VERSION -m #{msg}]
+ensure
+  sh %W[git -C #@kernel_repo worktree remove -f #{worktree}]
+end
