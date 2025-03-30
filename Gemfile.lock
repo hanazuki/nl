@@ -1,7 +1,14 @@
 PATH
-  remote: .
+  remote: nl
   specs:
     nl (0.1.0)
+
+PATH
+  remote: ynl
+  specs:
+    ynl (0.1.0)
+      nl (= 0.1.0)
+      yaml
 
 GEM
   remote: https://rubygems.org/
@@ -21,15 +28,16 @@ GEM
       diff-lcs (>= 1.2.0, < 2.0)
       rspec-support (~> 3.12.0)
     rspec-support (3.12.1)
+    yaml (0.4.0)
 
 PLATFORMS
   ruby
-  x86_64-linux
 
 DEPENDENCIES
   nl!
   rake (~> 13.0)
   rspec (~> 3.0)
+  ynl!
 
 BUNDLED WITH
    2.5.9

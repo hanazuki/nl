@@ -1,0 +1,18 @@
+require 'stringio'
+
+require_relative 'parser'
+require_relative 'generator'
+
+module Ynl
+  class Family
+    def self.build(path)
+      defs = Ynl::Parser.parse_file(path)
+
+      buf = StringIO.new
+      classname = Generator.new(defs, buf).generate(namespace: 'self')
+      classdef = buf.string
+      puts classdef
+      Module.new { eval(classdef) }.const_get(classname)
+    end
+  end
+end
