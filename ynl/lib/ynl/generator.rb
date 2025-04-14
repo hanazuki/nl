@@ -80,6 +80,7 @@ module Ynl
                 emit_comment(attr.doc)
                 emit_class(attr.name.as_class_name, 'Attribute') do
                   write('TYPE = ', attr.value)
+                  write('NAME =', attr.name.as_variable_name.as_symbol_literal)
                   write('DATATYPE = ', to_datatype(attr.type, attr.checks))
                 end
               end

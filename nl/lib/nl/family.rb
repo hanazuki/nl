@@ -82,6 +82,12 @@ module Nl
         # @fixed_header&.validate!
         # @attributes.each(&:validate!)
       end
+
+      def to_h
+        @attributes.each_with_object(@fixed_header&.to_h || {}) do |attr, h|
+          h[attr.class::NAME] = attr.value
+        end
+      end
     end
 
     class AttributeSet
