@@ -6,6 +6,8 @@ require_relative 'generator'
 module Ynl
   class Family
     def self.build(path)
+      require 'nl'
+
       defs = Ynl::Parser.parse_file(path)
 
       buf = StringIO.new
