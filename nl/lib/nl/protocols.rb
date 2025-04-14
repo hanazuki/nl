@@ -159,8 +159,8 @@ module Nl
             @attribute_set.encode(encoder, value)
           end
 
-          def decode(decoder, value)
-            @attribute_set.decode(decoder, value)
+          def decode(decoder)
+            @attribute_set.decode(decoder)
           end
         end
       end

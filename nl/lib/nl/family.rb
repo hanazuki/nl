@@ -84,8 +84,17 @@ module Nl
       end
 
       def to_h
-        @attributes.each_with_object(@fixed_header&.to_h || {}) do |attr, h|
-          h[attr.class::NAME] = attr.value
+        to_h_rec(@attributes, @fixed_header&.to_h || {})
+      end
+
+      # FIXME:
+      private def to_h_rec(attributes, init = {})
+        attributes.each_with_object(init) do |attr, h|
+          if attr.class::DATATYPE.is_a?(Protocols::Raw::DataTypes::NestedAttributes)
+            h[attr.class::NAME] = to_h_rec(attr.value)
+          else
+            h[attr.class::NAME] = attr.value
+          end
         end
       end
     end
@@ -107,7 +116,7 @@ module Nl
         private def decode1(decoder)
           nlattr = Core::NlAttr.decode(decoder)
           attr = decoder.limit(nlattr.len - Core::NLA_HDRLEN) do
-            if attr_class = self::BY_TYPE[nlattr.type]
+            if attr_class = self::BY_TYPE[nlattr.type & Core::NLA_TYPE_MASK]
               attr_class.decode(decoder)
             else
               decoder.skip

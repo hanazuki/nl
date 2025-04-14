@@ -35,6 +35,10 @@ module Nl
 
       NLMSG_MIN_TYPE = 0x10
 
+      NLA_F_NESTED = 1 << 15
+      NLA_F_NET_BYTEORDER = 1 << 14
+      NLA_TYPE_MASK = ~(NLA_F_NESTED | NLA_F_NET_BYTEORDER)
+
       NLA_ALIGNTO = 4
       NLA_HDRLEN = 4
     end
