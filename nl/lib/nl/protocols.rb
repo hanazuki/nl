@@ -88,7 +88,7 @@ module Nl
         acked = false
         begin
           recv_message(socket, seq_pid, reply_class) do |message|
-            case p message
+            case message
             when Done
               done = true
             when Exception
