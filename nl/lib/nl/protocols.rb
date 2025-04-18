@@ -100,7 +100,7 @@ module Nl
               done = true if type == :do
             end
           end
-        end unless done
+        end until done
 
         result
       end
