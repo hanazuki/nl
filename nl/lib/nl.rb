@@ -3,7 +3,9 @@ require_relative 'nl/core'
 require_relative 'nl/genl'
 require_relative 'nl/socket'
 require_relative 'nl/family'
-require_relative 'nl/protocols'
+require_relative 'nl/protocols/raw'
+require_relative 'nl/protocols/genl'
+
 module Nl
   class Error < StandardError; end
 

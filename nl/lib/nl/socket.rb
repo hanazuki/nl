@@ -2,9 +2,6 @@
 
 require 'socket'
 
-require_relative 'encoder'
-require_relative 'decoder'
-
 module Nl
   # Netlink socket
   class Socket < ::Socket
