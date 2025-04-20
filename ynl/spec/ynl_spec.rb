@@ -23,8 +23,11 @@ RSpec.describe Ynl do
 
   describe Ynl::Family do
     example do
-      cls = Ynl::Family.build(yaml)      
-      binding.irb
+      cls = Ynl::Family.build(yaml)
+
+      expect(cls.name).to match /::Conntrack\z/
+      expect(cls::NAME).to eq 'conntrack'
+      expect(cls::PROTOCOL).to be_kind_of Nl::Protocols::Raw
     end
   end
 end
