@@ -13,7 +13,7 @@ module Ynl
       buf = StringIO.new
       classname = Generator.new(defs, buf).generate(namespace: 'self')
       classdef = buf.string
-      puts classdef
+
       Module.new { eval(classdef) }.const_get(classname)
     end
   end
