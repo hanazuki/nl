@@ -29,14 +29,14 @@ begin
   sh! %W[git -C #{worktree} sparse-checkout set #{SPECS_PATH} LICENSES]
   sh! %W[git -C #{worktree} checkout]
 
-  nlspec_dir = (@root/'nlspec').tap(&:mkpath)
+  nlspec_dir = (@root/'linux').tap(&:mkpath)
   (worktree/SPECS_PATH).each_child do |y|
     FileUtils.cp(y, nlspec_dir)
   end
   FileUtils.cp(worktree/'LICENSES/preferred/BSD-3-Clause', nlspec_dir)
   msg = "Import #{SPECS_PATH} from Linux v#{@kernel_version}"
-  sh %W[git -C #@root add nlspec NLSPEC_VERSION]
-  sh %W[git -C #@root commit nlspec NLSPEC_VERSION -m #{msg}]
+  sh! %W[git -C #@root add #{nlspec_dir} NLSPEC_VERSION]
+  sh! %W[git -C #@root commit #{nlspec_dir} NLSPEC_VERSION -m #{msg}]
 ensure
   sh %W[git -C #@kernel_repo worktree remove -f #{worktree}]
 end
