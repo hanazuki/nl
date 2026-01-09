@@ -1,10 +1,11 @@
 # SPDX-License-Identifier: ((GPL-2.0 WITH Linux-syscall-note) OR BSD-3-Clause)
-
+---
 name: rt-rule
 protocol: netlink-raw
+uapi-header: linux/fib_rules.h
 protonum: 0
 
-doc:
+doc: >-
   FIB rule management over rtnetlink.
 
 definitions:
@@ -56,6 +57,7 @@ definitions:
   -
     name: fr-act
     type: enum
+    enum-name:
     entries:
       - unspec
       - to-tbl
@@ -90,6 +92,7 @@ definitions:
 attribute-sets:
   -
     name: fib-rule-attrs
+    name-prefix: fra-
     attributes:
       -
         name: dst
@@ -182,10 +185,23 @@ attribute-sets:
         type: u32
         byte-order: big-endian
         display-hint: hex
+      -
+        name: sport-mask
+        type: u16
+        display-hint: hex
+      -
+        name: dport-mask
+        type: u16
+        display-hint: hex
+      -
+        name: dscp-mask
+        type: u8
+        display-hint: hex
 
 operations:
   enum-model: directional
   fixed-header: fib-rule-hdr
+  name-prefix: rtm-
   list:
     -
       name: newrule
@@ -215,11 +231,14 @@ operations:
             - dscp
             - flowlabel
             - flowlabel-mask
+            - sport-mask
+            - dport-mask
+            - dscp-mask
     -
       name: newrule-ntf
       doc: Notify a rule creation
       value: 32
-      notify: newrule
+      notify: getrule
     -
       name: delrule
       doc: Remove an existing FIB rule
@@ -232,7 +251,7 @@ operations:
       name: delrule-ntf
       doc: Notify a rule deletion
       value: 33
-      notify: delrule
+      notify: getrule
     -
       name: getrule
       doc: Dump all FIB rules
