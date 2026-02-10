@@ -1,0 +1,6 @@
+[bumpVersion]
+	scheme = zero
+	tagPrefix = v
+	path = */lib/**/version.rb
+	pattern = "VERSION = '(?<version>.+?)'"
+	postCommand = bundle lock
