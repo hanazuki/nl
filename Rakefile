@@ -1,5 +1,7 @@
+require 'pathname'
+
 task :spec do
-  %w[nl ynl].each do |gem|
+  %w[nl ynl nl-linux].each do |gem|
     Dir.chdir(gem) do
       sh 'rake', 'spec'
     end

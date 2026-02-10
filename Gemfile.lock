@@ -1,4 +1,11 @@
 PATH
+  remote: nl-linux
+  specs:
+    nl-linux (0.1.0)
+      nl (= 0.1.0)
+      ynl (= 0.1.0)
+
+PATH
   remote: nl
   specs:
     nl (0.1.0)
@@ -13,21 +20,21 @@ PATH
 GEM
   remote: https://rubygems.org/
   specs:
-    diff-lcs (1.5.1)
-    rake (13.1.0)
-    rspec (3.12.0)
-      rspec-core (~> 3.12.0)
-      rspec-expectations (~> 3.12.0)
-      rspec-mocks (~> 3.12.0)
-    rspec-core (3.12.2)
-      rspec-support (~> 3.12.0)
-    rspec-expectations (3.12.3)
+    diff-lcs (1.6.2)
+    rake (13.3.1)
+    rspec (3.13.2)
+      rspec-core (~> 3.13.0)
+      rspec-expectations (~> 3.13.0)
+      rspec-mocks (~> 3.13.0)
+    rspec-core (3.13.6)
+      rspec-support (~> 3.13.0)
+    rspec-expectations (3.13.5)
       diff-lcs (>= 1.2.0, < 2.0)
-      rspec-support (~> 3.12.0)
-    rspec-mocks (3.12.6)
+      rspec-support (~> 3.13.0)
+    rspec-mocks (3.13.7)
       diff-lcs (>= 1.2.0, < 2.0)
-      rspec-support (~> 3.12.0)
-    rspec-support (3.12.1)
+      rspec-support (~> 3.13.0)
+    rspec-support (3.13.7)
     yaml (0.4.0)
 
 PLATFORMS
@@ -35,6 +42,7 @@ PLATFORMS
 
 DEPENDENCIES
   nl!
+  nl-linux!
   rake (~> 13.0)
   rspec (~> 3.0)
   ynl!
