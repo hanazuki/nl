@@ -1,8 +1,8 @@
-require_relative '../nl/lib/nl/version'
+require_relative 'lib/ynl/version'
 
 Gem::Specification.new do |spec|
   spec.name = 'ynl'
-  spec.version = Nl::VERSION
+  spec.version = Ynl::VERSION
   spec.authors = ['Kasumi Hanazuki']
   spec.email = ['kasumi@rollingapple.net']
 
@@ -29,7 +29,6 @@ Gem::Specification.new do |spec|
   spec.executables = spec.files.grep(%r{\Aexe/}) { |f| File.basename(f) }
   spec.require_paths = ['lib']
 
-  spec.add_dependency 'nl', Nl::VERSION
-
+  spec.add_dependency 'nl', Ynl::VERSION
   spec.add_dependency 'yaml'
 end
