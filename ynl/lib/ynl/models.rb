@@ -29,6 +29,21 @@ module Ynl
 
     Const = ::Struct.new(:name, :value, :doc)
 
+    class SubMessage
+      Format = ::Struct.new(:value, :attribute_set)
+
+      attr_reader :name, :formats
+
+      def initialize(name:)
+        @name = name
+        @formats = []
+      end
+
+      def resolve(f)
+        self
+      end
+    end
+
     class Enum
       Entry = ::Struct.new(:name, :value, :doc)
 

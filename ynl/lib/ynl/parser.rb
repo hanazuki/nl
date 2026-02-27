@@ -295,6 +295,13 @@ module Ynl
     end
 
     private def parse_sub_message(d)
+      name = d.fetch('name')
+      result = Models::SubMessage.new(name:)
+      d.fetch('formats', []).each do |fmt|
+        attr_set = fmt['attribute-set']&.then { @attribute_sets[it] }
+        result.formats << Models::SubMessage::Format.new(fmt['value'], attr_set)
+      end
+      @sub_messages[name] = result
     end
 
     private def parse_operation(d, enum_model:)

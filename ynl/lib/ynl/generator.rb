@@ -227,6 +227,8 @@ module Ynl
         # end
       when Types::NestedAttributes
         "PROTOCOL.class::DataTypes::NestedAttributes.new(#{type.attribute_set.name.as_class_name})"
+      when Types::SubMessage
+        "PROTOCOL.class::DataTypes::Binary.new(check: nil)"
       else
         raise "Unknown type: #{type.class}"
       end
