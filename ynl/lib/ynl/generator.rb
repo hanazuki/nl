@@ -76,6 +76,7 @@ module Ynl
         end
 
         emit_module('AttributeSets') do
+          deferred_consts = []
           @ynl.attribute_sets.each do |name, attr_set|
             emit_comment(attr_set.doc)
             emit_class(name.as_class_name, '::Nl::Family::AttributeSet') do
@@ -87,7 +88,11 @@ module Ynl
                 emit_class(attr.name.as_class_name, 'Attribute') do
                   emit_const('TYPE', attr.value)
                   emit_const('NAME', attr.name.as_variable_name.as_symbol_literal)
-                  emit_const('DATATYPE', to_datatype(attr.type, attr.checks))
+                  if attr.type.is_a?(Types::NestedAttributes)
+                    deferred_consts << ["#{name.as_class_name}::#{attr.name.as_class_name}::DATATYPE", to_datatype(attr.type, attr.checks)]
+                  else
+                    emit_const('DATATYPE', to_datatype(attr.type, attr.checks))
+                  end
                 end
               end
 
@@ -109,6 +114,7 @@ module Ynl
               end
             end
           end
+          deferred_consts.each { emit_const(*it) }
         end
 
         emit_module('Messages') do
@@ -195,7 +201,7 @@ module Ynl
     end
 
     private def emit_const(name, value)
-      write(name.as_const_name, ' = ', value)
+      write(name, ' = ', value)
     end
 
     private def emit_comment(comment)
