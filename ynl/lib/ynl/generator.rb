@@ -5,15 +5,15 @@ module Ynl
 
       refine(String) do
         def as_const_name
-          split(WORD_DELIM).map(&:upcase).join('_')
+          split(WORD_DELIM).map(&:upcase).join('_').tap {|s| s.prepend('X_') unless s.start_with?(/[A-Z]/i) }
         end
 
         def as_class_name
-          split(WORD_DELIM).map(&:capitalize).join
+          split(WORD_DELIM).map(&:capitalize).join.tap {|s| s.prepend('X') unless s.start_with?(/[A-Z]/i) }
         end
 
         def as_variable_name
-          split(WORD_DELIM).join('_')
+          split(WORD_DELIM).join('_').tap {|s| s.prepend('x_') unless s.start_with?(/[A-Z]/i) }
         end
         alias as_method_name as_variable_name
 
