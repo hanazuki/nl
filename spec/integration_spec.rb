@@ -18,4 +18,23 @@ RSpec.describe do
       end
     end
   end
+
+  describe Nl::Linux::RtAddr do
+    example do
+      Nl::Linux::RtAddr.open do |rtaddr|
+        r = rtaddr.dump_getaddr
+        expect(r).to be_an Array
+
+        lo = r.find do |i|
+          i.attributes.any? do |attr|
+            attr.kind_of?(Nl::Linux::RtAddr::AttributeSets::AddrAttrs::Label) && attr.value == 'lo'
+          end
+        end
+        expect(lo).to be_a Nl::Linux::RtAddr::Messages::DumpGetaddrReply
+
+        expect(lo.fixed_header.ifa_family).to eq 2  # AF_INET
+        expect(lo.fixed_header.ifa_index).to eq 1  # loopback interface index is always 1
+      end
+    end
+  end
 end
