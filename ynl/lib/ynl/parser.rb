@@ -165,6 +165,14 @@ module Ynl
         Types::NestedAttributes.new(
           attribute_set: Models::Thunk.new {|f| f.attribute_sets.fetch(d.fetch('nested-attributes')) },
         )
+      when 'indexed-array', 'nest-type-value'
+        if d['nested-attributes']
+          Types::NestedAttributes.new(
+            attribute_set: Models::Thunk.new {|f| f.attribute_sets.fetch(d.fetch('nested-attributes')) },
+          )
+        else
+          Types::Binary.new(struct: nil, display_hint: nil)
+        end
       when 'sub-message'
         Types::SubMessage.new(
           sub_message: Models::Thunk.new {|f| f.sub_messages.fetch(d.fetch('sub-message')) },
