@@ -1,3 +1,6 @@
+require_relative '../encoder'
+require_relative '../decoder'
+
 module Nl
   module Protocols
     # The raw Netlink protocol
@@ -172,6 +175,21 @@ module Nl
             value = decoder.get_value(Endian::Host::U32)
             selector = decoder.get_value(Endian::Host::U32)
             [value, selector]
+          end
+        end
+
+        class Pad
+          def initialize(length)
+            @length = length
+          end
+
+          def encode(encoder, _value)
+            encoder.put_string(?\0 * @length)
+          end
+
+          def decode(decoder)
+            decoder.skip(@length)
+            nil
           end
         end
 

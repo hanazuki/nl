@@ -220,7 +220,7 @@ module Ynl
     private def to_datatype(type, checks)
       case type
       when Types::Pad
-        'nil'
+        "PROTOCOL.class::DataTypes::Pad.new(#{type.length})"
       when Types::Flag
         'PROTOCOL.class::DataTypes::Flag.new'
       when Types::Bitfield32
