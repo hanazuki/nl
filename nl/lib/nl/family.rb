@@ -54,9 +54,7 @@ module Nl
         encoder.measure(Endian::Host::U16) do
           @header.encode(encoder)
           @fixed_header.encode(encoder) if @fixed_header
-          @attributes.each do |attr|
-            attr.encode(encoder)
-          end
+          self.class::ATTRIBUTE_SET.encode(encoder, @attributes)
         end
       end
 
