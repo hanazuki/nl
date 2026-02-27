@@ -5,16 +5,19 @@ require_relative 'generator'
 
 module Ynl
   class Family
+    # Builds a Ruby class from a spec file
     def self.build(path)
-      require 'nl'
-
-      defs = Ynl::Parser.parse_file(path)
-
       buf = StringIO.new
-      classname = Generator.new(defs, buf).generate(namespace: 'self')
-      classdef = buf.string
+      classname = generate(path, buf, namespace: 'self')
+      code = buf.string
 
-      Module.new { eval(classdef) }.const_get(classname)
+      Module.new { eval(code) }.const_get(classname)
+    end
+
+    # Generates Ruby code from a spec file
+    def self.generate(path, out, **kwargs)
+      out << Generator::PRELUDE
+      Generator.new(Ynl::Parser.parse_file(path), out).generate(**kwargs)
     end
   end
 end
