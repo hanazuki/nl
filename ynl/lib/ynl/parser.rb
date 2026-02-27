@@ -91,7 +91,8 @@ module Ynl
     end
 
     private def parse_const(d)
-      Models::Const.new(d.fetch('name'), d.fetch('value'), d['doc'])
+      name = "#{d['name-prefix']}#{d.fetch('name')}"
+      Models::Const.new(name, d.fetch('value'), d['doc'])
     end
 
     private def parse_enum_flags(d, type:)
