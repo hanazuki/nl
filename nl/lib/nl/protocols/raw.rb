@@ -95,7 +95,7 @@ module Nl
             when Done
               done = true
             when Exception
-              raise
+              raise message
             when Ack
               acked = true
             else
