@@ -200,7 +200,7 @@ module Ynl
 
     private def emit_comment(comment)
       return unless comment
-      comment.each_line do |line|
+      comment.each_line(chomp: true) do |line|
         write('# ', line)
       end
     end
