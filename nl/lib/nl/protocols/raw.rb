@@ -179,16 +179,16 @@ module Nl
         end
 
         class Pad
-          def initialize(length)
+          def initialize(length = nil)
             @length = length
           end
 
           def encode(encoder, _value)
-            encoder.put_string(?\0 * @length)
+            encoder.put_string(?\0.b * @length) if @length
           end
 
           def decode(decoder)
-            decoder.skip(@length)
+            @length ? decoder.skip(@length) : decoder.skip
             nil
           end
         end
