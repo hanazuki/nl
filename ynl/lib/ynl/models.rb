@@ -108,6 +108,28 @@ module Ynl
       end
     end
 
+    class AttributeSubset
+      attr_reader :name, :superset, :doc
+
+      def initialize(name:, superset:, attributes:, doc:)
+        @name = name
+        @superset = superset
+        @attributes = attributes
+        @doc = doc
+      end
+
+      def attributes
+        @attributes.map do |attr|
+          name = attr.fetch('name')
+          superset.attributes.find { it.name == name } or raise ParseError "No attribute with name #{name}"
+        end
+      end
+
+      def resolve(f)
+        self
+      end
+    end
+
     class Operation
       attr_reader :name, :doc, :fixed_header, :attribute_set, :doit, :dumpit
 

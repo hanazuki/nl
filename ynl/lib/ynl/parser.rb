@@ -262,19 +262,8 @@ module Ynl
     private def parse_attribute_set(d)
       name = d.fetch('name')
       if subset_of = d['subset-of']
-        result = Models::Thunk.new do |f|
-          superset = f.attribute_sets.fetch(subset_of)
-          attribute_set = Models::AttributeSet.new(name:, name_prefix: superset.name_prefix, doc: d['doc'])
-          d.fetch('attributes').each do |v|
-            aname = v.fetch('name')
-            sattr = superset.attributes.find {|a| a.name == aname } or raise ParseError, "Attribute not found: #{aname}"
-            # TODO: type/checks overrides
-            attribute_set.attributes << sattr
-          rescue
-            raise ParseError, "Failed to parse attribute: #{v.fetch('name')}"
-          end
-          attribute_set
-        end
+        superset = @attribute_sets.fetch(subset_of)
+        result = Models::AttributeSubset.new(name:, superset:, attributes: d.fetch('attributes'), doc: d['doc'])
       else
         name_prefix = d['name_prefix']
         result = Models::AttributeSet.new(name:, name_prefix:, doc: d['doc'])
