@@ -1,4 +1,4 @@
-require 'nl/linux/rt_link'
+require 'nl/linux'
 
 RSpec.describe do
   describe Nl::Linux::RtLink do
