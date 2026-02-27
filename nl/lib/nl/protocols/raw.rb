@@ -206,6 +206,36 @@ module Nl
             @attribute_set.decode(decoder)
           end
         end
+
+        class IndexedArray
+          def initialize(sub_type)
+            @sub_type = sub_type
+          end
+
+          def encode(encoder, values)
+            values.each_with_index do |value, i|
+              nlattr = Core::NlAttr.new(0, i + 1)
+              encoder.measure(Endian::Host::U16) do
+                nlattr.encode(encoder)
+                @sub_type.encode(encoder, value)
+              end
+              encoder.align_to(Core::NLA_ALIGNTO)
+            end
+          end
+
+          def decode(decoder)
+            result = []
+            while decoder.available?
+              nlattr = Core::NlAttr.decode(decoder)
+              element = decoder.limit(nlattr.len - Core::NLA_HDRLEN) do
+                @sub_type.decode(decoder)
+              end
+              decoder.align_to(Core::NLA_ALIGNTO)
+              result << element
+            end
+            result
+          end
+        end
       end
     end
   end

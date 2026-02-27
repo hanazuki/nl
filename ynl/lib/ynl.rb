@@ -54,6 +54,13 @@ module Ynl
         self
       end
     end
+
+    IndexedArray = Struct.new(:sub_type) do
+      def resolve(f)
+        self.sub_type = sub_type.resolve(f)
+        self
+      end
+    end
   end
 
 end

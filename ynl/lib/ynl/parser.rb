@@ -166,7 +166,11 @@ module Ynl
         Types::NestedAttributes.new(
           attribute_set: Models::Thunk.new {|f| f.attribute_sets.fetch(d.fetch('nested-attributes')) },
         )
-      when 'indexed-array', 'nest-type-value'
+      when 'indexed-array'
+        Types::IndexedArray.new(
+          sub_type: parse_indexed_array_sub_type(d),
+        )
+      when 'nest-type-value'
         if d['nested-attributes']
           Types::NestedAttributes.new(
             attribute_set: Models::Thunk.new {|f| f.attribute_sets.fetch(d.fetch('nested-attributes')) },
@@ -191,6 +195,28 @@ module Ynl
         nil
       else
         raise ParseError, "Unknown type: #{type}"
+      end
+    end
+
+    private def parse_indexed_array_sub_type(d)
+      sub_type = d.fetch('sub-type')
+      case sub_type
+      when 'u8', 'u16', 'u32', 'u64', 's8', 's16', 's32', 's64', 'int', 'uint', 'sint'
+        Types::Scalar.new(
+          type: sub_type,
+          byte_order: parse_byte_order(d['byte-order']),
+        )
+      when 'binary'
+        Types::Binary.new(
+          struct: nil,
+          display_hint: d['display-hint'],
+        )
+      when 'nest'
+        Types::NestedAttributes.new(
+          attribute_set: Models::Thunk.new {|f| f.attribute_sets.fetch(d.fetch('nested-attributes')) },
+        )
+      else
+        raise ParseError, "Unknown indexed-array sub-type: #{sub_type}"
       end
     end
 
