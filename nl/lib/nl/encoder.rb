@@ -16,12 +16,12 @@ module Nl
 
     def put_string(value)
       reserve(value.bytesize)
-      @position = @buffer.set_string(value, @position)
+      @position += @buffer.set_string(value, @position)
     end
 
     def put_zstring(value)
       reserve(value.bytesize + 1)
-      @position = @buffer.set_string(value, @position)
+      @position += @buffer.set_string(value, @position)
       @position = @buffer.set_value(:U8, @position, 0)
     end
 
