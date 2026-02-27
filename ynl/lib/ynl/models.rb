@@ -134,7 +134,10 @@ module Ynl
       end
 
       def attributes
-        @attributes.map do |attr|
+        # WORKAROUND: Some upstream specs (e.g. devlink) contain duplicate attribute
+        # entries in subset-of attribute sets. Deduplicate by name here until the
+        # upstream specs are fixed.
+        @attributes.uniq {|attr| attr.fetch('name') }.map do |attr|
           name = attr.fetch('name')
           superset.attributes.find { it.name == name } or raise ParseError "No attribute with name #{name}"
         end
