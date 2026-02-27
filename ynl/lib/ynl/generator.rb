@@ -45,21 +45,21 @@ module Ynl
     def generate(superclass: '::Nl::Family', namespace: nil)
       classname = @ynl.name.as_class_name
       emit_class([*namespace, classname].join('::'), superclass) do
-        write('NAME = ', @ynl.name.as_string_literal)
-        write('PROTONUM = ', @ynl.protonum)
+        emit_const('NAME', @ynl.name.as_string_literal)
+        emit_const('PROTONUM', @ynl.protonum)
 
         if @ynl.protocol == 'netlink-raw'
-          write('PROTOCOL = Ractor.make_shareable(::Nl::Protocols::Raw.new(', @ynl.name.as_string_literal, ', ', @ynl.protonum ,'))')
+          emit_const('PROTOCOL', "Ractor.make_shareable(::Nl::Protocols::Raw.new(#{@ynl.name.as_string_literal}, #{@ynl.protonum}))")
         else
-          write('PROTOCOL = Ractor.make_shareable(::Nl::Protocols::Genl.new(', @ynl.name.as_string_literal, ')')
+          emit_const('PROTOCOL', "Ractor.make_shareable(::Nl::Protocols::Genl.new(#{@ynl.name.as_string_literal}))")
         end
 
         emit_module('Structs') do
           @ynl.structs.each do |name, struct|
             emit_comment(struct.doc)
-            write(name.as_class_name, ' = Struct.new(', struct.members.map { it.name.as_variable_name.as_symbol_literal }.join(', ') ,')')
+            emit_const(name.as_class_name, "Struct.new(#{struct.members.map { it.name.as_variable_name.as_symbol_literal }.join(', ') })")
             emit_class(name.as_class_name) do
-              write('MEMBERS = Ractor.make_shareable({', struct.members.map { "#{it.name.as_variable_name}: #{to_datatype(it.type, nil)}" }.join(', ') ,'})')
+              emit_const('MEMBERS', "Ractor.make_shareable({#{struct.members.map { "#{it.name.as_variable_name}: #{to_datatype(it.type, nil)}" }.join(', ') }})")
               write('def self.decode(decoder)')
               indent do
                 write('self.new(*MEMBERS.map {|name, datatype| datatype.decode(decoder) })')
@@ -85,14 +85,14 @@ module Ynl
               attr_set.attributes.each do |attr|
                 emit_comment(attr.doc)
                 emit_class(attr.name.as_class_name, 'Attribute') do
-                  write('TYPE = ', attr.value)
-                  write('NAME =', attr.name.as_variable_name.as_symbol_literal)
-                  write('DATATYPE = ', to_datatype(attr.type, attr.checks))
+                  emit_const('TYPE', attr.value)
+                  emit_const('NAME', attr.name.as_variable_name.as_symbol_literal)
+                  emit_const('DATATYPE', to_datatype(attr.type, attr.checks))
                 end
               end
 
-              write('BY_NAME = Ractor.make_shareable({', attr_set.attributes.map { "#{it.name.as_variable_name.as_symbol_literal} => #{it.name.as_class_name}" }.join(', ') ,'})')
-              write('BY_TYPE = Ractor.make_shareable({', attr_set.attributes.map { "#{it.value} => #{it.name.as_class_name}" }.join(', ') ,'})')
+              emit_const('BY_NAME', "Ractor.make_shareable({#{attr_set.attributes.map { "#{it.name.as_variable_name.as_symbol_literal} => #{it.name.as_class_name}" }.join(', ') }})")
+              emit_const('BY_TYPE', "Ractor.make_shareable({#{attr_set.attributes.map { "#{it.value} => #{it.name.as_class_name}" }.join(', ') }})")
 
               emit_singleton_class do
                 emit_rbs_comment(
@@ -118,14 +118,14 @@ module Ynl
               if request_reply = oper.public_send(method + 'it')
                 %w[request reply].to_h { [it, request_reply.public_send(it)] }.compact.each do |type, msg|
                   emit_class(method.as_class_name + oper.name.as_class_name + type.as_class_name, '::Nl::Family::Message') do
-                    write('TYPE = ', msg.value)
-                    write('FIXED_HEADER = ', oper.fixed_header&.then { 'Structs::' + it.name.as_class_name } || 'nil')
-                    write('ATTRIBUTE_SET = AttributeSets::', oper.attribute_set.name.as_class_name)
+                    emit_const('TYPE', msg.value)
+                    emit_const('FIXED_HEADER', oper.fixed_header&.then { 'Structs::' + it.name.as_class_name } || 'nil')
+                    emit_const('ATTRIBUTE_SET', "AttributeSets::#{oper.attribute_set.name.as_class_name}")
                     params = msg.attributes
                     header_params = params & (oper.fixed_header&.members&.map(&:name) || [])
                     attribute_params = params & (oper.attribute_set.attributes.map(&:name))
-                    write('HEADER_PARAMS = Ractor.make_shareable(%i[', header_params.map { it.as_variable_name }.join(' ') ,'])')
-                    write('ATTRIBUTE_PARAMS = Ractor.make_shareable(%i[', attribute_params.map { it.as_variable_name }.join(' ') ,'])')
+                    emit_const('HEADER_PARAMS', "Ractor.make_shareable(%i[#{header_params.map { it.as_variable_name }.join(' ')}])")
+                    emit_const('ATTRIBUTE_PARAMS', "Ractor.make_shareable(%i[#{attribute_params.map { it.as_variable_name }.join(' ')}])")
                   end
                 end
               end
@@ -192,6 +192,10 @@ module Ynl
       write('class << self')
       indent { yield }
       write('end')
+    end
+
+    private def emit_const(name, value)
+      write(name.as_const_name, ' = ', value)
     end
 
     private def emit_comment(comment)
