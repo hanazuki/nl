@@ -234,19 +234,19 @@ module Ynl
       case op
       when 'max'
         value = parse_value(value_literal)
-        return %{raise unless it <= #{value}}
+        return %{raise ArgumentError, "Value \#{it.inspect} is greater than maximum #{value}" unless it <= #{value}}
       when 'min'
         value = parse_value(value_literal)
-        return %{raise unless it >= #{value}}
+        return %{raise ArgumentError, "Value \#{it.inspect} is less than minimum #{value}" unless it >= #{value}}
       when 'min-len'
         value = parse_value(value_literal)
-        return %{raise unless it.bytesize >= #{value}}
+        return %{raise ArgumentError, "Value \#{it.inspect} is shorter than minimum length #{value}" unless it.bytesize >= #{value}}
       when 'max-len'
         value = parse_value(value_literal)
-        return %{raise unless it.bytesize <= #{value}}
+        return %{raise ArgumentError, "Value \#{it.inspect} is longer than maximum length #{value}" unless it.bytesize <= #{value}}
       when 'exact-len'
         value = parse_value(value_literal)
-        return %{raise unless it.bytesize == #{value}}
+        return %{raise ArgumentError, "Value \#{it.inspect} is not equal to length #{value}" unless it.bytesize == #{value}}
       when 'unterminated-ok'
         return nil
       else
