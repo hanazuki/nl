@@ -27,7 +27,7 @@ Gem::Specification.new do |spec|
   end
   spec.bindir = 'exe'
   spec.executables = spec.files.grep(%r{\Aexe/}) { |f| File.basename(f) }
-  spec.require_paths = ['lib']
+  spec.require_paths = ['lib', 'generated']
   spec.extensions = ['ext/nl-linux/rakefile.rb']
 
   spec.add_dependency 'nl', Nl::Linux::VERSION
