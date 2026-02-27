@@ -216,7 +216,7 @@ module Ynl
       when Types::Bitfield32
         'PROTOCOL.class::DataTypes::Bitfield32.new'
       when Types::Scalar
-        "PROTOCOL.class::DataTypes::Scalar.new(::Nl::Endian::#{type.byte_order.name.as_class_name}::#{type.type.as_class_name}, check: #{to_checks(checks)})"
+        "PROTOCOL.class::DataTypes::Scalar.new(::Nl::Endian::#{type.byte_order.name.as_class_name}::#{type.type.as_const_name}, check: #{to_checks(checks)})"
       when Types::String
         "PROTOCOL.class::DataTypes::String.new(check: #{to_checks(checks)})"
       when Types::Binary

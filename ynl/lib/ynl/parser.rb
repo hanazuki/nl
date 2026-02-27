@@ -149,7 +149,7 @@ module Ynl
     private def parse_attribute_type(d)
       type = d.fetch('type')
       case type
-      when 'u8', 'u16', 'u32', 'u64', 's8', 's16', 's32', 's64', 'int', 'uint'
+      when 'u8', 'u16', 'u32', 'u64', 's8', 's16', 's32', 's64', 'int', 'uint', 'sint'
         Types::Scalar.new(
           type: type,
           byte_order: parse_byte_order(d['byte-order']),

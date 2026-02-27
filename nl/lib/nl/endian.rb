@@ -20,16 +20,18 @@ module Nl
         when 4; [U32, S32]
         when 8; [U64, S64]
         else raise "Unsupported 'int' size"
-        end
+      end
       ULONG, SLONG = case SIZEOF_LONG
         when 4; [U32, S32]
         when 8; [U64, S64]
         else raise "Unsupported 'long' size"
-        end
+      end
       ULLONG, SLLONG = case SIZEOF_LLONG
         when 8; [U64, S64]
         else raise "Unsupported 'long long' size"
-        end
+      end
+
+      INT, LONG, LLONG = SINT, SLONG, SLLONG
     end
   end
 end
