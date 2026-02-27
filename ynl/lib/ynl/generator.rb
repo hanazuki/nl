@@ -47,7 +47,6 @@ module Ynl
       classname = @ynl.name.as_class_name
       emit_class([*namespace, classname].join('::'), superclass) do
         emit_const('NAME', @ynl.name.as_string_literal)
-        emit_const('PROTONUM', @ynl.protonum)
 
         if @ynl.protocol == 'netlink-raw'
           emit_const('PROTOCOL', "Ractor.make_shareable(::Nl::Protocols::Raw.new(#{@ynl.name.as_string_literal}, #{@ynl.protonum}))")

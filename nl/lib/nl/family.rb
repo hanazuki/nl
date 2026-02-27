@@ -8,7 +8,7 @@ module Nl
 
     def self.open
       begin
-        socket = Socket.new(self::PROTONUM)
+        socket = Socket.new(self::PROTOCOL.protonum)
         socket.bind(Socket.sockaddr_nl(0, 0))
         if block_given?
           yield new(socket)
