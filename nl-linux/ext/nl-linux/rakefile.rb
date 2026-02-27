@@ -4,7 +4,7 @@ directory 'generated/nl/linux' => 'generated/nl'
 
 # For each of linux/%.yaml spec, generate generated/nl/linux/%.rb
 FileList['linux/*.yaml'].each do |spec|
-  target = 'generated/nl/' + spec.sub('.yaml', '.rb')
+  target = 'generated/nl/' + spec.gsub(?-, ?_).sub('.yaml', '.rb')
   task :generate => target
   task target => [spec, 'generated/nl/linux'] do
     require 'ynl'
