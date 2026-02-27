@@ -135,7 +135,7 @@ module Nl
         end
 
         private def encode1(encoder, attr)
-          nlattr = Core::NlAttr.new(attr.class::TYPE, 0)
+          nlattr = Core::NlAttr.new(0, attr.class::TYPE)
           encoder.measure(Endian::Host::U16) do
             nlattr.encode(encoder)
             attr.encode(encoder)
