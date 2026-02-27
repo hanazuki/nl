@@ -211,6 +211,10 @@ module Ynl
       case type
       when Types::Pad
         'nil'
+      when Types::Flag
+        'PROTOCOL.class::DataTypes::Flag.new'
+      when Types::Bitfield32
+        'PROTOCOL.class::DataTypes::Bitfield32.new'
       when Types::Scalar
         "PROTOCOL.class::DataTypes::Scalar.new(::Nl::Endian::#{type.byte_order.name.as_class_name}::#{type.type.as_class_name}, check: #{to_checks(checks)})"
       when Types::String

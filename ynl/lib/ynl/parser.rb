@@ -170,6 +170,10 @@ module Ynl
         Types::Pad.new(
           length: nil,
         )
+      when 'flag'
+        Types::Flag.new
+      when 'bitfield32'
+        Types::Bitfield32.new
       when 'unused'
         nil
       else

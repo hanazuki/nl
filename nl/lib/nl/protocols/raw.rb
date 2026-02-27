@@ -150,6 +150,31 @@ module Nl
           end
         end
 
+        class Flag
+          def encode(encoder, value)
+            # flag attribute has no payload; presence encodes true
+          end
+
+          def decode(decoder)
+            true
+          end
+        end
+
+        # A 32-bit value paired with a selector mask (8 bytes total: value u32 + selector u32)
+        class Bitfield32
+          def encode(encoder, value)
+            v, selector = value.is_a?(Array) ? value : [value, 0xFFFFFFFF]
+            encoder.put_value(Endian::Host::U32, v)
+            encoder.put_value(Endian::Host::U32, selector)
+          end
+
+          def decode(decoder)
+            value = decoder.get_value(Endian::Host::U32)
+            selector = decoder.get_value(Endian::Host::U32)
+            [value, selector]
+          end
+        end
+
         class NestedAttributes
           def initialize(attribute_set)
             @attribute_set = attribute_set

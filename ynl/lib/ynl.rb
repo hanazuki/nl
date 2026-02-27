@@ -42,6 +42,18 @@ module Ynl
         self
       end
     end
+
+    Flag = Data.define do
+      def resolve(f)
+        self
+      end
+    end
+
+    Bitfield32 = Data.define do
+      def resolve(f)
+        self
+      end
+    end
   end
 
 end
