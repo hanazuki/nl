@@ -251,6 +251,9 @@ module Ynl
         (2 ** 32) - 1
       when 's32-max'
         (2 ** 31) - 1
+      when String
+        const = @consts[v] or raise ParseError, "Unknown value: #{v}"
+        const.value
       else
         raise ParseError, "Unknown value: #{v}"
       end
