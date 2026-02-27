@@ -90,6 +90,10 @@ module Ynl
       end
     end
 
+    private def parse_const(d)
+      Models::Const.new(d.fetch('name'), d.fetch('value'), d['doc'])
+    end
+
     private def parse_enum_flags(d, type:)
       cls = type == :enum ? Models::Enum : Models::Flags
       result = cls.new(name: d.fetch('name'), doc: d['doc'])

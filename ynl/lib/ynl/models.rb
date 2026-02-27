@@ -27,6 +27,8 @@ module Ynl
       end
     end
 
+    Const = ::Struct.new(:name, :value, :doc)
+
     class Enum
       Entry = ::Struct.new(:name, :value, :doc)
 
