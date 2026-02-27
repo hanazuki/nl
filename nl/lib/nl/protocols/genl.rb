@@ -1,9 +1,9 @@
 module Nl
   module Protocols
     # The Generic Netlink protocol
-      class Genl < Raw  # TODO: Implement
+    class Genl < Raw  # TODO: Implement
       def initialize(name)
-        super(name, NETLINK_GENERIC)
+        super(name, Core::NETLINK_GENERIC)
       end
 
       def parse(buffer, offset)
