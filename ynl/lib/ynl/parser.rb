@@ -215,7 +215,7 @@ module Ynl
     end
 
     private def parse_checks(d)
-      d.map do |op, value|
+      d.filter_map do |op, value|
         parse_check(op, value)
       end
     rescue
@@ -236,6 +236,11 @@ module Ynl
       when 'max-len'
         value = parse_value(value_literal)
         return %{raise unless it.bytesize <= #{value}}
+      when 'exact-len'
+        value = parse_value(value_literal)
+        return %{raise unless it.bytesize == #{value}}
+      when 'unterminated-ok'
+        return nil
       else
         raise ParseError, "Unknown check: #{op}"
       end
