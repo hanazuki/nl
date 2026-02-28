@@ -2,6 +2,8 @@
 
 ## nl
 
+Basic Netlink protocol handling.
+
 - lib/
   - nl.rb - Library entrypoint.
   - nl/
@@ -19,6 +21,8 @@
 
 ## ynl
 
+YAML Netlink Specification parser and code generator.
+
 - lib/
   - ynl.rb - Library entrypoint.
   - ynl/
@@ -30,10 +34,13 @@
 
 ## nl-linux
 
+Netlink protocol definitions imported from the Linux kernel tree.
+
 - linux/ - YNL definitions imported from the kernel tree.
 - generated/ - Ruby files generated from the YNL definitions (do not edit).
 - lib/
-  - nl-linux.rb - Library entrypoint.
+  - nl-linux.rb - Alias for nl/linux.rb.
+  - nl/linux.rb - Library entrypoint - requires all Netlink families.
   - nl/linux/
     - version.rb - Gem version.
 - ext/nl-linux/
