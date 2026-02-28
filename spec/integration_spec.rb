@@ -37,4 +37,21 @@ RSpec.describe do
       end
     end
   end
+
+  describe Nl::Linux::Nlctrl do
+    example do
+      Nl::Linux::Nlctrl.open do |nlctrl|
+        r = nlctrl.do_getfamily(family_name: 'nlctrl')
+        expect(r).to be_an Array
+        expect(r.length).to eq 1
+
+        reply = r.first
+        expect(reply).to be_a Nl::Linux::Nlctrl::Messages::DoGetfamilyReply
+
+        name_attr = reply.attributes.find {|attr| attr.kind_of?(Nl::Linux::Nlctrl::AttributeSets::CtrlAttrs::FamilyName) }
+        expect(name_attr).not_to be_nil
+        expect(name_attr.value).to eq 'nlctrl'
+      end
+    end
+  end
 end

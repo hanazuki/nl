@@ -108,6 +108,68 @@ module Nl
         result
       end
 
+      class Message
+        attr_accessor :header, :fixed_header, :attributes
+
+        def initialize(header, fixed_header = nil, attributes = [])
+          @header = header
+          @fixed_header = fixed_header
+          @attributes = attributes
+        end
+
+        def self.from_params(params)
+          header_params = params.slice(*self::HEADER_PARAMS)
+          attribute_params = params.slice(*self::ATTRIBUTE_PARAMS)
+          # TODO: Reject unknown params
+
+          header = Core::NlMsgHdr.new(0, self::TYPE, nil, nil, nil)
+          fixed_header = self::FIXED_HEADER&.new(**header_params)
+          attributes = self::ATTRIBUTE_SET.build_attributes(**attribute_params)
+          new(header, fixed_header, attributes)
+        end
+
+        def append_attribute(attribute)
+          @attributes << attribute
+        end
+
+        def encode(encoder)
+          encoder.measure(Endian::Host::U16) do
+            @header.encode(encoder)
+            @fixed_header.encode(encoder) if @fixed_header
+            self.class::ATTRIBUTE_SET.encode(encoder, @attributes)
+          end
+        end
+
+        def self.decode(decoder, header, type: header.type)
+          unless self::TYPE == type
+            raise "Expected message type #{self::TYPE}, got #{type}"
+          end
+
+          if fixed_header_class = self::FIXED_HEADER
+            fixed_header = fixed_header_class.decode(decoder)
+          end
+
+          attributes = self::ATTRIBUTE_SET.decode(decoder)
+
+          new(header, fixed_header, attributes)
+        end
+
+        def to_h
+          to_h_rec(@attributes, @fixed_header&.to_h || {})
+        end
+
+        # FIXME:
+        private def to_h_rec(attributes, init = {})
+          attributes.each_with_object(init) do |attr, h|
+            if attr.class::DATATYPE.is_a?(DataTypes::NestedAttributes)
+              h[attr.class::NAME] = to_h_rec(attr.value)
+            else
+              h[attr.class::NAME] = attr.value
+            end
+          end
+        end
+      end
+
       module DataTypes
         class Scalar
           def initialize(type, check)

@@ -44,6 +44,8 @@ module Ynl
     end
 
     def generate(superclass: '::Nl::Family', namespace: nil)
+      @protocol = '::Nl::Protocols::' + (@ynl.protocol == 'netlink-raw' ? 'Raw' : 'Genl')
+
       classname = @ynl.name.as_class_name
       emit_class([*namespace, classname].join('::'), superclass) do
         emit_const('NAME', @ynl.name.as_string_literal)
@@ -124,7 +126,7 @@ module Ynl
             %w[do dump].each do |method|
               if request_reply = oper.public_send(method + 'it')
                 %w[request reply].to_h { [it, request_reply.public_send(it)] }.compact.each do |type, msg|
-                  emit_class(method.as_class_name + oper.name.as_class_name + type.as_class_name, '::Nl::Family::Message') do
+                  emit_class(method.as_class_name + oper.name.as_class_name + type.as_class_name, "#{@protocol}::Message") do
                     emit_const('TYPE', msg.value)
                     emit_const('FIXED_HEADER', oper.fixed_header&.then { 'Structs::' + it.name.as_class_name } || 'nil')
                     emit_const('ATTRIBUTE_SET', "AttributeSets::#{oper.attribute_set.name.as_class_name}")
@@ -221,27 +223,27 @@ module Ynl
     private def to_datatype(type, checks)
       case type
       when Types::Pad
-        "PROTOCOL.class::DataTypes::Pad.new(#{type.length})"
+        "#{@protocol}::DataTypes::Pad.new(#{type.length})"
       when Types::Flag
-        'PROTOCOL.class::DataTypes::Flag.new'
+        "#{@protocol}::DataTypes::Flag.new"
       when Types::Bitfield32
-        'PROTOCOL.class::DataTypes::Bitfield32.new'
+        "#{@protocol}::DataTypes::Bitfield32.new"
       when Types::Scalar
-        "PROTOCOL.class::DataTypes::Scalar.new(::Nl::Endian::#{type.byte_order.name.as_class_name}::#{type.type.as_const_name}, check: #{to_checks(checks)})"
+        "#{@protocol}::DataTypes::Scalar.new(::Nl::Endian::#{type.byte_order.name.as_class_name}::#{type.type.as_const_name}, check: #{to_checks(checks)})"
       when Types::String
-        "PROTOCOL.class::DataTypes::String.new(check: #{to_checks(checks)})"
+        "#{@protocol}::DataTypes::String.new(check: #{to_checks(checks)})"
       when Types::Binary
         # if type.struct
         #   "Structs::" + type.struct.name.as_class_name
         # else
-        "PROTOCOL.class::DataTypes::Binary.new(check: #{to_checks(checks)})"
+        "#{@protocol}::DataTypes::Binary.new(check: #{to_checks(checks)})"
         # end
       when Types::NestedAttributes
-        "PROTOCOL.class::DataTypes::NestedAttributes.new(#{type.attribute_set.name.as_class_name})"
+        "#{@protocol}::DataTypes::NestedAttributes.new(#{type.attribute_set.name.as_class_name})"
       when Types::IndexedArray
-        "PROTOCOL.class::DataTypes::IndexedArray.new(#{to_datatype(type.sub_type, nil)})"
+        "#{@protocol}::DataTypes::IndexedArray.new(#{to_datatype(type.sub_type, nil)})"
       when Types::SubMessage
-        "PROTOCOL.class::DataTypes::Binary.new(check: nil)"
+        "#{@protocol}::DataTypes::Binary.new(check: nil)"
       else
         raise "Unknown type: #{type.class}"
       end
