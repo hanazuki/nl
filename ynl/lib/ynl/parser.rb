@@ -38,7 +38,7 @@ module Ynl
         parse_sub_message(d)
       end
       if operations = @yaml['operations']
-        enum_model = case operations.fetch('enum-model')
+        enum_model = case operations['enum-model']
         when 'directional'
           :directional
         when 'unified', nil
