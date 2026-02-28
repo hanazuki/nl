@@ -73,7 +73,7 @@ RSpec.describe do
         reply = r.first
         expect(reply).to be_a Nl::Linux::Nlctrl::Messages::DoGetfamilyReply
 
-        name_attr = reply.attributes.find {|attr| attr.kind_of?(Nl::Linux::Nlctrl::AttributeSets::CtrlAttrs::FamilyName) }
+        name_attr = reply.attributes.find { it.is_a?(Nl::Linux::Nlctrl::AttributeSets::CtrlAttrs::FamilyName) }
         expect(name_attr).not_to be_nil
         expect(name_attr.value).to eq 'nlctrl'
       end
