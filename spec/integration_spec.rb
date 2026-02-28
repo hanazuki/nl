@@ -38,6 +38,31 @@ RSpec.describe do
     end
   end
 
+  describe Nl::Linux::Netdev do
+    example do
+      resolver = ->(socket, name) {
+        Nl::Linux::Nlctrl.new(socket)
+          .do_getfamily(family_name: name).first
+          .attributes.find { it.is_a?(Nl::Linux::Nlctrl::AttributeSets::CtrlAttrs::FamilyId) }
+          .value
+      }
+
+      Nl::Genl::Connection.open(resolver:) do |conn|
+        netdev = conn.open(Nl::Linux::Netdev)
+        r = netdev.do_dev_get(ifindex: 1)
+        expect(r).to be_an Array
+        expect(r.length).to eq 1
+
+        dev = r.first
+        expect(dev).to be_a Nl::Linux::Netdev::Messages::DoDevGetReply
+
+        ifindex_attr = dev.attributes.find { it.is_a?(Nl::Linux::Netdev::AttributeSets::Dev::Ifindex) }
+        expect(ifindex_attr).not_to be_nil
+        expect(ifindex_attr.value).to eq 1
+      end
+    end
+  end
+
   describe Nl::Linux::Nlctrl do
     example do
       Nl::Linux::Nlctrl.open do |nlctrl|

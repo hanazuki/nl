@@ -2,8 +2,9 @@ require_relative 'socket'
 
 module Nl
   class Family
-    def initialize(socket)
+    def initialize(socket, protocol: self.class::PROTOCOL)
       @socket = socket
+      @protocol = protocol
     end
 
     def self.open
@@ -21,7 +22,7 @@ module Nl
     end
 
     def exchange_message(type, request_class, reply_class, args)
-      self.class::PROTOCOL.exchange_message(@socket, type, request_class, reply_class, args)
+      @protocol.exchange_message(@socket, type, request_class, reply_class, args)
     end
 
   end

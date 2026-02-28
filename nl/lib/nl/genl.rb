@@ -61,5 +61,41 @@ module Nl
         new(*buffer.get_values(GENLMSGHDR_FMT, offset))
       end
     end
+
+    class Connection
+      def self.open(resolver:)
+        conn = new(resolver:)
+        if block_given?
+          begin
+            yield conn
+          ensure
+            conn.close
+          end
+        else
+          conn
+        end
+      end
+
+      def initialize(resolver:)
+        @socket = Socket.new(Core::NETLINK_GENERIC)
+        @socket.bind(Socket.sockaddr_nl(0, 0))
+        @resolver = resolver
+        @id_cache = {}
+      end
+
+      def open(family_class)
+        proto = family_class::PROTOCOL
+        id = @id_cache[proto.name] ||= begin
+          proto.family_id
+        rescue NotImplementedError
+          @resolver.call(@socket, proto.name)
+        end
+        family_class.new(@socket, protocol: Protocols::Genl.new(proto.name, family_id: id))
+      end
+
+      def close
+        @socket.close
+      end
+    end
   end
 end
