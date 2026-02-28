@@ -48,20 +48,6 @@ module Nl
     end
     include Constants
 
-    GenlMsgHdr ||= Data.define(:cmd, :version, :reserved)
-    class GenlMsgHdr
-      GENLMSGHDR_FMT = Ractor.make_shareable([
-        Endian::Host::U8,
-        Endian::Host::U8,
-        Endian::Host::U16,
-      ])
-      private_constant :GENLMSGHDR_FMT
-
-      def self.parse(buffer, offset)
-        new(*buffer.get_values(GENLMSGHDR_FMT, offset))
-      end
-    end
-
     class Connection
       def self.open(resolver:)
         conn = new(resolver:)
