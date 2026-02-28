@@ -81,9 +81,9 @@ module Ynl
           deferred_consts = []
           @ynl.attribute_sets.each do |name, attr_set|
             emit_comment(attr_set.doc)
-            emit_class(name.as_class_name, '::Nl::Family::AttributeSet') do
+            emit_class(name.as_class_name, @protocol + '::AttributeSet') do
               emit_comment("Abstract class")
-              emit_class('Attribute', '::Nl::Family::AttributeSet::Attribute') do
+              emit_class('Attribute', @protocol + '::AttributeSet::Attribute') do
               end
               attr_set.attributes.each do |attr|
                 emit_comment(attr.doc)
