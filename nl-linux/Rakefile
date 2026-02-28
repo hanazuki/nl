@@ -1,7 +1,9 @@
-load 'ext/nl-linux/rakefile.rb'
-
 require 'rspec/core/rake_task'
 
 RSpec::Core::RakeTask.new(:spec)
 
 task default: :spec
+
+task :generate do
+  sh 'rake', '-C', 'ext/nl-linux', 'generate'
+end
