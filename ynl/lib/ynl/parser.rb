@@ -38,17 +38,21 @@ module Ynl
         parse_sub_message(d)
       end
       if operations = @yaml['operations']
-        enum_model = case operations['enum-model']
+        enum_model = case operations.fetch('enum-model')
         when 'directional'
           :directional
-        when nil
-          :unidirectional
+        when 'unified', nil
+          :unified
         else
           raise ParseError, "Unknown enum model: #{operations['enum-model']}"
         end
         @default_fixed_header = operations['fixed-header']&.then { @structs.fetch(it) }
+        value = 0
         operations['list']&.each do |d|
-          parse_operation(d, enum_model:)
+          if enum_model == :unified
+            value = d['value'] || (value + 1)
+          end
+          parse_operation(d, value:)
         end
       end
       @yaml['mcast-groups']&.each do |d|
@@ -339,7 +343,7 @@ module Ynl
       @sub_messages[name] = result
     end
 
-    private def parse_operation(d, enum_model:)
+    private def parse_operation(d, value:)
       name = d.fetch('name')
 
       fixed_header = d['fixed-header']&.then do
@@ -354,21 +358,21 @@ module Ynl
         raise ParseError, "Undefined attribute set: #{it}"
       end
 
-      doit = d['do']&.then { parse_request_reply(it) }
-      dumpit = d['dump']&.then { parse_request_reply(it) }
+      doit = d['do']&.then { parse_request_reply(it, default_value: value) }
+      dumpit = d['dump']&.then { parse_request_reply(it, default_value: value) }
 
       @operations[name] = Models::Operation.new(name:, doc: d['doc'], fixed_header:, attribute_set:, doit:, dumpit:)
     end
 
-    private def parse_request_reply(d)
+    private def parse_request_reply(d, default_value:)
       Models::RequestReply.new(
-        request: d['request']&.then { parse_message(it) },
-        reply: d['reply']&.then { parse_message(it) },
+        request: d['request']&.then { parse_message(it, default_value:) },
+        reply: d['reply']&.then { parse_message(it, default_value:) },
       )
     end
 
-    private def parse_message(d)
-      Models::Message.new(value: d['value'], attributes: d.fetch('attributes', []))
+    private def parse_message(d, default_value:)
+      Models::Message.new(value: d['value'] || default_value, attributes: d.fetch('attributes', []))
     end
 
     private def parse_mcast_group(d)
