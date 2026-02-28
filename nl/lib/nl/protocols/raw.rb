@@ -78,8 +78,8 @@ module Nl
       # @param reply_class [Class] Reply message class
       # @param args [Hash] Request arguments
       def exchange_message(socket, type, request_class, reply_class, args)
-        flags = Core::NLM_F_REQUEST | Core::NLM_F_ACK
-        flags |= Core::NLM_F_DUMP if type == :dump
+        flags = Core::NLM_F_REQUEST
+        flags |= type == :dump ? Core::NLM_F_DUMP : Core::NLM_F_ACK
 
         request = request_class.from_params(args)
         request.header.flags = flags
@@ -88,19 +88,15 @@ module Nl
         result = []
 
         done = false
-        acked = false
         begin
           recv_message(socket, seq_pid, reply_class) do |message|
             case message
-            when Done
+            when Done, Ack
               done = true
             when Exception
               raise message
-            when Ack
-              acked = true
             else
               result << message
-              done = true if type == :do
             end
           end
         end until done
