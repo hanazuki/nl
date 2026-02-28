@@ -1,8 +1,10 @@
-# Nl - Linux Netlink library for Ruby
+# Nl - Netlink libraries for Ruby
 
-- `nl` -- core library
-- `ynl` -- YNL
-- `nl-linux` -- Definitions for Linux Netlink services
+This repository is the home to three gems:
+
+- `nl` -- Core Netlink protocol library.
+- `ynl` -- YNL (YAML Netlink Specification) parser and code generator.
+- `nl-linux` -- Client definitions for Linux Netlink subsystems.
 
 ## Contributing
 
