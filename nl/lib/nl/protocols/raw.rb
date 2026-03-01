@@ -85,7 +85,7 @@ module Nl
         request.header.flags = flags
         seq_pid = send_message(socket, request)
 
-        result = []
+        result = [] unless block_given?
 
         done = false
         begin
@@ -96,12 +96,18 @@ module Nl
             when Exception
               raise message
             else
-              result << message
+              if block_given?
+                yield message
+              else
+                result << message
+              end
             end
           end
         end until done
 
-        type == :dump ? result : result.first
+        unless block_given?
+          type == :dump ? result : result.first
+        end
       end
 
       class AttributeSet

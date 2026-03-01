@@ -207,20 +207,32 @@ module Ynl
 
               request_class = "Messages::#{method.as_class_name}#{oper.name.as_class_name}Request"
               reply_class = request_reply.reply ? "Messages::#{method.as_class_name}#{oper.name.as_class_name}Reply" : 'nil'
-              result_type = method == 'dump' ? "Enumerable<#{reply_class}>" : request_reply.reply ? reply_class : 'void'
 
               header_params = oper.fixed_header&.members || []
               attribute_params = oper.attribute_set.attributes.filter { request.attributes.include?(it.name) }
               params = header_params + attribute_params
               params.reject! { it.type.is_a? Types::Pad }
 
+              rbs_params = params.map { |it| "?#{it.name.as_variable_name}: #{it.type.rbs_type}" }.join(', ')
+              rbs_result = request_reply.reply ? reply_class : 'void'
+
               emit_comment(oper.doc)
-              emit_rbs_comment(
-                "(#{params.map { |it| "#{it.name.as_variable_name}: #{it.type.rbs_type}" }.join(', ')}) -> #{result_type}",
-              )
-              write('def ', method.as_method_name, '_', oper.name.as_method_name, '(**args)')
-              indent do
-                write("exchange_message(#{method.as_symbol_literal}, #{request_class}, #{reply_class}, args)")
+              if method == 'dump'
+                emit_rbs_comment(
+                  "(#{rbs_params}) -> Enumerable<#{rbs_result}>\n | (#{rbs_params}) { (#{rbs_result}) -> void } -> void",
+                )
+                write("def #{method.as_method_name}_#{oper.name.as_method_name}(**args, &block)")
+                indent do
+                  write("exchange_message(#{method.as_symbol_literal}, #{request_class}, #{reply_class}, args, &block)")
+                end
+              else
+                emit_rbs_comment(
+                  "(#{rbs_params}) -> #{rbs_result}",
+                )
+                write("def #{method.as_method_name}_#{oper.name.as_method_name}(**args)")
+                indent do
+                  write("exchange_message(#{method.as_symbol_literal}, #{request_class}, #{reply_class}, args)")
+                end
               end
               write('end')
             end
@@ -290,7 +302,7 @@ module Ynl
     private def emit_rbs_comment(*args)
       write('#--')
       args.each do |arg|
-        write('# @rbs ', arg)
+        emit_comment('@rbs ' + arg)
       end
     end
 

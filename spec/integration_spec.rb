@@ -13,6 +13,17 @@ RSpec.describe do
         expect(lo.fixed_header.ifi_type).to eq 772  # ARPHRD_LOOPBACK
       end
     end
+
+    example do
+      Nl::Linux::RtLink.open do |rtlink|
+        r = []
+        rtlink.dump_getlink do |m|
+          expect(m).to be_a Nl::Linux::RtLink::Messages::DumpGetlinkReply
+          r << m
+        end
+        expect(r).not_to be_empty
+      end
+    end
   end
 
   describe Nl::Linux::RtAddr do
