@@ -161,8 +161,8 @@ module Ynl
       end
 
       def resolve(f)
-        @doit = @doit.resolve(f)
-        @dumpit = @dumpit.resolve(f)
+        @doit = @doit&.resolve(f)
+        @dumpit = @dumpit&.resolve(f)
         self
       end
     end
@@ -176,8 +176,8 @@ module Ynl
       end
 
       def resolve(f)
-        @request = @request.resolve(f)
-        @reply = @reply.resolve(f)
+        @request = @request&.resolve(f)
+        @reply = @reply&.resolve(f)
         self
       end
     end

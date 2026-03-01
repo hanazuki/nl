@@ -1,0 +1,32 @@
+name: ops-unified
+attribute-sets:
+  - name: attrs
+    attributes:
+      - name: foo
+        type: u32
+operations:
+  list:
+    - name: op-a
+      attribute-set: attrs
+      do:
+        request:
+          attributes: [foo]
+        reply:
+          attributes: [foo]
+      dump:
+        reply:
+          attributes: [foo]
+    - name: op-b-ntf
+      notify: op-a
+    - name: op-c-ntf
+      notify: op-a
+      value: 5
+    - name: op-d
+      attribute-set: attrs
+      do:
+        request:
+          attributes: [foo]
+        reply:
+          attributes: [foo]
+    - name: op-e-ntf
+      notify: op-a

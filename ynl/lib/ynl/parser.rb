@@ -47,12 +47,36 @@ module Ynl
           raise ParseError, "Unknown enum model: #{operations['enum-model']}"
         end
         @default_fixed_header = operations['fixed-header']&.then { @structs.fetch(it) }
-        value = 0
-        operations['list']&.each do |d|
-          if enum_model == :unified
-            value = d['value'] || (value + 1)
+
+        if enum_model == :unified
+          counter = 0
+          operations['list']&.each do |d|
+            counter = d['value'] || (counter + 1)
+            parse_operation(d, request_id: counter, reply_id: counter)
           end
-          parse_operation(d, value:)
+        else
+          request_counter = 1
+          reply_counter = 1
+          operations['list']&.each do |d|
+            if d.key?('notify') || d.key?('event')
+              reply_counter = d['value'] || reply_counter
+              parse_operation(d, request_id: nil, reply_id: reply_counter)
+              reply_counter += 1
+            else
+              primary = d['do'] || d['dump']
+              request_counter = primary&.dig('request', 'value') || request_counter
+              request_id = request_counter
+              request_counter += 1
+              if primary&.key?('reply')
+                reply_counter = primary.dig('reply', 'value') || reply_counter
+                reply_id = reply_counter
+                reply_counter += 1
+              else
+                reply_id = nil
+              end
+              parse_operation(d, request_id:, reply_id:)
+            end
+          end
         end
       end
       @yaml['mcast-groups']&.each do |d|
@@ -343,7 +367,7 @@ module Ynl
       @sub_messages[name] = result
     end
 
-    private def parse_operation(d, value:)
+    private def parse_operation(d, request_id:, reply_id:)
       name = d.fetch('name')
 
       fixed_header = d['fixed-header']&.then do
@@ -358,21 +382,26 @@ module Ynl
         raise ParseError, "Undefined attribute set: #{it}"
       end
 
-      doit = d['do']&.then { parse_request_reply(it, default_value: value) }
-      dumpit = d['dump']&.then { parse_request_reply(it, default_value: value) }
+      doit = d['do']&.then { parse_request_reply(it, default_request_id: request_id, default_reply_id: reply_id) }
+      dumpit = d['dump']&.then { parse_request_reply(it, default_request_id: request_id, default_reply_id: reply_id) }
 
-      @operations[name] = Models::Operation.new(name:, doc: d['doc'], fixed_header:, attribute_set:, doit:, dumpit:)
-    end
+      # TODO: notify
 
-    private def parse_request_reply(d, default_value:)
-      Models::RequestReply.new(
-        request: d['request']&.then { parse_message(it, default_value:) },
-        reply: d['reply']&.then { parse_message(it, default_value:) },
+      @operations[name] = Models::Operation.new(
+        name:, doc: d['doc'], fixed_header:, attribute_set:,
+        doit:, dumpit:,
       )
     end
 
-    private def parse_message(d, default_value:)
-      Models::Message.new(value: d['value'] || default_value, attributes: d.fetch('attributes', []))
+    private def parse_request_reply(d, default_request_id:, default_reply_id:)
+      Models::RequestReply.new(
+        request: d['request']&.then { parse_message(it, default_id: default_request_id) },
+        reply: d['reply']&.then { parse_message(it, default_id: default_reply_id) },
+      )
+    end
+
+    private def parse_message(d, default_id:)
+      Models::Message.new(value: d['value'] || default_id, attributes: d.fetch('attributes', []))
     end
 
     private def parse_mcast_group(d)

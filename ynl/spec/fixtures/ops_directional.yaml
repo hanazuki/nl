@@ -1,0 +1,45 @@
+name: ops-directional
+attribute-sets:
+  - name: attrs
+    attributes:
+      - name: foo
+        type: u32
+operations:
+  enum-model: directional
+  list:
+    - name: setter
+      attribute-set: attrs
+      do:
+        request:
+          value: 10
+          attributes: [foo]
+    - name: ntf
+      notify: setter
+      value: 8
+    - name: getter
+      attribute-set: attrs
+      do:
+        request:
+          value: 11
+          attributes: [foo]
+        reply:
+          attributes: [foo]
+    - name: auto-getter
+      attribute-set: attrs
+      do:
+        request:
+          attributes: [foo]
+        reply:
+          attributes: [foo]
+    - name: no-reply-setter
+      attribute-set: attrs
+      do:
+        request:
+          attributes: [foo]
+    - name: after-no-reply
+      attribute-set: attrs
+      do:
+        request:
+          attributes: [foo]
+        reply:
+          attributes: [foo]
