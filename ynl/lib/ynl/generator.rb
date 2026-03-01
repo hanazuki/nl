@@ -134,21 +134,26 @@ module Ynl
                     emit_const('FIXED_HEADER', oper.fixed_header&.then { 'Structs::' + it.name.as_class_name } || 'nil')
                     emit_const('ATTRIBUTE_SET', "AttributeSets::#{oper.attribute_set.name.as_class_name}")
                     params = msg.attributes
-                    attribute_params = params & (oper.attribute_set.attributes.map(&:name))
-                    header_params = (params - attribute_params) & (oper.fixed_header&.members&.map(&:name) || [])
+                    attribute_params = oper.attribute_set.attributes.map(&:name) & params
+                    header_params = oper.fixed_header&.members&.map(&:name) || []
                     emit_const('HEADER_PARAMS', "Ractor.make_shareable(%i[#{header_params.map { it.as_variable_name }.join(' ')}])")
                     emit_const('ATTRIBUTE_PARAMS', "Ractor.make_shareable(%i[#{attribute_params.map { it.as_variable_name }.join(' ')}])")
-                    header_params.each do |param|
+                    oper.fixed_header.members.each do |member|
+                      param = member.name
+                      datatype = member.type
+                      next if datatype.is_a? Types::Pad
                       emit_comment("Gets the value of #{param} field in the message's fixed header.")
                       emit_rbs_comment(
-                        'return: untyped',  # TODO: type
+                        'return: ' + datatype.rbs_type,
                       )
                       emit_getter(param.as_method_name, "fixed_header.#{param.as_method_name}")
-                    end
+                    end if oper.fixed_header
                     attribute_params.each do |param|
+                      datatype = oper.attribute_set.attributes.find { it.name == param }.type
+                      next if datatype.is_a? Types::Pad
                       emit_comment("Gets the value of #{param} attribute in the message.")
                       emit_rbs_comment(
-                        'return: untyped',  # TODO: type
+                        'return: ' + datatype.rbs_type,
                       )
                       # TODO: multi-attr
                       emit_getter(param.as_method_name, "attributes.find { it.is_a? ATTRIBUTE_SET::#{param.as_class_name} }&.value")

@@ -12,10 +12,18 @@ module Ynl
       def resolve(f)
         self
       end
+
+      def rbs_type
+        '::Integer'
+      end
     end
     String = Struct.new do
       def resolve(f)
         self
+      end
+
+      def rbs_type
+        '::String'
       end
     end
     Binary = Struct.new(:struct, :length, :display_hint) do
@@ -23,11 +31,19 @@ module Ynl
         self.struct = struct.resolve(f) if self.struct
         self
       end
+
+      def rbs_type
+        'untyped'
+      end
     end
     NestedAttributes = Struct.new(:attribute_set) do
       def resolve(f)
         self.attribute_set = attribute_set.resolve(f)
         self
+      end
+
+      def rbs_type
+        'untyped'
       end
     end
     SubMessage = Struct.new(:sub_message, :selector) do
@@ -35,11 +51,19 @@ module Ynl
         self.sub_message = sub_message.resolve(f)
         self
       end
+
+      def rbs_type
+        'untyped'
+      end
     end
 
     Pad = Data.define(:length) do
       def resolve(f)
         self
+      end
+
+      def rbs_type
+        'nil'
       end
     end
 
@@ -47,11 +71,19 @@ module Ynl
       def resolve(f)
         self
       end
+
+      def rbs_type
+        '::Integer'
+      end
     end
 
     Bitfield32 = Data.define do
       def resolve(f)
         self
+      end
+
+      def rbs_type
+        '::Integer'
       end
     end
 
@@ -60,7 +92,10 @@ module Ynl
         self.sub_type = sub_type.resolve(f)
         self
       end
+
+      def rbs_type
+        'untyped'
+      end
     end
   end
-
 end
