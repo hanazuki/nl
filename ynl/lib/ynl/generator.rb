@@ -107,13 +107,13 @@ module Ynl
                   'name: Symbol',
                   'return: Attribute',
                 )
-                write('def by_name(name) = BY_NAME[name]')
+                write('def by_name(name); BY_NAME[name]; end')
 
                 emit_rbs_comment(
                   'type: Integer',
                   'return: Attribute',
                 )
-                write('def by_type(type) = BY_TYPE[type]')
+                write('def by_type(type); BY_TYPE[type]; end')
               end
             end
           end
