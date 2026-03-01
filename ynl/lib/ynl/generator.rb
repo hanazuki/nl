@@ -219,7 +219,7 @@ module Ynl
               emit_comment(oper.doc)
               if method == 'dump'
                 emit_rbs_comment(
-                  "(#{rbs_params}) -> Enumerable<#{rbs_result}>\n | (#{rbs_params}) { (#{rbs_result}) -> void } -> void",
+                  "(#{rbs_params}) -> Enumerable[#{rbs_result}]\n  | (#{rbs_params}) { (#{rbs_result}) -> void } -> void",
                 )
                 write("def #{method.as_method_name}_#{oper.name.as_method_name}(**args, &block)")
                 indent do
