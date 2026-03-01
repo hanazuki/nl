@@ -8,16 +8,15 @@ module Ynl
     # Builds a Ruby class from a spec file
     def self.build(path)
       buf = StringIO.new
-      classname = generate(path, buf, namespace: 'self')
-      code = buf.string
+      classname = IO.open(path) {|f| generate(f, buf, namespace: 'self') }
 
-      Module.new { eval(code) }.const_get(classname)
+      Module.new { eval(buf.string) }.const_get(classname)
     end
 
-    # Generates Ruby code from a spec file
-    def self.generate(path, out, **kwargs)
+    # Generates Ruby code from a spec source
+    def self.generate(source, out, **kwargs)
       out << Generator::PRELUDE
-      Generator.new(Ynl::Parser.parse_file(path), out).generate(**kwargs)
+      Generator.new(Ynl::Parser.new(source).parse, out).generate(**kwargs)
     end
   end
 end

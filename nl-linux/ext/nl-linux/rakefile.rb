@@ -11,8 +11,16 @@ Dir['linux/*.yaml', base: GEM_ROOT].each do |spec|
   task :generate => target
   task target => [spec_abs, "#{GEM_ROOT}/generated/nl/linux"] do
     require 'ynl'
-    File.open(target, 'w') do |out|
-      Ynl::Family.generate(spec_abs, out, namespace: 'Nl::Linux')
+    File.open(spec_abs, 'r') do |src|
+      front = src.readlines.take_while {|l| !l.start_with?('---') }.grep(/\A\#/).join
+
+      src.rewind
+
+      File.open(target, 'w') do |out|
+        out << front
+        out << "#--\n"
+        Ynl::Family.generate(src, out, namespace: 'Nl::Linux')
+      end
     end
   end
 end
