@@ -169,17 +169,20 @@ module Ynl
         @ynl.operations.each do |name, oper|
           %w[do dump].each do |method|
             if request_reply = oper.public_send(method + 'it')
-              next unless request_reply.request  # FIXME: what should we do in this case?
+              next unless request = request_reply.request  # FIXME: what should we do in this case?
 
               request_class = "Messages::#{method.as_class_name}#{oper.name.as_class_name}Request"
               reply_class = request_reply.reply ? "Messages::#{method.as_class_name}#{oper.name.as_class_name}Reply" : 'nil'
               result_type = method == 'dump' ? "Enumerable<#{reply_class}>" : request_reply.reply ? reply_class : 'void'
 
-              params = request_reply.request.attributes.map { |it| it.as_variable_name }
+              header_params = oper.fixed_header&.members || []
+              attribute_params = oper.attribute_set.attributes.filter { request.attributes.include?(it.name) }
+              params = header_params + attribute_params
+              params.reject! { it.type.is_a? Types::Pad }
 
               emit_comment(oper.doc)
               emit_rbs_comment(
-                "(#{params.map { |it| "#{it}: untyped" }.join(', ')}) -> #{result_type}",
+                "(#{params.map { |it| "#{it.name.as_variable_name}: #{it.type.rbs_type}" }.join(', ')}) -> #{result_type}",
               )
               write('def ', method.as_method_name, '_', oper.name.as_method_name, '(**args)')
               indent do
