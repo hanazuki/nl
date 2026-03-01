@@ -46,6 +46,8 @@ module Ynl
     def generate(superclass: '::Nl::Family', namespace: nil)
       @protocol = '::Nl::Protocols::' + (@ynl.protocol == 'netlink-raw' ? 'Raw' : 'Genl')
 
+      emit_comment(@ynl.doc)
+
       classname = @ynl.name.as_class_name
       emit_class([*namespace, classname].join('::'), superclass) do
         emit_const('NAME', @ynl.name.as_string_literal)
@@ -101,14 +103,15 @@ module Ynl
 
               emit_const('BY_NAME', "Ractor.make_shareable({#{attr_set.attributes.map { "#{it.name.as_variable_name.as_symbol_literal} => #{it.name.as_class_name}" }.join(', ') }})")
               emit_const('BY_TYPE', "Ractor.make_shareable({#{attr_set.attributes.map { "#{it.value} => #{it.name.as_class_name}" }.join(', ') }})")
-
               emit_singleton_class do
+                emit_comment('Looks up Attribute class by name.')
                 emit_rbs_comment(
                   'name: Symbol',
                   'return: Attribute',
                 )
                 write('def by_name(name); BY_NAME[name]; end')
 
+                emit_comment('Looks up Attribute class by type value.')
                 emit_rbs_comment(
                   'type: Integer',
                   'return: Attribute',
@@ -146,15 +149,20 @@ module Ynl
         @ynl.operations.each do |name, oper|
           %w[do dump].each do |method|
             if request_reply = oper.public_send(method + 'it')
+              next unless request_reply.request  # FIXME: what should we do in this case?
+
+              request_class = "Messages::#{method.as_class_name}#{oper.name.as_class_name}Request"
+              reply_class = request_reply.reply ? "Messages::#{method.as_class_name}#{oper.name.as_class_name}Reply" : 'nil'
+              result_type = method == 'dump' ? "Enumerable<#{reply_class}>" : request_reply.reply ? reply_class : 'void'
+
+              params = request_reply.request.attributes.map { |it| it.as_variable_name }
+
               emit_comment(oper.doc)
+              emit_rbs_comment(
+                "(#{params.map { |it| "#{it}: untyped" }.join(', ')}) -> #{result_type}",
+              )
               write('def ', method.as_method_name, '_', oper.name.as_method_name, '(**args)')
               indent do
-                request_class = "Messages::#{method.as_class_name}#{oper.name.as_class_name}Request"
-                if request_reply.reply
-                  reply_class = "Messages::#{method.as_class_name}#{oper.name.as_class_name}Reply"
-                else
-                  reply_class = 'nil'
-                end
                 write("exchange_message(#{method.as_symbol_literal}, #{request_class}, #{reply_class}, args)")
               end
               write('end')
