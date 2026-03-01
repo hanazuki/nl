@@ -7,11 +7,7 @@ RSpec.describe do
         r = rtlink.dump_getlink
         expect(r).to be_an Array
 
-        lo = r.find do |i|
-          i.attributes.any? do |attr|
-            attr.kind_of?(Nl::Linux::RtLink::AttributeSets::LinkAttrs::Ifname) && attr.value == 'lo'
-          end
-        end
+        lo = r.find { it.ifname == 'lo' }
         expect(lo).to be_a Nl::Linux::RtLink::Messages::DumpGetlinkReply
 
         expect(lo.fixed_header.ifi_type).to eq 772  # ARPHRD_LOOPBACK
@@ -25,11 +21,7 @@ RSpec.describe do
         r = rtaddr.dump_getaddr
         expect(r).to be_an Array
 
-        lo = r.find do |i|
-          i.attributes.any? do |attr|
-            attr.kind_of?(Nl::Linux::RtAddr::AttributeSets::AddrAttrs::Label) && attr.value == 'lo'
-          end
-        end
+        lo = r.find { it.label == 'lo' }
         expect(lo).to be_a Nl::Linux::RtAddr::Messages::DumpGetaddrReply
 
         expect(lo.fixed_header.ifa_family).to eq 2  # AF_INET
@@ -41,10 +33,7 @@ RSpec.describe do
   describe Nl::Linux::Netdev do
     example do
       resolver = ->(socket, name) {
-        Nl::Linux::Nlctrl.new(socket)
-          .do_getfamily(family_name: name).first
-          .attributes.find { it.is_a?(Nl::Linux::Nlctrl::AttributeSets::CtrlAttrs::FamilyId) }
-          .value
+        Nl::Linux::Nlctrl.new(socket).do_getfamily(family_name: name).first.family_id
       }
 
       Nl::Genl::Connection.open(resolver:) do |conn|
@@ -56,9 +45,7 @@ RSpec.describe do
         dev = r.first
         expect(dev).to be_a Nl::Linux::Netdev::Messages::DoDevGetReply
 
-        ifindex_attr = dev.attributes.find { it.is_a?(Nl::Linux::Netdev::AttributeSets::Dev::Ifindex) }
-        expect(ifindex_attr).not_to be_nil
-        expect(ifindex_attr.value).to eq 1
+        expect(dev.ifindex).to eq 1
       end
     end
   end
@@ -73,9 +60,7 @@ RSpec.describe do
         reply = r.first
         expect(reply).to be_a Nl::Linux::Nlctrl::Messages::DoGetfamilyReply
 
-        name_attr = reply.attributes.find { it.is_a?(Nl::Linux::Nlctrl::AttributeSets::CtrlAttrs::FamilyName) }
-        expect(name_attr).not_to be_nil
-        expect(name_attr.value).to eq 'nlctrl'
+        expect(reply.family_name).to eq 'nlctrl'
       end
     end
   end
