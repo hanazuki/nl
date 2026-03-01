@@ -101,7 +101,7 @@ module Nl
           end
         end until done
 
-        result
+        type == :dump ? result : result.first
       end
 
       class AttributeSet

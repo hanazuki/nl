@@ -33,16 +33,12 @@ RSpec.describe do
   describe Nl::Linux::Netdev do
     example do
       resolver = ->(socket, name) {
-        Nl::Linux::Nlctrl.new(socket).do_getfamily(family_name: name).first.family_id
+        Nl::Linux::Nlctrl.new(socket).do_getfamily(family_name: name).family_id
       }
 
       Nl::Genl::Connection.open(resolver:) do |conn|
         netdev = conn.open(Nl::Linux::Netdev)
-        r = netdev.do_dev_get(ifindex: 1)
-        expect(r).to be_an Array
-        expect(r.length).to eq 1
-
-        dev = r.first
+        dev = netdev.do_dev_get(ifindex: 1)
         expect(dev).to be_a Nl::Linux::Netdev::Messages::DoDevGetReply
 
         expect(dev.ifindex).to eq 1
@@ -53,11 +49,7 @@ RSpec.describe do
   describe Nl::Linux::Nlctrl do
     example do
       Nl::Linux::Nlctrl.open do |nlctrl|
-        r = nlctrl.do_getfamily(family_name: 'nlctrl')
-        expect(r).to be_an Array
-        expect(r.length).to eq 1
-
-        reply = r.first
+        reply = nlctrl.do_getfamily(family_name: 'nlctrl')
         expect(reply).to be_a Nl::Linux::Nlctrl::Messages::DoGetfamilyReply
 
         expect(reply.family_name).to eq 'nlctrl'
