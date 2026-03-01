@@ -12,7 +12,7 @@ Bug reports and pull requests are welcome on GitHub at <https://github.com/hanaz
 
 ## License
 
-The gems are available as open source under the terms of the [MIT License](https://opensource.org/licenses/MIT) with the exception that `nl-linux` gem is licensed under the [3-Clause BSD License](https://opensource.org/license/bsd-3-clause) as the library imports YAML definitions for Netlink services (YNL) from Linux.
+`nl` and `ynl` gems are available under [The MIT License](https://opensource.org/licenses/MIT). `nl-linux` gem is dual-licensed under [GPL-2.0 WITH Linux-syscall-note](https://www.kernel.org/doc/html/latest/process/license-rules.html) and [The 3-Clause BSD License](https://opensource.org/license/bsd-3-clause) because it contains derived works of the Linux kernel's Netlink YAML definitions.
 
 ## References
 

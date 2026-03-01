@@ -37,7 +37,10 @@ begin
     next unless y.extname == '.yaml'
     FileUtils.cp(y, nlspec_dir)
   end
-  FileUtils.cp(worktree/'LICENSES/preferred/BSD-3-Clause', nlspec_dir)
+  %w[BSD-3-Clause GPL-2.0].each do |license|
+    FileUtils.cp(worktree/'LICENSES/preferred/' + license, nlspec_dir)
+  end
+  FileUtils.cp(worktree/'LICENSES/exceptions/Linux-syscall-note', nlspec_dir)
   msg = "Import #{SPECS_PATH} from Linux v#{@kernel_version}"
   sh! %W[git -C #@root add #{nlspec_dir} NLSPEC_VERSION]
   sh! %W[git -C #@root commit #{nlspec_dir} NLSPEC_VERSION -m #{msg}]
