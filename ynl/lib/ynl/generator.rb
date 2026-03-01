@@ -215,6 +215,7 @@ module Ynl
     end
 
     private def emit_rbs_comment(*args)
+      write('#--')
       args.each do |arg|
         write('# @rbs ', arg)
       end
