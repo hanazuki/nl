@@ -8,7 +8,7 @@ module Ynl
     # Builds a Ruby class from a spec file
     def self.build(path)
       buf = StringIO.new
-      classname = IO.open(path) {|f| generate(f, buf, namespace: 'self') }
+      classname = File.open(path) {|f| generate(f, buf, namespace: 'self') }
 
       Module.new { eval(buf.string) }.const_get(classname)
     end

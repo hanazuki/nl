@@ -8,7 +8,7 @@ RSpec.describe Ynl do
 
   describe Ynl::Parser do
     let(:parser) do
-      Ynl::Parser.new(yaml.read)
+      yaml.open {|f| Ynl::Parser.new(f) }
     end
 
     example do
