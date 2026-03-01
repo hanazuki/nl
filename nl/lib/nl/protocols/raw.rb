@@ -181,13 +181,20 @@ module Nl
         end
 
         def self.from_params(params)
-          header_params = params.slice(*self::HEADER_PARAMS)
-          attribute_params = params.slice(*self::ATTRIBUTE_PARAMS)
-          # TODO: Reject unknown params
+          if self::FIXED_HEADER
+            header_params = params.slice(*self::FIXED_HEADER.members.map(&:name))
+            fixed_header = self::FIXED_HEADER.new(**header_params)
+          end
+          attribute_params = params.slice(*self::ATTRIBUTES)
+          attributes = self::ATTRIBUTE_SET.build_attributes(**attribute_params)
+
+          unknown = params.keys - attribute_params.keys
+          unknown -= header_params.keys if header_params
+          unless unknown.empty?
+            raise ArgumentError, "unknown parameters: #{unknown.join(', ')}"
+          end
 
           header = Core::NlMsgHdr.new(0, self::TYPE, nil, nil, nil)
-          fixed_header = self::FIXED_HEADER&.new(**header_params)
-          attributes = self::ATTRIBUTE_SET.build_attributes(**attribute_params)
           new(header, fixed_header, attributes)
         end
 

@@ -52,3 +52,8 @@ Netlink protocol definitions imported from the Linux kernel tree.
 ## Top-level
 
 - spec/ - Integration tests.
+
+# Rake tasks
+
+- `bundle exec rake spec` - Runs RSpec test suite.
+- `bundle exec rake generate` - Regenerates nl-linux protocol definitions.

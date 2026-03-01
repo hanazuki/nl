@@ -169,13 +169,12 @@ module Ynl
                     emit_const('ATTRIBUTE_SET', "AttributeSets::#{oper.attribute_set.name.as_class_name}")
                     params = msg.attributes
                     attribute_params = oper.attribute_set.attributes.map(&:name) & params
-                    header_params = oper.fixed_header&.members&.map(&:name) || []
-                    emit_const('HEADER_PARAMS', "Ractor.make_shareable(%i[#{header_params.map { it.as_variable_name }.join(' ')}])")
-                    emit_const('ATTRIBUTE_PARAMS', "Ractor.make_shareable(%i[#{attribute_params.map { it.as_variable_name }.join(' ')}])")
+                    emit_const('ATTRIBUTES', "Ractor.make_shareable(%i[#{attribute_params.map { it.as_variable_name }.join(' ')}])")
                     oper.fixed_header.members.each do |member|
                       param = member.name
                       datatype = member.type
                       next if datatype.is_a? Types::Pad
+                      next if attribute_params.include?(param)
                       emit_comment("Gets the value of #{param} field in the message's fixed header.")
                       emit_rbs_comment(
                         'return: ' + datatype.rbs_type,
@@ -185,12 +184,24 @@ module Ynl
                     attribute_params.each do |param|
                       datatype = oper.attribute_set.attributes.find { it.name == param }.type
                       next if datatype.is_a? Types::Pad
-                      emit_comment("Gets the value of #{param} attribute in the message.")
+                      extending = oper.fixed_header&.members&.any? { it.name == param }
+
+                      if extending
+                        emit_comment("Gets the value of #{param} attribute or fixed header in the message.")
+                      else
+                        emit_comment("Gets the value of #{param} attribute in the message.")
+                      end
                       emit_rbs_comment(
                         'return: ' + datatype.rbs_type,
                       )
                       # TODO: multi-attr
-                      emit_getter(param.as_method_name, "attributes.find { it.is_a? ATTRIBUTE_SET::#{param.as_class_name} }&.value")
+                      if extending
+                        # If the fixed header and the attribute set have the same-name parameter, the value from the attribute should have
+                        # the precedence over that from the header.
+                        emit_getter(param.as_method_name, "attributes.find { it.is_a? ATTRIBUTE_SET::#{param.as_class_name} }&.value || fixed_header.#{param.as_method_name}")
+                      else
+                        emit_getter(param.as_method_name, "attributes.find { it.is_a? ATTRIBUTE_SET::#{param.as_class_name} }&.value")
+                      end
                     end
                   end
                 end
@@ -210,6 +221,7 @@ module Ynl
 
               header_params = oper.fixed_header&.members || []
               attribute_params = oper.attribute_set.attributes.filter { request.attributes.include?(it.name) }
+              attribute_params.reject! {|a| header_params.any? {|h| h.name == a.name  } }  # The two params should have the same Ruby type anyway
               params = header_params + attribute_params
               params.reject! { it.type.is_a? Types::Pad }
 
