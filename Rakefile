@@ -10,13 +10,14 @@ task :spec
   task :spec => "spec:#{gem}"
 end
 
-RSpec::Core::RakeTask.new(:'spec:integration') do |t|
-end
-
-task :spec => 'spec:integration'
-
 task :generate do
   sh 'rake', '-C', 'nl-linux', 'generate'
 end
+
+RSpec::Core::RakeTask.new(:'spec:integration') do |t|
+end
+
+task 'spec:integration' => 'generate'
+task :spec => 'spec:integration'
 
 task :default => :spec
