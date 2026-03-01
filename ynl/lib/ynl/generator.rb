@@ -61,15 +61,37 @@ module Ynl
         emit_module('Structs') do
           @ynl.structs.each do |name, struct|
             emit_comment(struct.doc)
-            emit_const(name.as_class_name, "Struct.new(#{struct.members.map { it.name.as_variable_name.as_symbol_literal }.join(', ') })")
+            write(name.as_class_name, " = Struct.new(")
+            indent do
+              struct.members.each do |member|
+                write(member.name.as_variable_name.as_symbol_literal, ', #: ', member.type.rbs_type)
+              end
+            end
+            write(')')
             emit_class(name.as_class_name) do
-              emit_const('MEMBERS', "Ractor.make_shareable({#{struct.members.map { "#{it.name.as_variable_name}: #{to_datatype(it.type, nil)}" }.join(', ') }})")
+              emit_nodoc
+              emit_const(
+                'MEMBERS',
+                "Ractor.make_shareable({#{struct.members.map { "#{it.name.as_variable_name}: #{to_datatype(it.type, nil)}" }.join(', ') }})",
+                rbs: 'Hash[::Symbol, ::Nl::_DataType]',
+              )
+
+              emit_comment('Decodes the struct.')
+              emit_rbs_comment(
+                'decoder: ::Nl::Decoder',
+                'return: instance',
+              )
               write('def self.decode(decoder)')
               indent do
                 write('self.new(*MEMBERS.map {|name, datatype| datatype.decode(decoder) })')
               end
               write('end')
 
+              emit_comment('Encodes the struct.')
+              emit_rbs_comment(
+                'encoder: ::Nl::Encoder',
+                'return: void',
+              )
               write('def encode(encoder)')
               indent do
                 write('MEMBERS.each {|name, datatype| datatype.encode(encoder, self.public_send(name)) }')
@@ -101,8 +123,20 @@ module Ynl
                 end
               end
 
-              emit_const('BY_NAME', "Ractor.make_shareable({#{attr_set.attributes.map { "#{it.name.as_variable_name.as_symbol_literal} => #{it.name.as_class_name}" }.join(', ') }})")
-              emit_const('BY_TYPE', "Ractor.make_shareable({#{attr_set.attributes.map { "#{it.value} => #{it.name.as_class_name}" }.join(', ') }})")
+              emit_nodoc
+              emit_const(
+                'BY_NAME',
+                "Ractor.make_shareable({#{attr_set.attributes.map { "#{it.name.as_variable_name.as_symbol_literal} => #{it.name.as_class_name}" }.join(', ') }})",
+                rbs: 'Hash[::Symbol, Attribute]',
+              )
+
+              emit_nodoc
+              emit_const(
+                'BY_TYPE',
+                "Ractor.make_shareable({#{attr_set.attributes.map { "#{it.value} => #{it.name.as_class_name}" }.join(', ') }})",
+                rbs: 'Hash[::Integer, Attribute]',
+              )
+
               emit_singleton_class do
                 emit_comment('Looks up Attribute class by name.')
                 emit_rbs_comment(
@@ -125,10 +159,10 @@ module Ynl
 
         emit_module('Messages') do
           @ynl.operations.each do |name, oper|
-            emit_comment(oper.doc)
             %w[do dump].each do |method|
               if request_reply = oper.public_send(method + 'it')
                 %w[request reply].to_h { [it, request_reply.public_send(it)] }.compact.each do |type, msg|
+                  emit_comment(oper.doc)
                   emit_class(method.as_class_name + oper.name.as_class_name + type.as_class_name, "#{@protocol}::Message") do
                     emit_const('TYPE', msg.value)
                     emit_const('FIXED_HEADER', oper.fixed_header&.then { 'Structs::' + it.name.as_class_name } || 'nil')
@@ -234,12 +268,16 @@ module Ynl
       write('end')
     end
 
-    private def emit_const(name, value)
-      write(name, ' = ', value)
+    private def emit_const(name, value, rbs: nil)
+      write(name, ' = ', value, *([' #: ', rbs] if rbs))
     end
 
     private def emit_getter(name, expr)
       write('def ', name, '; ', expr, '; end')
+    end
+
+    private def emit_nodoc
+      write('# :nodoc:')
     end
 
     private def emit_comment(comment)
