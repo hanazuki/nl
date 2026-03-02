@@ -25,10 +25,13 @@ Gem::Specification.new do |spec|
         f.start_with?(*%w[bin/ test/ spec/ features/ .git .github appveyor Gemfile])
     end
   end
+
+  # Generated files
+  spec.files.concat(spec.files.filter_map { "generated/nl/linux/#{$~[:name].gsub(?-, ?_)}.rb" if %r[\Alinux/(?<name>[^/]+)\.yaml\z] =~ it })
+
   spec.bindir = 'exe'
   spec.executables = spec.files.grep(%r{\Aexe/}) { |f| File.basename(f) }
   spec.require_paths = ['lib', 'generated']
-  spec.extensions = ['ext/nl-linux/rakefile.rb']
 
   spec.add_dependency 'nl', Nl::Linux::VERSION
   spec.add_dependency 'ynl', Nl::Linux::VERSION

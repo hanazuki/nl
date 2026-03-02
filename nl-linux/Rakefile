@@ -4,6 +4,28 @@ RSpec::Core::RakeTask.new(:spec)
 
 task default: :spec
 
-task :generate do
-  sh 'rake', '-C', 'ext/nl-linux', 'generate'
+directory 'generated'
+directory 'generated/nl' => 'generated'
+directory 'generated/nl/linux' => 'generated/nl'
+
+# For each of linux/%.yaml spec, generate generated/nl/linux/%.rb
+Dir['*.yaml', base: 'linux'].each do |spec|
+  target = 'generated/nl/linux/' + spec.gsub(?-, ?_).sub(%r[\.yaml\z], '.rb')
+  source = 'linux/' + spec
+
+  task :generate => target
+  task target => [source, 'generated/nl/linux'] do
+    require 'ynl'
+    File.open(source, 'r') do |src|
+      front = src.readlines.take_while {|l| !l.start_with?('---') }.grep(/\A\#/).join
+
+      File.open(target, 'w') do |out|
+        out << front
+        out << "#--\n"
+        Ynl::Family.generate(src.tap(&:rewind), out, namespace: 'Nl::Linux')
+      end
+    end
+  end
 end
+
+task :default => :generate
