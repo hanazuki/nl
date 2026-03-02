@@ -175,7 +175,7 @@ module Ynl
                       datatype = member.type
                       next if datatype.is_a? Types::Pad
                       next if attribute_params.include?(param)
-                      emit_comment("Gets the value of #{param} field in the message's fixed header.")
+                      emit_comment("Gets the value of `#{param}` field in the message's fixed header.")
                       emit_rbs_comment(
                         'return: ' + datatype.rbs_type,
                       )
@@ -187,9 +187,9 @@ module Ynl
                       extending = oper.fixed_header&.members&.any? { it.name == param }
 
                       if extending
-                        emit_comment("Gets the value of #{param} attribute or fixed header in the message.")
+                        emit_comment("Gets the value of `#{param}` attribute or fixed header in the message.")
                       else
-                        emit_comment("Gets the value of #{param} attribute in the message.")
+                        emit_comment("Gets the value of `#{param}` attribute in the message.")
                       end
                       emit_rbs_comment(
                         'return: ' + datatype.rbs_type,
