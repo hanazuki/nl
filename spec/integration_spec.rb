@@ -8,7 +8,7 @@ RSpec.describe do
   end
 
   describe Nl::Linux::RtLink do
-    example do
+    example 'dump_getlink returns link list including loopback' do
       Nl::Linux::RtLink.open do |rtlink|
         r = rtlink.dump_getlink
         expect(r).to be_an Array
@@ -20,7 +20,7 @@ RSpec.describe do
       end
     end
 
-    example do
+    example 'dump_getlink accepts block' do
       Nl::Linux::RtLink.open do |rtlink|
         r = []
         rtlink.dump_getlink do |m|
@@ -33,7 +33,7 @@ RSpec.describe do
   end
 
   describe Nl::Linux::RtAddr do
-    example do
+    example 'dump_getaddr returns address list including loopback' do
       Nl::Linux::RtAddr.open do |rtaddr|
         r = rtaddr.dump_getaddr
         expect(r).to be_an Array
@@ -48,7 +48,7 @@ RSpec.describe do
   end
 
   describe Nl::Linux::Netdev do
-    example do
+    example 'do_dev_get returns device info for loopback' do
       Nl::Genl::Connection.open(resolver:) do |conn|
         netdev = conn.open(Nl::Linux::Netdev)
         dev = netdev.do_dev_get(ifindex: 1)
@@ -60,7 +60,7 @@ RSpec.describe do
   end
 
   describe Nl::Linux::Nlctrl do
-    example do
+    example 'do_getfamily returns family info for nlctrl' do
       Nl::Linux::Nlctrl.open do |nlctrl|
         reply = nlctrl.do_getfamily(family_name: 'nlctrl')
         expect(reply).to be_a Nl::Linux::Nlctrl::Messages::DoGetfamilyReply
