@@ -26,7 +26,7 @@ module Ynl
         end
       end
     end
-    private_constant :Refinements
+    # private_constant :Refinements
 
     using Refinements
 

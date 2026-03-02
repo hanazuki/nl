@@ -37,13 +37,15 @@ module Ynl
       end
     end
     NestedAttributes = Struct.new(:attribute_set) do
+      using Generator::Refinements  # FIXME:
+
       def resolve(f)
         self.attribute_set = attribute_set.resolve(f)
         self
       end
 
       def rbs_type
-        'untyped'
+        'AttributeSets::' + attribute_set.name.as_class_name
       end
     end
     SubMessage = Struct.new(:sub_message, :selector) do
