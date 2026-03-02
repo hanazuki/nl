@@ -1,20 +1,20 @@
 PATH
   remote: nl-linux
   specs:
-    nl-linux (0.2.1)
-      nl (= 0.2.1)
-      ynl (= 0.2.1)
+    nl-linux (0.2.2)
+      nl (= 0.2.2)
+      ynl (= 0.2.2)
 
 PATH
   remote: nl
   specs:
-    nl (0.2.1)
+    nl (0.2.2)
 
 PATH
   remote: ynl
   specs:
-    ynl (0.2.1)
-      nl (= 0.2.1)
+    ynl (0.2.2)
+      nl (= 0.2.2)
       yaml
 
 GEM
