@@ -27,7 +27,8 @@ Gem::Specification.new do |spec|
   end
 
   # Generated files
-  spec.files.concat(spec.files.filter_map { "generated/nl/linux/#{$~[:name].gsub(?-, ?_)}.rb" if %r[\Alinux/(?<name>[^/]+)\.yaml\z] =~ it })
+  generated = spec.files.filter_map { "generated/nl/linux/#{$~[:name].gsub(?-, ?_)}.rb" if %r[\Alinux/(?<name>[^/]+)\.yaml\z] =~ it }
+  spec.files.concat(generated)
 
   spec.bindir = 'exe'
   spec.executables = spec.files.grep(%r{\Aexe/}) { |f| File.basename(f) }
