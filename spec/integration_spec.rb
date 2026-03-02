@@ -164,8 +164,9 @@ RSpec.describe do
         r = ethtool.dump_linkstate_get
         expect(r).to be_an Array
 
-        lo = r.find { it.header.find { it.is_a? Nl::Linux::Ethtool::AttributeSets::Header::DevIndex and it.value == 1 } }
-        dev_name = lo.header.find { it.is_a? Nl::Linux::Ethtool::AttributeSets::Header::DevName }
+        lo = r.find { it.header[:dev_index]&.value == 1 }
+        dev_name = lo.header[:dev_name]
+        expect(dev_name).to be_a Nl::Linux::Ethtool::AttributeSets::Header::DevName
         expect(dev_name.value).to eq 'lo'
       end
     end

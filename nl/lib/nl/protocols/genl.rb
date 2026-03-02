@@ -36,7 +36,7 @@ module Nl
           message.nlmsg_header.type = cmd
           GenlMsgHdr.new(cmd, 1, 0).encode(encoder)
           message.fixed_header&.encode(encoder)
-          message.class::ATTRIBUTE_SET.encode(encoder, message.attributes)
+          message.attributes.encode(encoder)
         end
       end
 

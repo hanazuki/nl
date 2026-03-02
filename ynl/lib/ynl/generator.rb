@@ -143,14 +143,14 @@ module Ynl
                   'name: Symbol',
                   'return: Attribute',
                 )
-                emit_getter('by_name', 'BY_NAME[name]')
+                emit_getter('by_name(name)', 'BY_NAME.fetch(name)')
 
                 emit_comment('Looks up Attribute class by type value.')
                 emit_rbs_comment(
                   'type: Integer',
                   'return: Attribute',
                 )
-                emit_getter('by_type', 'BY_TYPE[type]')
+                emit_getter('by_type(type)', 'BY_TYPE.fetch(type)')
               end
             end
           end
@@ -194,13 +194,12 @@ module Ynl
                       emit_rbs_comment(
                         'return: ' + datatype.rbs_type,
                       )
-                      # TODO: multi-attr
                       if extending
                         # If the fixed header and the attribute set have the same-name parameter, the value from the attribute should have
                         # the precedence over that from the header.
-                        emit_getter(param.as_method_name, "attributes.find { it.is_a? ATTRIBUTE_SET::#{param.as_class_name} }&.value || fixed_header.#{param.as_method_name}")
+                        emit_getter(param.as_method_name, "attributes[#{param.as_variable_name.as_symbol_literal}]&.value || fixed_header.#{param.as_method_name}")
                       else
-                        emit_getter(param.as_method_name, "attributes.find { it.is_a? ATTRIBUTE_SET::#{param.as_class_name} }&.value")
+                        emit_getter(param.as_method_name, "attributes[#{param.as_variable_name.as_symbol_literal}]&.value")
                       end
                     end
                   end

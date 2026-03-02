@@ -123,6 +123,56 @@ module Nl
           end
         end
 
+        def initialize(attributes)
+          attr_class = self.class::Attribute
+
+          attributes.each do |attr|
+            unless attr.kind_of?(attr_class)
+              raise TypeError, "attribute must be an instance of #{attr_class}"
+            end
+          end
+
+          @attributes = Array(attributes)
+        end
+
+        def [](type)
+          case type
+          when Symbol
+            attr_class = self.class.by_name(type)
+          when Integer
+            attr_class = self.class.by_type(type)
+          else
+            raise TypeError, "attribute type must be a Symbol or an Integer"
+          end
+
+          # TODO: multi-attr
+          @attributes.find { it.kind_of?(attr_class) } rescue binding.irb
+        end
+
+        def <<(attr)
+          attr_class = self.class::Attribute
+          unless attr.kind_of?(attr_class)
+            raise TypeError, "attribute must be an instance of #{attr_class}"
+          end
+
+          @attributes << attr
+        end
+
+        private def encode1(encoder, attr)
+          nlattr = Core::NlAttr.new(0, attr.class::TYPE)
+          encoder.measure(Endian::Host::U16) do
+            nlattr.encode(encoder)
+            attr.encode(encoder)
+          end
+          encoder.align_to(Core::NLA_ALIGNTO)
+        end
+
+        def encode(encoder)
+          @attributes.each do |attr|
+            encode1(encoder, attr)
+          end
+        end
+
         class << self
           private def decode1(decoder)
             nlattr = Core::NlAttr.decode(decoder)
@@ -144,29 +194,15 @@ module Nl
               attr = decode1(decoder)
               attrs << attr
             end
-            attrs.compact
-          end
-
-          private def encode1(encoder, attr)
-            nlattr = Core::NlAttr.new(0, attr.class::TYPE)
-            encoder.measure(Endian::Host::U16) do
-              nlattr.encode(encoder)
-              attr.encode(encoder)
-            end
-            encoder.align_to(Core::NLA_ALIGNTO)
-          end
-
-          def encode(encoder, attrs)
-            attrs.each do |attr|
-              encode1(encoder, attr)
-            end
+            new(attrs.compact)
           end
 
           def build_attributes(**params)
-            params.map do |name, value|
+            attrs = params.map do |name, value|
               attr_class = self::BY_NAME[name] or raise "Unknown attribute #{name}"
               attr_class.new(value)
             end
+            new(attrs)
           end
         end
       end
@@ -174,7 +210,7 @@ module Nl
       class Message
         attr_accessor :nlmsg_header, :fixed_header, :attributes
 
-        def initialize(header, fixed_header = nil, attributes = [])
+        def initialize(header, fixed_header = nil, attributes = self.class::ATTRIBUTE_SET.new)
           @nlmsg_header = header
           @fixed_header = fixed_header
           @attributes = attributes
@@ -205,8 +241,8 @@ module Nl
         def encode(encoder)
           encoder.measure(Endian::Host::U16) do
             @nlmsg_header.encode(encoder)
-            @fixed_header.encode(encoder) if @fixed_header
-            self.class::ATTRIBUTE_SET.encode(encoder, @attributes)
+            @fixed_header&.encode(encoder)
+            @attributes.encode(encoder)
           end
         end
 
@@ -222,21 +258,6 @@ module Nl
           attributes = self::ATTRIBUTE_SET.decode(decoder)
 
           new(header, fixed_header, attributes)
-        end
-
-        def to_h
-          to_h_rec(@attributes, @fixed_header&.to_h || {})
-        end
-
-        # FIXME:
-        private def to_h_rec(attributes, init = {})
-          attributes.each_with_object(init) do |attr, h|
-            if attr.class::DATATYPE.is_a?(DataTypes::NestedAttributes)
-              h[attr.class::NAME] = to_h_rec(attr.value)
-            else
-              h[attr.class::NAME] = attr.value
-            end
-          end
         end
       end
 
