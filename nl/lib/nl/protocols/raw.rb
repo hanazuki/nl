@@ -29,7 +29,7 @@ module Nl
       end
 
       def send_message(socket, message)
-        seq_pid = socket.complete(message.header)
+        seq_pid = socket.complete(message.nlmsg_header)
         encoder = Encoder.new
         encode_message(encoder, message)
         socket.sendmsg(encoder.buffer.get_string, 0, Socket.sockaddr_nl(0, 0))
@@ -82,7 +82,7 @@ module Nl
         flags |= type == :dump ? Core::NLM_F_DUMP : Core::NLM_F_ACK
 
         request = request_class.from_params(args)
-        request.header.flags = flags
+        request.nlmsg_header.flags = flags
         seq_pid = send_message(socket, request)
 
         result = [] unless block_given?
@@ -172,17 +172,17 @@ module Nl
       end
 
       class Message
-        attr_accessor :header, :fixed_header, :attributes
+        attr_accessor :nlmsg_header, :fixed_header, :attributes
 
         def initialize(header, fixed_header = nil, attributes = [])
-          @header = header
+          @nlmsg_header = header
           @fixed_header = fixed_header
           @attributes = attributes
         end
 
         def self.from_params(params)
           if self::FIXED_HEADER
-            header_params = params.slice(*self::FIXED_HEADER.members.map(&:name))
+            header_params = params.slice(*self::FIXED_HEADER.members)
             fixed_header = self::FIXED_HEADER.new(**header_params)
           end
           attribute_params = params.slice(*self::ATTRIBUTES)
@@ -204,7 +204,7 @@ module Nl
 
         def encode(encoder)
           encoder.measure(Endian::Host::U16) do
-            @header.encode(encoder)
+            @nlmsg_header.encode(encoder)
             @fixed_header.encode(encoder) if @fixed_header
             self.class::ATTRIBUTE_SET.encode(encoder, @attributes)
           end

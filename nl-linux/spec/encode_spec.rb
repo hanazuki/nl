@@ -24,9 +24,9 @@ RSpec.describe Nl::Linux::RtLink do
   describe 'Messages::DumpGetlinkRequest' do
     subject(:message) do
       msg = described_class::Messages::DumpGetlinkRequest.from_params({})
-      msg.header.flags = 0
-      msg.header.seq = 12345
-      msg.header.pid = 67890
+      msg.nlmsg_header.flags = 0
+      msg.nlmsg_header.seq = 12345
+      msg.nlmsg_header.pid = 67890
       msg
     end
 

@@ -29,11 +29,11 @@ module Nl
       end
 
       def encode_message(encoder, message)
-        cmd = message.header.type
+        cmd = message.nlmsg_header.type
         encoder.measure(Endian::Host::U16) do
-          message.header.type = family_id
-          message.header.encode(encoder)
-          message.header.type = cmd
+          message.nlmsg_header.type = family_id
+          message.nlmsg_header.encode(encoder)
+          message.nlmsg_header.type = cmd
           GenlMsgHdr.new(cmd, 1, 0).encode(encoder)
           message.fixed_header&.encode(encoder)
           message.class::ATTRIBUTE_SET.encode(encoder, message.attributes)
