@@ -27,6 +27,7 @@ Gem::Specification.new do |spec|
   end
 
   # Generated files
+  spec.files << 'generated/nl/linux.rb'
   generated = spec.files.filter_map { "generated/nl/linux/#{$~[:name].gsub(?-, ?_)}.rb" if %r[\Alinux/(?<name>[^/]+)\.yaml\z] =~ it }
   spec.files.concat(generated)
 

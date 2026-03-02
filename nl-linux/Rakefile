@@ -8,11 +8,17 @@ directory 'generated'
 directory 'generated/nl' => 'generated'
 directory 'generated/nl/linux' => 'generated/nl'
 
-# For each of linux/%.yaml spec, generate generated/nl/linux/%.rb
-Dir['*.yaml', base: 'linux'].each do |spec|
-  target = 'generated/nl/linux/' + spec.gsub(?-, ?_).sub(%r[\.yaml\z], '.rb')
-  source = 'linux/' + spec
+specs = Dir['*.yaml', base: 'linux'].to_h do |spec|
+  [
+    spec,
+    source: 'linux/' + spec,
+    target: 'generated/nl/linux/' + spec.gsub(?-, ?_).sub(%r[\.yaml\z], '.rb'),
+  ]
+end
 
+# For each of linux/%.yaml spec, generate generated/nl/linux/%.rb
+specs.each do |spec, h|
+  h => {source:, target:}
   task :generate => target
   task target => [source, 'generated/nl/linux'] do
     require 'ynl'
@@ -22,10 +28,30 @@ Dir['*.yaml', base: 'linux'].each do |spec|
       File.open(target, 'w') do |out|
         out << front
         out << "#--\n"
-        Ynl::Family.generate(src.tap(&:rewind), out, namespace: 'Nl::Linux')
+        out << Ynl::Generator::PRELUDE
+        out << "module Nl; module Linux\n"
+        Ynl::Family.generate(src.tap(&:rewind), out)
+        out << "end; end\n"
       end
     end
   end
 end
+
+task 'generated/nl/linux.rb' => specs.values.map { it[:target] } do |t|
+  File.open(t.name, 'w') do |out|
+    out << "require 'nl/linux/version'\n"
+    out << "module Nl\n"
+    out << "  module Linux\n"
+    specs.values.map { it[:target] }.each do |f|
+      cls = File.read(f)[/^class\s\K[^\s]+/]
+      if cls
+        out << "    autoload :#{cls}, #{f.sub('generated/', '').dump}\n"
+      end
+    end
+    out << "  end\n"
+    out << "end\n"
+  end
+end
+task :generate => 'generated/nl/linux.rb'
 
 task :default => :generate

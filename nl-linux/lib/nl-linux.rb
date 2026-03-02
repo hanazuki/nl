@@ -1,1 +1,1 @@
-require_relative 'nl/linux'
+require 'nl/linux'
