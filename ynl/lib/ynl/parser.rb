@@ -26,7 +26,7 @@ module Ynl
       protocol = @yaml['protocol'] || 'genetlink'
       protonum = @yaml['protonum']
       name = @yaml['name']
-      doc = @yaml['doc']
+      doc = translate_doc(@yaml['doc'])
 
       @yaml['definitions']&.each do |d|
         parse_definition(d)
@@ -120,12 +120,12 @@ module Ynl
 
     private def parse_const(d)
       name = "#{d['name-prefix']}#{d.fetch('name')}"
-      Models::Const.new(name, d.fetch('value'), d['doc'])
+      Models::Const.new(name, d.fetch('value'), translate_doc(d['doc']))
     end
 
     private def parse_enum_flags(d, type:)
       cls = type == :enum ? Models::Enum : Models::Flags
-      result = cls.new(name: d.fetch('name'), doc: d['doc'])
+      result = cls.new(name: d.fetch('name'), doc: translate_doc(d['doc']))
 
       start_value = d['start-value'] || 0
       value = type == :enum ? start_value : 1 << start_value
@@ -135,7 +135,7 @@ module Ynl
         when String
           entry = cls::Entry.new(name: v, value:)
         when Hash
-          entry = cls::Entry.new(name: v.fetch('name'), value:, doc: v['doc'])
+          entry = cls::Entry.new(name: v.fetch('name'), value:, doc: translate_doc(v['doc']))
         else
           raise ParseError, "Unknown class for enum/flags entry: #{v.class}"
         end
@@ -262,11 +262,11 @@ module Ynl
     end
 
     private def parse_struct(d)
-      result = Models::Struct.new(name: d.fetch('name'), doc: d['doc'])
+      result = Models::Struct.new(name: d.fetch('name'), doc: translate_doc(d['doc']))
 
       d.fetch('members').each do |v|
         type = parse_struct_member_type(v)
-        member = Models::Struct::Member.new(name: v.fetch('name'), type: type, doc: v['doc'])
+        member = Models::Struct::Member.new(name: v.fetch('name'), type: type, doc: translate_doc(v['doc']))
         result.members << member
       rescue
         raise ParseError, "Failed to parse struct member: #{v.fetch('name')}"
@@ -331,10 +331,10 @@ module Ynl
       name = d.fetch('name')
       if subset_of = d['subset-of']
         superset = @attribute_sets.fetch(subset_of)
-        result = Models::AttributeSubset.new(name:, superset:, attributes: d.fetch('attributes'), doc: d['doc'])
+        result = Models::AttributeSubset.new(name:, superset:, attributes: d.fetch('attributes'), doc: translate_doc(d['doc']))
       else
         name_prefix = d['name_prefix']
-        result = Models::AttributeSet.new(name:, name_prefix:, doc: d['doc'])
+        result = Models::AttributeSet.new(name:, name_prefix:, doc: translate_doc(d['doc']))
         value = 0
 
         d.fetch('attributes').each do |v|
@@ -388,7 +388,7 @@ module Ynl
       # TODO: notify
 
       @operations[name] = Models::Operation.new(
-        name:, doc: d['doc'], fixed_header:, attribute_set:,
+        name:, doc: translate_doc(d['doc']), fixed_header:, attribute_set:,
         doit:, dumpit:,
       )
     end
@@ -405,6 +405,12 @@ module Ynl
     end
 
     private def parse_mcast_group(d)
+    end
+
+    private def translate_doc(doc)
+      return unless doc
+
+      doc.gsub(/(?:\s|^)\K@(?<ident>[\w.-]+)/i) { "`#{$~[:ident]}`" }
     end
   end
 end
