@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.2.1 (2026-03-02)
+
 ## v0.2.0 (2026-03-02)
 
 - Initial release
