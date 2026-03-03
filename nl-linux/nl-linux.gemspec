@@ -36,5 +36,5 @@ Gem::Specification.new do |spec|
   spec.require_paths = ['lib', 'generated']
 
   spec.add_dependency 'nl', Nl::Linux::VERSION
-  spec.add_dependency 'ynl', Nl::Linux::VERSION
+  spec.add_development_dependency 'ynl', Nl::Linux::VERSION
 end

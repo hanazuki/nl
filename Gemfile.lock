@@ -3,7 +3,6 @@ PATH
   specs:
     nl-linux (0.2.2)
       nl (= 0.2.2)
-      ynl (= 0.2.2)
 
 PATH
   remote: nl
@@ -69,7 +68,7 @@ DEPENDENCIES
   nl-linux!
   rake (~> 13.0)
   rspec (~> 3.0)
-  ynl!
+  ynl (>= 0, = 0.2.2)!
 
 BUNDLED WITH
   4.0.7
