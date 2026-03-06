@@ -1,0 +1,8 @@
+hooks:
+  prebuild: bundle install
+gems:
+  - directory: nl
+  - directory: ynl
+  - directory: nl-linux
+    hooks:
+      prebuild: bundle exec rake generate
