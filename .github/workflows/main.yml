@@ -40,7 +40,7 @@ jobs:
     - uses: ruby/setup-ruby@v1
       with:
         ruby-version: ruby
-    - uses: hanazuki/release-gems/build@52e76539b5e92020639ce3f838f356418edb1c12
+    - uses: hanazuki/release-gems/build@753c175705cf4c2a5b7563226b69c2c26603d064
 
   publish:
     if: startsWith(github.ref, 'refs/tags/')
@@ -51,4 +51,4 @@ jobs:
       contents: write
       id-token: write
     steps:
-    - uses: hanazuki/release-gems/publish@52e76539b5e92020639ce3f838f356418edb1c12
+    - uses: hanazuki/release-gems/publish@753c175705cf4c2a5b7563226b69c2c26603d064
