@@ -1,3 +1,3 @@
 module Nl
-  VERSION = '0.2.3.pre7'
+  VERSION = '0.2.3.pre8'
 end

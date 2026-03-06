@@ -1,19 +1,19 @@
 PATH
   remote: nl-linux
   specs:
-    nl-linux (0.2.3.pre7)
-      nl (= 0.2.3.pre7)
+    nl-linux (0.2.3.pre8)
+      nl (= 0.2.3.pre8)
 
 PATH
   remote: nl
   specs:
-    nl (0.2.3.pre7)
+    nl (0.2.3.pre8)
 
 PATH
   remote: ynl
   specs:
-    ynl (0.2.3.pre7)
-      nl (= 0.2.3.pre7)
+    ynl (0.2.3.pre8)
+      nl (= 0.2.3.pre8)
       yaml
 
 GEM
@@ -68,7 +68,7 @@ DEPENDENCIES
   nl-linux!
   rake (~> 13.0)
   rspec (~> 3.0)
-  ynl (>= 0, = 0.2.3.pre7)!
+  ynl (>= 0, = 0.2.3.pre8)!
 
 BUNDLED WITH
   4.0.7
