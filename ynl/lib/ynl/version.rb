@@ -1,3 +1,3 @@
 module Ynl
-  VERSION = '0.2.3.pre9'
+  VERSION = '0.2.3.pre10'
 end
