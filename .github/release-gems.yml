@@ -1,5 +1,3 @@
-hooks:
-  prebuild: bundle install
 gems:
   - directory: nl
   - directory: ynl

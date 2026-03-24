@@ -17,10 +17,14 @@ jobs:
       matrix:
         ruby:
           - '4.0'
+    permissions:
+      contents: read
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      with:
+        persist-credentials: false
     - name: Set up Ruby
-      uses: ruby/setup-ruby@v1
+      uses: ruby/setup-ruby@319994f95fa847cf3fb3cd3dbe89f6dcde9f178f # v1.295.0
       with:
         ruby-version: ${{ matrix.ruby }}
         bundler-cache: true
@@ -29,18 +33,55 @@ jobs:
     - name: Run tests
       run: bundle exec rake spec
 
+  bundle-install:
+    runs-on: ubuntu-slim
+    permissions:
+      contents: read
+    outputs:
+      artifact-id: ${{ steps.upload.outputs.artifact-id }}
+    steps:
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      with:
+        persist-credentials: false
+    - uses: ruby/setup-ruby@319994f95fa847cf3fb3cd3dbe89f6dcde9f178f # v1.295.0
+      with:
+        ruby-version: ruby
+    - run: |
+        bundle config set --local deployment true
+        bundle install
+    - id: upload
+      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+      with:
+        name: bundle
+        path: |
+          .bundle/config
+          vendor/bundle
+
   build:
-    needs: [test]
+    needs: [bundle-install, test]
     runs-on: ubuntu-latest
     permissions:
+      contents: read
       id-token: write
       attestations: write
     steps:
-    - uses: actions/checkout@v4
-    - uses: ruby/setup-ruby@v1
+    - name: Install bubblewrap
+      run: |
+        sudo apt-get update && sudo apt-get install -y bubblewrap apparmor-profiles
+        sudo ln -s /usr/share/apparmor/extra-profiles/bwrap-userns-restrict /etc/apparmor.d/
+        sudo systemctl reload apparmor
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      with:
+        persist-credentials: false
+    - uses: ruby/setup-ruby@319994f95fa847cf3fb3cd3dbe89f6dcde9f178f # v1.295.0
       with:
         ruby-version: ruby
-    - uses: release-gems/action/build@v1.0.3.alpha3
+    - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      with:
+        artifact-ids: ${{ needs.bundle-install.outputs.artifact-id }}
+    - uses: release-gems/action/build@d437156fdb56ff38941834e0e8f86ea0b1f34751 # v1.1.0
+      with:
+        sandbox: bubblewrap
 
   publish:
     if: startsWith(github.ref, 'refs/tags/')
@@ -51,4 +92,4 @@ jobs:
       contents: write
       id-token: write
     steps:
-    - uses: release-gems/action@v1.0.3.alpha3
+    - uses: release-gems/action@d437156fdb56ff38941834e0e8f86ea0b1f34751 # v1.1.0
