@@ -10,40 +10,48 @@ def sh(*cmdline) = system(*cmdline.flatten)
 def sh!(*cmdline) = system(*cmdline.flatten, exception: true)
 
 SPECS_PATH = 'Documentation/netlink/specs'
+KERNEL_ORG_RELEASES = 'https://www.kernel.org/releases.json'
+KERNEL_GIT_URL = 'https://github.com/gregkh/linux.git'
 
-@root = Pathname(__dir__)/'..'
-@update = ARGV.delete('--update')
-@kernel_repo = ARGV.shift or fail "Usage: #$0 [--update] /path/to/kernel.git"
+@root = Pathname(__dir__) / '..'
 
-if @update
-  sh! %W[git -C #@kernel_repo fetch --tags stable]
-
-  j = JSON.parse(URI.open('https://www.kernel.org/releases.json', &:read))
-  latest_stable = j.dig('latest_stable', 'version')
-  (@root/'NLSPEC_VERSION').write("#{latest_stable}\n")
+def github_output(key, value)
+  return unless (path = ENV['GITHUB_OUTPUT'])
+  File.open(path, 'a') { |f| f.puts "#{key}=#{value}" }
 end
 
-@kernel_version = (@root/'NLSPEC_VERSION').read.chomp
+j = JSON.parse(URI.open(KERNEL_ORG_RELEASES, &:read))
+latest_stable = j.dig('latest_stable', 'version')
 
+current = (@root / 'NLSPEC_VERSION').read.chomp rescue nil
+if current == latest_stable
+  warn "NLSPEC_VERSION is already #{latest_stable}, nothing to do."
+  github_output('updated', 'false')
+  exit 0
+end
 
-worktree = Pathname(Dir.mktmpdir)
-sh! %W[git -C #@kernel_repo worktree add --no-checkout #{worktree} v#@kernel_version]
+kernel_tmpdir = Dir.mktmpdir
 begin
-  sh! %W[git -C #{worktree} sparse-checkout set #{SPECS_PATH} LICENSES]
-  sh! %W[git -C #{worktree} checkout]
+  sh! %W[git clone --depth=1 --filter=blob:none --no-checkout --branch v#{latest_stable} #{KERNEL_GIT_URL} #{kernel_tmpdir}]
+  sh! %W[git -C #{kernel_tmpdir} sparse-checkout set #{SPECS_PATH} LICENSES]
+  sh! %W[git -C #{kernel_tmpdir} checkout]
 
-  nlspec_dir = (@root/'linux').tap(&:mkpath)
-  (worktree/SPECS_PATH).each_child do |y|
+  nlspec_dir = (@root / 'linux').tap(&:mkpath)
+  (Pathname(kernel_tmpdir) / SPECS_PATH).each_child do |y|
     next unless y.extname == '.yaml'
     FileUtils.cp(y, nlspec_dir)
   end
   %w[BSD-3-Clause GPL-2.0].each do |license|
-    FileUtils.cp(worktree/'LICENSES/preferred/' + license, nlspec_dir)
+    FileUtils.cp(Pathname(kernel_tmpdir) / 'LICENSES/preferred' / license, nlspec_dir)
   end
-  FileUtils.cp(worktree/'LICENSES/exceptions/Linux-syscall-note', nlspec_dir)
-  msg = "Import #{SPECS_PATH} from Linux v#{@kernel_version}"
-  sh! %W[git -C #@root add #{nlspec_dir} NLSPEC_VERSION]
-  sh! %W[git -C #@root commit #{nlspec_dir} NLSPEC_VERSION -m #{msg}]
+  FileUtils.cp(Pathname(kernel_tmpdir) / 'LICENSES/exceptions/Linux-syscall-note', nlspec_dir)
+  (@root / 'NLSPEC_VERSION').write("#{latest_stable}\n")
+  msg = "Import #{SPECS_PATH} from Linux v#{latest_stable}"
+  sh! %W[git -C #{@root} add #{nlspec_dir} NLSPEC_VERSION]
+  sh! %W[git -C #{@root} commit #{nlspec_dir} NLSPEC_VERSION -m #{msg}]
 ensure
-  sh %W[git -C #@kernel_repo worktree remove -f #{worktree}]
+  FileUtils.rm_rf(kernel_tmpdir)
 end
+
+github_output('updated', 'true')
+github_output('version', latest_stable)

@@ -1,0 +1,43 @@
+name: Update netlink specs
+
+on:
+  schedule:
+    - cron: '0 1 * * *'
+  workflow_dispatch:
+
+jobs:
+  update-nlspec:
+    runs-on: ubuntu-slim
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Import specs
+        id: import
+        run: |
+          ruby nl-linux/bin/import-nlspec
+
+      - name: Push branch and open PR
+        if: steps.import.outputs.updated == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh auth setup-git
+          BRANCH="update-nlspec/v${{ steps.import.outputs.version }}"
+          git checkout -b "$BRANCH"
+          git push -u origin "$BRANCH"
+          gh pr create \
+            --title "Update netlink specs to Linux v${{ steps.import.outputs.version }}" \
+            --body "Automated update of netlink specs from the Linux kernel v${{ steps.import.outputs.version }} tree." \
+            --base master \
+            --head "$BRANCH"
