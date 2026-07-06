@@ -1,8 +1,8 @@
 source 'https://rubygems.org'
 
-Dir['*/*.gemspec', base: __dir__].each do |gemspec|
-  gemspec path: File.dirname(gemspec), name: File.basename(gemspec, '.gemspec')
-end
+gemspec path: 'nl'
+gemspec path: 'ynl'
+gemspec path: 'nl-linux'
 
 gem 'irb'
 gem 'rake', '~> 13.0'

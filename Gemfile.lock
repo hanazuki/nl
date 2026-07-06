@@ -68,7 +68,7 @@ DEPENDENCIES
   nl-linux!
   rake (~> 13.0)
   rspec (~> 3.0)
-  ynl (>= 0, = 0.2.3)!
+  ynl!
 
 CHECKSUMS
   date (3.5.1) sha256=750d06384d7b9c15d562c76291407d89e368dda4d4fff957eb94962d325a0dc0
