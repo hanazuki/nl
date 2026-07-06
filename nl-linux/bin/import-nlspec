@@ -30,6 +30,12 @@ if current == latest_stable
   exit 0
 end
 
+unless sh %W[git ls-remote --exit-code #{KERNEL_GIT_URL} refs/tags/v#{latest_stable}]
+  warn "Tag v#{latest_stable} is not available at #{KERNEL_GIT_URL} yet, nothing to do."
+  github_output('updated', 'false')
+  exit 0
+end
+
 kernel_tmpdir = Dir.mktmpdir
 begin
   sh! %W[git clone --depth=1 --filter=blob:none --no-checkout --branch v#{latest_stable} #{KERNEL_GIT_URL} #{kernel_tmpdir}]
@@ -45,9 +51,17 @@ begin
     FileUtils.cp(Pathname(kernel_tmpdir) / 'LICENSES/preferred' / license, nlspec_dir)
   end
   FileUtils.cp(Pathname(kernel_tmpdir) / 'LICENSES/exceptions/Linux-syscall-note', nlspec_dir)
+
+  sh! %W[git -C #{@root} add #{nlspec_dir}]
+  if sh %W[git -C #{@root} diff --quiet --cached -- #{nlspec_dir}]
+    warn "Specs are identical to the current ones, nothing to do."
+    github_output('updated', 'false')
+    exit 0
+  end
+
   (@root / 'NLSPEC_VERSION').write("#{latest_stable}\n")
   msg = "Import #{SPECS_PATH} from Linux v#{latest_stable}"
-  sh! %W[git -C #{@root} add #{nlspec_dir} NLSPEC_VERSION]
+  sh! %W[git -C #{@root} add NLSPEC_VERSION]
   sh! %W[git -C #{@root} commit #{nlspec_dir} NLSPEC_VERSION -m #{msg}]
 ensure
   FileUtils.rm_rf(kernel_tmpdir)

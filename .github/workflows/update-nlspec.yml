@@ -2,7 +2,7 @@ name: Update netlink specs
 
 on:
   schedule:
-    - cron: '0 1 * * *'
+    - cron: '0 15 * * 5'
   workflow_dispatch:
 
 jobs:
@@ -34,6 +34,10 @@ jobs:
         run: |
           gh auth setup-git
           BRANCH="update-nlspec/v${{ steps.import.outputs.version }}"
+          if git ls-remote --exit-code origin "refs/heads/$BRANCH" > /dev/null; then
+            echo "Branch $BRANCH already exists on origin, skipping." >&2
+            exit 0
+          fi
           git checkout -b "$BRANCH"
           git push -u origin "$BRANCH"
           gh pr create \
