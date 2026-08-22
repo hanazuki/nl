@@ -159,7 +159,9 @@ module Nl
         end
 
         private def encode1(encoder, attr)
-          nlattr = Core::NlAttr.new(0, attr.class::TYPE)
+          datatype = attr.class::DATATYPE
+          type = attr.class::TYPE | datatype.nlattr_type_flags
+          nlattr = Core::NlAttr.new(0, type)
           encoder.measure(Endian::Host::U16) do
             nlattr.encode(encoder)
             attr.encode(encoder)
@@ -262,7 +264,13 @@ module Nl
       end
 
       module DataTypes
-        class Scalar
+        class Base
+          def nlattr_type_flags
+            0
+          end
+        end
+
+        class Scalar < Base
           def initialize(type, check)
             @type = type
             @check = check
@@ -278,7 +286,7 @@ module Nl
           end
         end
 
-        class String
+        class String < Base
           def initialize(check)
             @check = check
           end
@@ -292,7 +300,7 @@ module Nl
           end
         end
 
-        class Binary
+        class Binary < Base
           def initialize(check)
             @check = check
           end
@@ -306,7 +314,7 @@ module Nl
           end
         end
 
-        class Flag
+        class Flag < Base
           def encode(encoder, value)
             # flag attribute has no payload; presence encodes true
           end
@@ -317,7 +325,7 @@ module Nl
         end
 
         # A 32-bit value paired with a selector mask (8 bytes total: value u32 + selector u32)
-        class Bitfield32
+        class Bitfield32 < Base
           def encode(encoder, value)
             v, selector = value.is_a?(Array) ? value : [value, 0xFFFFFFFF]
             encoder.put_value(Endian::Host::U32, v)
@@ -331,7 +339,7 @@ module Nl
           end
         end
 
-        class Pad
+        class Pad < Base
           def initialize(length = nil)
             @length = length
           end
@@ -346,13 +354,21 @@ module Nl
           end
         end
 
-        class NestedAttributes
+        class NestedAttributes < Base
           def initialize(attribute_set)
             @attribute_set = attribute_set
           end
 
+          def nlattr_type_flags
+            Core::NLA_F_NESTED
+          end
+
           def encode(encoder, value)
-            @attribute_set.encode(encoder, value)
+            unless value.is_a?(@attribute_set)
+              raise TypeError, "value must be an instance of #{@attribute_set}"
+            end
+
+            value.encode(encoder)
           end
 
           def decode(decoder)
@@ -363,7 +379,7 @@ module Nl
         # Nested attributes whose type numbers are keys rather than members of
         # an attribute set. Each level is returned as an Integer-keyed Hash;
         # values at the innermost level are decoded as @attribute_set.
-        class NestTypeValue
+        class NestTypeValue < Base
           def initialize(attribute_set, levels)
             raise ArgumentError, 'levels must be positive' unless levels.positive?
 
@@ -413,7 +429,7 @@ module Nl
           end
         end
 
-        class IndexedArray
+        class IndexedArray < Base
           def initialize(sub_type)
             @sub_type = sub_type
           end
