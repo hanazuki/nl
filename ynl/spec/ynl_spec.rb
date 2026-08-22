@@ -37,5 +37,19 @@ RSpec.describe Ynl do
       expect(cls::Messages::DumpOpARequest::TYPE).to eq 1
       expect(cls::Messages::DumpOpARequest::ATTRIBUTES).to be_empty
     end
+
+    it 'documents operation permission flags' do
+      generated = StringIO.new
+      path = Pathname(__dir__) + 'fixtures/operation_flags.yaml'
+      path.open { |source| Ynl::Family.generate(source, generated) }
+
+      expect(generated.string).to match(
+        /# Change a global network setting\.\n[ \t]*#[ ]*\n[ \t]*# Requires CAP_NET_ADMIN in the initial user namespace\./,
+      )
+      expect(generated.string).to match(
+        /# Change a namespaced network setting\.\n[ \t]*#[ ]*\n[ \t]*# Requires CAP_NET_ADMIN in the user namespace owning the network namespace\./,
+      )
+      expect(generated.string).not_to match(/# Read a network setting\.\n[ \t]*#[ ]*\n[ \t]*# Requires/)
+    end
   end
 end

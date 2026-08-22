@@ -37,6 +37,12 @@ module Ynl
       require 'nl'
     RUBY
 
+    OPERATION_FLAG_DOCS = {
+      'admin-perm' => 'Requires CAP_NET_ADMIN in the initial user namespace.',
+      'uns-admin-perm' => 'Requires CAP_NET_ADMIN in the user namespace owning the network namespace.',
+    }.freeze
+    private_constant :OPERATION_FLAG_DOCS
+
     def initialize(ynl, out)
       @ynl = ynl
       @out = out
@@ -163,7 +169,7 @@ module Ynl
             %w[do dump].each do |method|
               if request_reply = oper.public_send(method + 'it')
                 %w[request reply].to_h { [it, request_reply.public_send(it)] }.compact.each do |type, msg|
-                  emit_comment(oper.doc)
+                  emit_comment(operation_doc(oper))
                   emit_class(method.as_class_name + oper.name.as_class_name + type.as_class_name, "#{@protocol}::Message") do
                     emit_const('TYPE', msg.value)
                     emit_const('FIXED_HEADER', oper.fixed_header&.then { 'Structs::' + it.name.as_class_name } || 'nil')
@@ -228,7 +234,7 @@ module Ynl
               rbs_params = params.map { |it| "?#{it.name.as_variable_name}: #{it.type.rbs_type}" }.join(', ')
               rbs_result = request_reply.reply ? reply_class : 'void'
 
-              emit_comment(oper.doc)
+              emit_comment(operation_doc(oper))
               if method == 'dump'
                 emit_rbs_comment(
                   "(#{rbs_params}) -> Enumerable[#{rbs_result}]\n  | (#{rbs_params}) { (#{rbs_result}) -> void } -> void",
@@ -309,6 +315,11 @@ module Ynl
       comment.each_line(chomp: true) do |line|
         write('# ', line)
       end
+    end
+
+    private def operation_doc(operation)
+      flag_docs = operation.flags.filter_map { OPERATION_FLAG_DOCS[it] }
+      [operation.doc, *flag_docs].compact.join("\n\n")
     end
 
     private def emit_rbs_comment(*args)

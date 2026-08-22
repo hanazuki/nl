@@ -389,7 +389,7 @@ module Ynl
       # TODO: notify
 
       @operations[name] = Models::Operation.new(
-        name:, doc: translate_doc(d['doc']), fixed_header:, attribute_set:,
+        name:, doc: translate_doc(d['doc']), flags: d.fetch('flags', []), fixed_header:, attribute_set:,
         doit:, dumpit:,
       )
     end

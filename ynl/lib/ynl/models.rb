@@ -149,11 +149,12 @@ module Ynl
     end
 
     class Operation
-      attr_reader :name, :doc, :fixed_header, :attribute_set, :doit, :dumpit
+      attr_reader :name, :doc, :flags, :fixed_header, :attribute_set, :doit, :dumpit
 
-      def initialize(name:, doc:, fixed_header:, attribute_set:, doit:, dumpit:)
+      def initialize(name:, doc:, flags:, fixed_header:, attribute_set:, doit:, dumpit:)
         @name = name
         @doc = doc
+        @flags = flags
         @fixed_header = fixed_header
         @attribute_set = attribute_set
         @doit = doit
