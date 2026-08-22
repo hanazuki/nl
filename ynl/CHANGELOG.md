@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Assign correct values to attributes following `unused` entries.
+
 ## v0.2.3 (2026-03-24)
 
 - No longer depends on `ynl` gem at runtime.
