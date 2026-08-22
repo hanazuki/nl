@@ -8,6 +8,17 @@ RSpec.describe do
   end
 
   describe Nl::Linux::RtLink do
+    example 'do_getlink returns link info for loopback' do
+      Nl::Linux::RtLink.open do |rtlink|
+        reply = rtlink.do_getlink(ifi_index: 1)
+        expect(reply).to be_a Nl::Linux::RtLink::Messages::DoGetlinkReply
+
+        expect(reply.fixed_header.ifi_index).to eq 1
+        expect(reply.ifname).to eq 'lo'
+        expect(reply.fixed_header.ifi_type).to eq 772  # ARPHRD_LOOPBACK
+      end
+    end
+
     example 'dump_getlink returns link list including loopback' do
       Nl::Linux::RtLink.open do |rtlink|
         r = rtlink.dump_getlink
@@ -28,6 +39,19 @@ RSpec.describe do
           r << m
         end
         expect(r).not_to be_empty
+      end
+    end
+
+    example 'do_getstats returns 64-bit link stats for loopback' do
+      link_64_filter = 1 << 0  # IFLA_STATS_LINK_64
+
+      Nl::Linux::RtLink.open do |rtlink|
+        reply = rtlink.do_getstats(ifindex: 1, filter_mask: link_64_filter)
+        expect(reply).to be_a Nl::Linux::RtLink::Messages::DoGetstatsReply
+
+        expect(reply.ifindex).to eq 1
+        expect(reply.filter_mask).to eq link_64_filter
+        expect(reply.link_64).not_to be_nil
       end
     end
   end
@@ -105,6 +129,22 @@ RSpec.describe do
   end
 
   describe Nl::Linux::RtRoute do
+    example 'do_getroute returns the loopback route for 127.0.0.1' do
+      Nl::Linux::RtRoute.open do |rtroute|
+        reply = rtroute.do_getroute(
+          rtm_family: 2,  # AF_INET
+          rtm_dst_len: 32,
+          dst: "\x7f\x00\x00\x01",
+        )
+        expect(reply).to be_a Nl::Linux::RtRoute::Messages::DoGetrouteReply
+
+        expect(reply.rtm_family).to eq 2
+        expect(reply.rtm_dst_len).to eq 32
+        expect(reply.dst).to eq "\x7f\x00\x00\x01"
+        expect(reply.oif).to eq 1
+      end
+    end
+
     example 'dump_getroute returns IPv4 routes' do
       Nl::Linux::RtRoute.open do |rtroute|
         r = rtroute.dump_getroute(rtm_family: 2)  # AF_INET
@@ -158,6 +198,30 @@ RSpec.describe do
   end
 
   describe Nl::Linux::Ethtool do
+    example 'dump_strset_get returns string sets' do
+      Nl::Genl::Connection.open(resolver:) do |conn|
+        ethtool = conn.open(Nl::Linux::Ethtool)
+        r = ethtool.dump_strset_get
+        expect(r).to be_an Array
+        expect(r).not_to be_empty
+        r.each do |entry|
+          expect(entry).to be_a Nl::Linux::Ethtool::Messages::DumpStrsetGetReply
+        end
+      end
+    end
+
+    example 'dump_features_get returns device features' do
+      Nl::Genl::Connection.open(resolver:) do |conn|
+        ethtool = conn.open(Nl::Linux::Ethtool)
+        r = ethtool.dump_features_get
+        expect(r).to be_an Array
+        expect(r).not_to be_empty
+        r.each do |entry|
+          expect(entry).to be_a Nl::Linux::Ethtool::Messages::DumpFeaturesGetReply
+        end
+      end
+    end
+
     example 'dump_linkstate_get returns entry for loopback' do
       Nl::Genl::Connection.open(resolver:) do |conn|
         ethtool = conn.open(Nl::Linux::Ethtool)
