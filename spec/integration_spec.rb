@@ -1,3 +1,6 @@
+require_relative 'coverage_helper'
+CoverageHelper.start('integration')
+
 require 'nl/linux'
 
 RSpec.describe do

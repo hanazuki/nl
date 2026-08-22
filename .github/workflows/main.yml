@@ -16,6 +16,7 @@ jobs:
     strategy:
       matrix:
         ruby:
+          - '3.4'
           - '4.0'
     permissions:
       contents: read
@@ -32,6 +33,30 @@ jobs:
       run: bundle exec rake generate
     - name: Run tests
       run: bundle exec rake spec
+      env:
+        COVERAGE: 'true'
+    - name: Upload coverage to Coveralls
+      uses: coverallsapp/github-action@8d6379e14d29928660c4ba802d8e85393440b329 # v2.3.8
+      with:
+        file: coverage/.resultset.json
+        format: simplecov
+        github-token: ${{ github.token }}
+        fail-on-error: false
+        flag-name: ruby-${{ matrix.ruby }}
+        parallel: true
+
+  coveralls-finish:
+    if: ${{ always() }}
+    needs: test
+    runs-on: ubuntu-slim
+    permissions: {}
+    steps:
+    - name: Finish Coveralls parallel build
+      uses: coverallsapp/github-action@8d6379e14d29928660c4ba802d8e85393440b329 # v2.3.8
+      with:
+        github-token: ${{ github.token }}
+        fail-on-error: false
+        parallel-finished: true
 
   bundle-install:
     runs-on: ubuntu-slim
