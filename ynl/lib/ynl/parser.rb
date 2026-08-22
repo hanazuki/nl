@@ -338,8 +338,8 @@ module Ynl
         value = 0
 
         d.fetch('attributes').each do |v|
+          value = v.fetch('value', value + 1)
           if type = parse_attribute_type(v)
-            value = v.fetch('value', value + 1)
             attribute = Models::AttributeSet::Attribute.new(name: v.fetch('name'), type: type, value:)
             result.attributes << attribute
             if checks = v['checks']

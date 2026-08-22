@@ -7,6 +7,18 @@ RSpec.describe Ynl::Parser do
     path.open {|f| Ynl::Parser.new(f) }.parse
   end
 
+  describe 'attribute values' do
+    subject(:attributes) { parse('attribute_values.yaml').attribute_sets.fetch('attrs').attributes }
+
+    it 'reserves values for unused attributes' do
+      expect(attributes.map { [_1.name, _1.value] }).to eq([
+        ['first', 1],
+        ['third', 3],
+        ['after-explicit-unused', 11],
+      ])
+    end
+  end
+
   describe 'unified enum model' do
     subject(:family) { parse('ops_unified.yaml') }
 

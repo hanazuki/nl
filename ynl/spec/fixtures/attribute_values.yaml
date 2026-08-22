@@ -1,0 +1,24 @@
+---
+name: attributes
+protocol: genetlink
+
+attribute-sets:
+  -
+    name: attrs
+    attributes:
+      -
+        name: first
+        type: u32
+      -
+        name: reserved
+        type: unused
+      -
+        name: third
+        type: u32
+      -
+        name: explicit-reserved
+        type: unused
+        value: 10
+      -
+        name: after-explicit-unused
+        type: u32
