@@ -50,8 +50,9 @@ RSpec.describe Ynl::Parser do
         expect(op.dumpit.reply.value).to eq 1
       end
 
-      it 'has no dump request (none specified in yaml)' do
-        expect(op.dumpit.request).to be_nil
+      it 'assigns an empty dump request when none is specified in yaml' do
+        expect(op.dumpit.request.value).to eq 1
+        expect(op.dumpit.request.attributes).to be_empty
       end
     end
 
@@ -108,6 +109,11 @@ RSpec.describe Ynl::Parser do
 
       it 'assigns reply value 9 (resp_counter after ntf)' do
         expect(op.doit.reply.value).to eq 9
+      end
+
+      it 'assigns the do request value to an implicit empty dump request' do
+        expect(op.dumpit.request.value).to eq 11
+        expect(op.dumpit.request.attributes).to be_empty
       end
     end
 

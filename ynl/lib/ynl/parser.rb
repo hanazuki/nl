@@ -396,7 +396,7 @@ module Ynl
 
     private def parse_request_reply(d, default_request_id:, default_reply_id:)
       Models::RequestReply.new(
-        request: d['request']&.then { parse_message(it, default_id: default_request_id) },
+        request: parse_message(d.fetch('request', {}), default_id: default_request_id),
         reply: d['reply']&.then { parse_message(it, default_id: default_reply_id) },
       )
     end

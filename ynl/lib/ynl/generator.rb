@@ -214,7 +214,7 @@ module Ynl
         @ynl.operations.each do |name, oper|
           %w[do dump].each do |method|
             if request_reply = oper.public_send(method + 'it')
-              next unless request = request_reply.request  # FIXME: what should we do in this case?
+              request = request_reply.request
 
               request_class = "Messages::#{method.as_class_name}#{oper.name.as_class_name}Request"
               reply_class = request_reply.reply ? "Messages::#{method.as_class_name}#{oper.name.as_class_name}Reply" : 'nil'

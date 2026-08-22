@@ -24,6 +24,9 @@ operations:
           attributes: [foo]
         reply:
           attributes: [foo]
+      dump:
+        reply:
+          attributes: [foo]
     - name: auto-getter
       attribute-set: attrs
       do:

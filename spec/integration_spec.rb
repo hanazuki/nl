@@ -93,6 +93,17 @@ RSpec.describe do
       end
     end
 
+    example 'dump_getfamily returns family list including nlctrl' do
+      Nl::Linux::Nlctrl.open do |nlctrl|
+        replies = nlctrl.dump_getfamily
+        expect(replies).to be_an Array
+
+        reply = replies.find { it.family_name == 'nlctrl' }
+        expect(reply).to be_a Nl::Linux::Nlctrl::Messages::DumpGetfamilyReply
+        expect(reply.family_id).to eq Nl::Genl::GENL_ID_CTRL
+      end
+    end
+
     example 'dump_getpolicy returns policies for nlctrl' do
       Nl::Linux::Nlctrl.open do |nlctrl|
         replies = nlctrl.dump_getpolicy(family_name: 'nlctrl')
