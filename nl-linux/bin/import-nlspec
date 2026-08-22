@@ -12,12 +12,25 @@ def sh!(*cmdline) = system(*cmdline.flatten, exception: true)
 SPECS_PATH = 'Documentation/netlink/specs'
 KERNEL_ORG_RELEASES = 'https://www.kernel.org/releases.json'
 KERNEL_GIT_URL = 'https://github.com/gregkh/linux.git'
+CHANGELOG_ENTRY_PREFIX = '- Update kernel YNL specification from Linux '
 
 @root = Pathname(__dir__) / '..'
 
 def github_output(key, value)
   return unless (path = ENV['GITHUB_OUTPUT'])
   File.open(path, 'a') { |f| f.puts "#{key}=#{value}" }
+end
+
+def update_changelog(version)
+  changelog_path = @root / 'CHANGELOG.md'
+  changelog = changelog_path.read
+  changelog.sub!(/^## Unreleased\n\n\K.*?(?=^## |\z)/m) do |body|
+    entry = "#{CHANGELOG_ENTRY_PREFIX}#{version}."
+    (body.sub!(/^#{Regexp.escape(CHANGELOG_ENTRY_PREFIX)}.*$/, entry) ||
+      "#{entry}\n#{body}").sub(/\n*\z/, "\n\n")
+  end or raise 'Unreleased section not found in CHANGELOG.md'
+
+  changelog_path.write(changelog)
 end
 
 j = JSON.parse(URI.open(KERNEL_ORG_RELEASES, &:read))
@@ -60,9 +73,10 @@ begin
   end
 
   (@root / 'NLSPEC_VERSION').write("#{latest_stable}\n")
+  update_changelog(latest_stable)
   msg = "Import #{SPECS_PATH} from Linux v#{latest_stable}"
-  sh! %W[git -C #{@root} add NLSPEC_VERSION]
-  sh! %W[git -C #{@root} commit #{nlspec_dir} NLSPEC_VERSION -m #{msg}]
+  sh! %W[git -C #{@root} add NLSPEC_VERSION CHANGELOG.md]
+  sh! %W[git -C #{@root} commit #{nlspec_dir} NLSPEC_VERSION CHANGELOG.md -m #{msg}]
 ensure
   FileUtils.rm_rf(kernel_tmpdir)
 end
