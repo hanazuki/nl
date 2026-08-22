@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Update kernel YNL specification from Linux 7.2.
+
 ## v0.2.3 (2026-03-24)
 
 - No longer depends on `ynl` gem at runtime.
