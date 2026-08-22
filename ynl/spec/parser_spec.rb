@@ -156,4 +156,17 @@ RSpec.describe Ynl::Parser do
       end
     end
   end
+
+  describe 'operation flags' do
+    subject(:operations) { parse('operation_flags.yaml').operations }
+
+    it 'preserves flags as operation metadata' do
+      expect(operations.fetch('global-admin').flags).to eq ['admin-perm']
+      expect(operations.fetch('namespace-admin').flags).to eq ['uns-admin-perm']
+    end
+
+    it 'defaults to an empty list' do
+      expect(operations.fetch('unprivileged').flags).to be_empty
+    end
+  end
 end

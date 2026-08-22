@@ -1,0 +1,23 @@
+name: operation-flags
+attribute-sets:
+  - name: attrs
+    attributes: []
+operations:
+  list:
+    - name: global-admin
+      doc: Change a global network setting.
+      attribute-set: attrs
+      flags: [admin-perm]
+      do:
+        request: {}
+    - name: namespace-admin
+      doc: Change a namespaced network setting.
+      attribute-set: attrs
+      flags: [uns-admin-perm]
+      do:
+        request: {}
+    - name: unprivileged
+      doc: Read a network setting.
+      attribute-set: attrs
+      do:
+        request: {}
