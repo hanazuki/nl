@@ -92,6 +92,24 @@ RSpec.describe do
         expect(reply.family_name).to eq 'nlctrl'
       end
     end
+
+    example 'dump_getpolicy returns policies for nlctrl' do
+      Nl::Linux::Nlctrl.open do |nlctrl|
+        replies = nlctrl.dump_getpolicy(family_name: 'nlctrl')
+        expect(replies).not_to be_empty
+        expect(replies).to all be_a Nl::Linux::Nlctrl::Messages::DumpGetpolicyReply
+        expect(replies).to all have_attributes(family_id: Nl::Genl::GENL_ID_CTRL)
+
+        policies = replies.filter_map(&:policy)
+        expect(policies).not_to be_empty
+        policy_entries = policies.flat_map { it.values.flat_map(&:values) }
+        expect(policy_entries).to all be_a Nl::Linux::Nlctrl::AttributeSets::PolicyAttrs
+
+        operation_policies = replies.filter_map(&:op_policy)
+        expect(operation_policies).not_to be_empty
+        expect(operation_policies.flat_map(&:values)).to all be_a Nl::Linux::Nlctrl::AttributeSets::OpPolicyAttrs
+      end
+    end
   end
 
   describe Nl::Linux::RtNeigh do

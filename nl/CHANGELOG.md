@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Support encoding and decoding of nested type-value attributes.
+
 ## v0.2.4 (2026-08-22)
 
 ## v0.2.3 (2026-03-24)

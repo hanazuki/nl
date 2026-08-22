@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Generate nested type-value attributes with their declared type-key depth.
+
 ## v0.2.4 (2026-08-22)
 
 - Assign correct values to attributes following `unused` entries.

@@ -48,6 +48,16 @@ module Ynl
         'AttributeSets::' + attribute_set.name.as_class_name
       end
     end
+    NestTypeValue = Struct.new(:attribute_set, :type_values) do
+      def resolve(f)
+        self.attribute_set = attribute_set.resolve(f)
+        self
+      end
+
+      def rbs_type
+        'untyped'
+      end
+    end
     SubMessage = Struct.new(:sub_message, :selector) do
       def resolve(f)
         self.sub_message = sub_message.resolve(f)

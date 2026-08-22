@@ -115,6 +115,7 @@ module Ynl
                   emit_const('TYPE', attr.value)
                   emit_const('NAME', attr.name.as_variable_name.as_symbol_literal)
                   if attr.type.is_a?(Types::NestedAttributes) ||
+                    attr.type.is_a?(Types::NestTypeValue) ||
                     (attr.type.is_a?(Types::IndexedArray) && attr.type.sub_type.is_a?(Types::NestedAttributes))
                     deferred_consts << ["#{name.as_class_name}::#{attr.name.as_class_name}::DATATYPE", to_datatype(attr.type, attr.checks)]
                   else
@@ -337,6 +338,8 @@ module Ynl
         # end
       when Types::NestedAttributes
         "#{@protocol}::DataTypes::NestedAttributes.new(#{type.attribute_set.name.as_class_name})"
+      when Types::NestTypeValue
+        "#{@protocol}::DataTypes::NestTypeValue.new(#{type.attribute_set.name.as_class_name}, #{type.type_values.length})"
       when Types::IndexedArray
         "#{@protocol}::DataTypes::IndexedArray.new(#{to_datatype(type.sub_type, nil)})"
       when Types::SubMessage
