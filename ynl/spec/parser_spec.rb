@@ -19,6 +19,16 @@ RSpec.describe Ynl::Parser do
     end
   end
 
+  describe 'nest-type-value attributes' do
+    subject(:type) { parse('nest_type_value.yaml').attribute_sets.fetch('outer').attributes.first.type }
+
+    it 'preserves the type-value nesting levels' do
+      expect(type).to be_a Ynl::Types::NestTypeValue
+      expect(type.type_values).to eq %w[policy-id attribute-id]
+      expect(type.attribute_set.name).to eq 'policy'
+    end
+  end
+
   describe 'unified enum model' do
     subject(:family) { parse('ops_unified.yaml') }
 

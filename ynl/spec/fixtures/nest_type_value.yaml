@@ -1,0 +1,19 @@
+---
+name: nest-type-value
+protocol: genetlink
+
+attribute-sets:
+  -
+    name: outer
+    attributes:
+      -
+        name: policies
+        type: nest-type-value
+        type-value: [policy-id, attribute-id]
+        nested-attributes: policy
+  -
+    name: policy
+    attributes:
+      -
+        name: type
+        type: u32

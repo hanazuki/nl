@@ -200,8 +200,9 @@ module Ynl
         )
       when 'nest-type-value'
         if d['nested-attributes']
-          Types::NestedAttributes.new(
+          Types::NestTypeValue.new(
             attribute_set: Models::Thunk.new {|f| f.attribute_sets.fetch(d.fetch('nested-attributes')) },
+            type_values: d.fetch('type-value'),
           )
         else
           Types::Binary.new(struct: nil, display_hint: nil)

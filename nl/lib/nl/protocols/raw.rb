@@ -360,6 +360,59 @@ module Nl
           end
         end
 
+        # Nested attributes whose type numbers are keys rather than members of
+        # an attribute set. Each level is returned as an Integer-keyed Hash;
+        # values at the innermost level are decoded as @attribute_set.
+        class NestTypeValue
+          def initialize(attribute_set, levels)
+            raise ArgumentError, 'levels must be positive' unless levels.positive?
+
+            @attribute_set = attribute_set
+            @levels = levels
+          end
+
+          def encode(encoder, value)
+            encode_level(encoder, value, @levels)
+          end
+
+          def decode(decoder)
+            decode_level(decoder, @levels)
+          end
+
+          private def encode_level(encoder, values, levels)
+            values.each do |type, value|
+              nlattr = Core::NlAttr.new(0, type | Core::NLA_F_NESTED)
+              encoder.measure(Endian::Host::U16) do
+                nlattr.encode(encoder)
+                if levels == 1
+                  value.encode(encoder)
+                else
+                  encode_level(encoder, value, levels - 1)
+                end
+              end
+              encoder.align_to(Core::NLA_ALIGNTO)
+            end
+          end
+
+          private def decode_level(decoder, levels)
+            result = {}
+            while decoder.available?(Core::NLA_HDRLEN)
+              nlattr = Core::NlAttr.decode(decoder)
+              type = nlattr.type & Core::NLA_TYPE_MASK
+              value = decoder.limit(nlattr.len - Core::NLA_HDRLEN) do
+                if levels == 1
+                  @attribute_set.decode(decoder)
+                else
+                  decode_level(decoder, levels - 1)
+                end
+              end
+              decoder.align_to(Core::NLA_ALIGNTO)
+              result[type] = value
+            end
+            result
+          end
+        end
+
         class IndexedArray
           def initialize(sub_type)
             @sub_type = sub_type
