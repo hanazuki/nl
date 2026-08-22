@@ -10,7 +10,7 @@ Gem::Specification.new do |spec|
   spec.description = 'Linux Netlink client'
   spec.homepage = 'https://github.com/hanazuki/nl'
   spec.license = '(GPL-2.0 WITH Linux-syscall-note) OR BSD-3-Clause'
-  spec.required_ruby_version = '>= 3.1'
+  spec.required_ruby_version = '>= 3.4'
 
   spec.metadata['homepage_uri'] = spec.homepage
   spec.metadata['source_code_uri'] = "https://github.com/hanazuki/nl/tree/v#{Nl::Linux::VERSION}"
