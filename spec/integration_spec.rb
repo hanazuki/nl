@@ -227,6 +227,20 @@ RSpec.describe do
   end
 
   describe Nl::Linux::Ethtool do
+    example 'do_linkstate_get returns link state for loopback' do
+      header = Nl::Linux::Ethtool::AttributeSets::Header.build_attributes(dev_index: 1)
+
+      Nl::Genl::Connection.open(resolver:) do |conn|
+        ethtool = conn.open(Nl::Linux::Ethtool)
+        reply = ethtool.do_linkstate_get(header:)
+        expect(reply).to be_a Nl::Linux::Ethtool::Messages::DoLinkstateGetReply
+
+        dev_name = reply.header[:dev_name]
+        expect(dev_name).to be_a Nl::Linux::Ethtool::AttributeSets::Header::DevName
+        expect(dev_name.value).to eq 'lo'
+      end
+    end
+
     example 'dump_strset_get returns string sets' do
       Nl::Genl::Connection.open(resolver:) do |conn|
         ethtool = conn.open(Nl::Linux::Ethtool)

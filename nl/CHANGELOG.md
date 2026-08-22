@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Fix encoding of nested attributes and mark them with `NLA_F_NESTED`.
 - Support encoding and decoding of nested type-value attributes.
 
 ## v0.2.4 (2026-08-22)
