@@ -1,3 +1,5 @@
+require_relative 'raw'
+
 module Nl
   module Protocols
     # The Generic Netlink protocol

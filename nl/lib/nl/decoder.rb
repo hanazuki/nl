@@ -38,8 +38,16 @@ module Nl
 
     def get_string(length = @limit - @position)
       nposition = @position + length
-      raise OutOfBounds if nposition > @limit
+      raise OutOfBounds if length.negative? || nposition > @limit
       value = @buffer.get_string(@position, length)
+      @position = nposition
+      value
+    end
+
+    def get_buffer(length = @limit - @position)
+      nposition = @position + length
+      raise OutOfBounds if length.negative? || nposition > @limit
+      value = @buffer.slice(@position, length)
       @position = nposition
       value
     end

@@ -5,12 +5,22 @@ require 'nl/linux'
 
 RSpec.describe do
   let(:resolver) do
-    ->(socket, name) do
-      Nl::Linux::Nlctrl.new(socket).do_getfamily(family_name: name).family_id
+    ->(connection, name) do
+      connection.open(Nl::Linux::Nlctrl).do_getfamily(family_name: name).family_id
     end
   end
 
   describe Nl::Linux::RtLink do
+    example 'multiplexes asynchronous do and dump operations on one socket' do
+      Nl::Linux::RtLink.open(executor: :thread) do |rtlink|
+        link_future = rtlink.async.do_getlink(ifi_index: 1)
+        links_stream = rtlink.async.dump_getlink
+
+        expect(link_future.await).to have_attributes(ifname: 'lo')
+        expect(links_stream.to_a.map(&:ifname)).to include('lo')
+      end
+    end
+
     example 'do_getlink returns link info for loopback' do
       Nl::Linux::RtLink.open do |rtlink|
         reply = rtlink.do_getlink(ifi_index: 1)
@@ -76,7 +86,7 @@ RSpec.describe do
 
   describe Nl::Linux::Netdev do
     example 'do_dev_get returns device info for loopback' do
-      Nl::Genl::Connection.open(resolver:) do |conn|
+      Nl::Genl::Connection.open(resolver:, executor: :thread) do |conn|
         netdev = conn.open(Nl::Linux::Netdev)
         dev = netdev.do_dev_get(ifindex: 1)
         expect(dev).to be_a Nl::Linux::Netdev::Messages::DoDevGetReply
@@ -244,10 +254,12 @@ RSpec.describe do
       end
     end
 
-    example 'dump_strset_get returns string sets' do
+    example 'dump_strset_get returns string set counts' do
       Nl::Genl::Connection.open(resolver:) do |conn|
         ethtool = conn.open(Nl::Linux::Ethtool)
-        r = ethtool.dump_strset_get
+        # The kernel only parses counts-only when stringsets is present.
+        stringsets = Nl::Linux::Ethtool::AttributeSets::Stringsets.build_attributes
+        r = ethtool.dump_strset_get(stringsets:, counts_only: true)
         expect(r).to be_an Array
         expect(r).not_to be_empty
         r.each do |entry|
@@ -259,7 +271,10 @@ RSpec.describe do
     example 'dump_features_get returns device features' do
       Nl::Genl::Connection.open(resolver:) do |conn|
         ethtool = conn.open(Nl::Linux::Ethtool)
-        r = ethtool.dump_features_get
+        header = Nl::Linux::Ethtool::AttributeSets::Header.build_attributes(
+          flags: 1, # ETHTOOL_FLAG_COMPACT_BITSETS
+        )
+        r = ethtool.dump_features_get(header:)
         expect(r).to be_an Array
         expect(r).not_to be_empty
         r.each do |entry|

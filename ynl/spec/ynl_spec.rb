@@ -34,8 +34,58 @@ RSpec.describe Ynl do
       cls = Ynl::Family.build(Pathname(__dir__) + 'fixtures/ops_unified.yaml')
 
       expect(cls.instance_methods(false)).to include(:dump_op_a)
+      expect(cls.instance_methods(false)).to include(:async)
+      expect(cls::AsyncOperations.instance_methods(false)).to include(:dump_op_a)
       expect(cls::Messages::DumpOpARequest::TYPE).to eq 1
       expect(cls::Messages::DumpOpARequest::ATTRIBUTES).to be_empty
+    end
+
+    it 'rejects asynchronous operations when no executor is configured' do
+      cls = Ynl::Family.build(Pathname(__dir__) + 'fixtures/ops_unified.yaml')
+      family = cls.allocate
+      family.instance_variable_set(:@exchanger, Nl::BlockingTransport.allocate)
+
+      expect(family).not_to be_async_capable
+      expect { family.async }.to raise_error(
+        Nl::Async::UnavailableError,
+        'async operations require an executor',
+      )
+    end
+
+    it 'reports asynchronous capability when an executor is configured' do
+      cls = Ynl::Family.build(Pathname(__dir__) + 'fixtures/ops_unified.yaml')
+      family = cls.allocate
+      family.instance_variable_set(:@exchanger, Nl::Async::Dispatcher.allocate)
+
+      expect(family).to be_async_capable
+      expect(family.async).to be_a(cls::AsyncOperations)
+    end
+
+    it 'dispatches asynchronous operations without bypassing Family encapsulation' do
+      generated = StringIO.new
+      path = Pathname(__dir__) + 'fixtures/ops_unified.yaml'
+      path.open { |source| Ynl::Family.generate(source, generated) }
+      cls = Ynl::Family.build(path)
+      exchanger = Object.new
+      calls = []
+      exchanger.define_singleton_method(:async_capable?) { true }
+      exchanger.define_singleton_method(:exchange_async) do |*args, **kwargs|
+        calls << [args, kwargs]
+        :operation
+      end
+      family = cls.new(exchanger)
+
+      operations = family.async(stream_capacity: 7)
+      expect(operations.do_op_a).to eq(:operation)
+      expect(operations.dump_op_a).to eq(:operation)
+      expect(calls).to eq([
+        [[cls::PROTOCOL, :do, cls::Messages::DoOpARequest,
+          cls::Messages::DoOpAReply, {}], {stream_capacity: 7}],
+        [[cls::PROTOCOL, :dump, cls::Messages::DumpOpARequest,
+          cls::Messages::DumpOpAReply, {}], {stream_capacity: 7}],
+      ])
+      expect(generated.string).not_to include('__send__')
+      expect(cls.private_instance_methods).to include(:exchange_message_async)
     end
 
     it 'documents operation permission flags' do
