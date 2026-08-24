@@ -5,17 +5,28 @@ require 'spec_helper'
 RSpec.describe Nl::BlockingTransport do
   BlockingFakeSocket = Struct.new(:datagrams, :closed) do
     def recvmsg = [datagrams.shift]
+    def local_port_id = 77
     def close = self.closed = true
     def closed? = !!closed
   end
 
   BlockingFakeProtocol = Class.new do
+    Sent = Data.define(:request, :seq, :pid)
+
+    attr_reader :sent
+
     def initialize
       @raw = Nl::Protocols::Raw.new('fake', 0)
+      @sent = []
     end
 
-    def build_request(kind, request_class, args) = [kind, request_class, args]
-    def send_message(_socket, _request) = [1, 77]
+    def build_request(_kind, _request_class, _args)
+      Nl::Protocols::Raw::Request.new(type: 42, flags: 0, message: nil)
+    end
+
+    def send_message(_socket, request, seq:, pid:)
+      @sent << Sent.new(request:, seq:, pid:)
+    end
 
     def decode_frame(header, payload, _reply_class)
       if header.type < Nl::Core::NLMSG_MIN_TYPE
@@ -50,10 +61,12 @@ RSpec.describe Nl::BlockingTransport do
 
   it 'returns a do reply after its ACK' do
     socket = BlockingFakeSocket.new([frame(type: 42, payload: 'reply') + ack])
+    protocol = BlockingFakeProtocol.new
 
-    result = described_class.new(socket).exchange(BlockingFakeProtocol.new, :do, Object, String, {})
+    result = described_class.new(socket).exchange(protocol, :do, Object, String, {})
 
     expect(result).to eq('reply')
+    expect(protocol.sent.first.to_h).to include(seq: 1, pid: 77)
   end
 
   it 'returns the first multipart do reply after header-only DONE' do

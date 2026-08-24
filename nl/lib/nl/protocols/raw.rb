@@ -10,6 +10,7 @@ module Nl
       DoneFrame = Data.define(:header, :errno)
       UnknownFrame = Data.define(:header)
       DataFrame = Data.define(:header, :message)
+      Request = Data.define(:type, :flags, :message)
 
       attr_reader :name, :protonum
 
@@ -18,10 +19,11 @@ module Nl
         @protonum = protonum
       end
 
-      def encode_message(encoder, frame)
+      def encode_message(encoder, request, seq:, pid:)
+        header = Core::NlMsgHdr.new(0, request.type, request.flags, seq, pid)
         encoder.measure(Endian::Host::U16) do
-          frame.header.encode(encoder)
-          frame.message.encode(encoder)
+          header.encode(encoder)
+          request.message.encode(encoder)
         end
       end
 
@@ -63,21 +65,19 @@ module Nl
         end
       end
 
-      def send_message(socket, frame)
-        seq_pid = socket.complete(frame.header)
+      def send_message(socket, request, seq:, pid:)
         encoder = Encoder.new
-        encode_message(encoder, frame)
+        encode_message(encoder, request, seq:, pid:)
         socket.sendmsg(encoder.buffer.get_string, 0, Socket.sockaddr_nl(0, 0))
-        seq_pid
+        nil
       end
 
       def build_request(kind, request_class, args)
         flags = Core::NLM_F_REQUEST
         flags |= kind == :dump ? Core::NLM_F_DUMP : Core::NLM_F_ACK
 
-        header = Core::NlMsgHdr.new(0, frame_type(request_class), flags, nil, nil)
         message = request_class.from_params(args)
-        DataFrame.new(header:, message:)
+        Request.new(type: frame_type(request_class), flags:, message:)
       end
 
       private def frame_type(message_class) = message_class::TYPE

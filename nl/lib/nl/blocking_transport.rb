@@ -1,5 +1,7 @@
 # rbs_inline: enabled
 
+require_relative 'sequence_allocator'
+
 module Nl
   # Drives one exchange at a time with blocking socket operations.
   class BlockingTransport
@@ -17,6 +19,7 @@ module Nl
 
     def initialize(socket)
       @socket = socket
+      @sequences = SequenceAllocator.new
       @mutex = Mutex.new
     end
 
@@ -26,7 +29,10 @@ module Nl
       end
 
       request = protocol.build_request(kind, request_class, args)
-      key = protocol.send_message(@socket, request)
+      seq = @sequences.next
+      pid = @socket.local_port_id
+      key = [seq, pid]
+      protocol.send_message(@socket, request, seq:, pid:)
       exchange = Exchange.new(kind:, expects_reply: !reply_class.nil?)
       result = [] unless block_given?
 

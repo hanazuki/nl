@@ -1,5 +1,7 @@
 # rbs_inline: enabled
 
+require_relative '../sequence_allocator'
+
 module Nl
   module Async
     # Owns the single receive loop for a socket and routes replies by sequence.
@@ -11,6 +13,7 @@ module Nl
 
       def initialize(socket, executor: :thread)
         @socket = socket
+        @sequences = SequenceAllocator.new
         @driver = executor.respond_to?(:start) ? executor : Async.driver(executor)
         @mutex = Mutex.new
         @send_mutex = Mutex.new
@@ -38,12 +41,15 @@ module Nl
         request = protocol.build_request(kind, request_class, args)
 
         key = nil
+        seq = pid = nil
         operation = sink = nil
         @send_mutex.synchronize do
           @mutex.synchronize do
             raise ClosedError, 'dispatcher is closed' if @closed
 
-            key = @socket.complete(request.header)
+            pid = @socket.local_port_id
+            seq = @sequences.next { @pending.key?([it, pid]) }
+            key = [seq, pid]
             mailbox = Mailbox.new(
               capacity: stream_capacity,
               before_wait: -> { @driver.check_wait_context! },
@@ -58,7 +64,7 @@ module Nl
           end
 
           begin
-            protocol.send_message(@socket, request)
+            protocol.send_message(@socket, request, seq:, pid:)
           rescue Exception => error
             fail_pending(key, error)
             raise

@@ -21,7 +21,6 @@ module Nl
     # @param protonum [Integer] Netlink protocol number
     def initialize(protonum)
       super(PF_NETLINK, SOCK_RAW, protonum)
-      @seq = 0  # last-used sequence number
     end
 
     def self.open(protonum)
@@ -34,20 +33,9 @@ module Nl
       end
     end
 
-    # XXX: Should Protocol manage next_seq?
-
-    # @return [Integer] Get next sequence number
-    def next_seq
-      nseq = (@seq + 1) & 0xFFFFFFFF
-      nseq = 1 if nseq == 0  # seq=0 is for notification
-      @seq = nseq
-    end
-
-    def complete(hdr)
-      [
-        hdr.seq ||= next_seq,
-        hdr.pid ||= Socket.unpack_sockaddr_nl(local_address.to_sockaddr).first,
-      ]
+    # @return [Integer] Local Netlink port ID assigned to this socket
+    def local_port_id
+      Socket.unpack_sockaddr_nl(local_address.to_sockaddr).first
     end
   end
 end

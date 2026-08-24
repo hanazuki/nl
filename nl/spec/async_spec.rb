@@ -318,14 +318,9 @@ RSpec.describe Nl::Async do
     FakeSocket = Class.new do
       def initialize(socket)
         @socket = socket
-        @sequence = 0
       end
 
-      def complete(header)
-        header.seq ||= (@sequence += 1)
-        header.pid ||= 77
-        [header.seq, header.pid]
-      end
+      def local_port_id = 77
 
       def wait_readable = @socket.wait_readable
 
@@ -346,8 +341,8 @@ RSpec.describe Nl::Async do
         @sent = []
       end
 
-      def send_message(_socket, message)
-        @sent << message
+      def send_message(_socket, request, seq:, pid:)
+        @sent << [request, seq, pid]
       end
 
       def build_request(kind, request_class, args)
