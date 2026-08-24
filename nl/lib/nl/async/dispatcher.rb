@@ -43,7 +43,7 @@ module Nl
           @mutex.synchronize do
             raise ClosedError, 'dispatcher is closed' if @closed
 
-            key = @socket.complete(request.nlmsg_header)
+            key = @socket.complete(request.header)
             mailbox = Mailbox.new(
               capacity: stream_capacity,
               before_wait: -> { @driver.check_wait_context! },

@@ -3,15 +3,6 @@
 require 'spec_helper'
 
 RSpec.describe Nl::BlockingTransport do
-  BlockingReply = Class.new(String) do
-    attr_reader :nlmsg_header
-
-    def initialize(value, nlmsg_header)
-      super(value)
-      @nlmsg_header = nlmsg_header
-    end
-  end
-
   BlockingFakeSocket = Struct.new(:datagrams, :closed) do
     def recvmsg = [datagrams.shift]
     def close = self.closed = true
@@ -30,7 +21,7 @@ RSpec.describe Nl::BlockingTransport do
       if header.type < Nl::Core::NLMSG_MIN_TYPE
         @raw.decode_frame(header, payload, nil)
       else
-        BlockingReply.new(payload.get_string, header)
+        Nl::Protocols::Raw::DataFrame.new(header:, message: payload.get_string)
       end
     end
   end

@@ -309,20 +309,10 @@ RSpec.describe Nl::Async do
   end
 
   describe Nl::Async::Dispatcher do
-    AsyncReply = Class.new(String) do
-      attr_reader :nlmsg_header
-
-      def initialize(value, nlmsg_header)
-        super(value)
-        @nlmsg_header = nlmsg_header
-      end
-    end
-
-    FakeMessage = Struct.new(:nlmsg_header)
     FakeRequest = Class.new do
-      def self.from_params(_params)
-        FakeMessage.new(Nl::Core::NlMsgHdr.new(0, 42, nil, nil, nil))
-      end
+      const_set(:TYPE, 42)
+
+      def self.from_params(_params) = new
     end
 
     FakeSocket = Class.new do
@@ -368,7 +358,7 @@ RSpec.describe Nl::Async do
         if header.type < Nl::Core::NLMSG_MIN_TYPE
           @raw.decode_frame(header, payload, nil)
         else
-          AsyncReply.new(payload.get_string, header)
+          Nl::Protocols::Raw::DataFrame.new(header:, message: payload.get_string)
         end
       end
     end
