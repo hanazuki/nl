@@ -12,12 +12,10 @@ RSpec.describe Nl::Protocols::Genl do
 
   it 'keeps the family ID in the frame header and the command ID in the message' do
     protocol = described_class.new('fake', family_id: 42)
-    frame = protocol.build_request(:do, GenlRequest, {})
-    frame.header.seq = 1
-    frame.header.pid = 77
+    request = protocol.build_request(:do, GenlRequest, {})
     encoder = Nl::Encoder.new
 
-    protocol.encode_message(encoder, frame)
+    protocol.encode_message(encoder, request, seq: 1, pid: 77)
 
     length, type, = encoder.buffer.get_string.unpack('L<S<S<')
     command, = encoder.buffer.get_string(16, 4).unpack('C')

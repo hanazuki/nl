@@ -341,8 +341,8 @@ RSpec.describe Nl::Async do
         @sent = []
       end
 
-      def send_message(_socket, message)
-        @sent << message
+      def send_message(_socket, request, seq:, pid:)
+        @sent << [request, seq, pid]
       end
 
       def build_request(kind, request_class, args)

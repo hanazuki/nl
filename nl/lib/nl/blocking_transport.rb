@@ -29,8 +29,10 @@ module Nl
       end
 
       request = protocol.build_request(kind, request_class, args)
-      key = prepare(request.header)
-      protocol.send_message(@socket, request)
+      seq = @sequences.next
+      pid = @socket.local_port_id
+      key = [seq, pid]
+      protocol.send_message(@socket, request, seq:, pid:)
       exchange = Exchange.new(kind:, expects_reply: !reply_class.nil?)
       result = [] unless block_given?
 
@@ -72,12 +74,6 @@ module Nl
 
         yield protocol.decode_frame(header, payload, reply_class)
       end
-    end
-
-    private def prepare(header)
-      header.pid = @socket.local_port_id
-      header.seq = @sequences.next
-      [header.seq, header.pid]
     end
   end
 end

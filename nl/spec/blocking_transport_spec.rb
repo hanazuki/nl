@@ -11,6 +11,8 @@ RSpec.describe Nl::BlockingTransport do
   end
 
   BlockingFakeProtocol = Class.new do
+    Sent = Data.define(:request, :seq, :pid)
+
     attr_reader :sent
 
     def initialize
@@ -19,11 +21,12 @@ RSpec.describe Nl::BlockingTransport do
     end
 
     def build_request(_kind, _request_class, _args)
-      header = Nl::Core::NlMsgHdr.new(0, 42, 0, nil, nil)
-      Nl::Protocols::Raw::DataFrame.new(header:, message: nil)
+      Nl::Protocols::Raw::Request.new(type: 42, flags: 0, message: nil)
     end
 
-    def send_message(_socket, request) = @sent << request
+    def send_message(_socket, request, seq:, pid:)
+      @sent << Sent.new(request:, seq:, pid:)
+    end
 
     def decode_frame(header, payload, _reply_class)
       if header.type < Nl::Core::NLMSG_MIN_TYPE
@@ -63,22 +66,7 @@ RSpec.describe Nl::BlockingTransport do
     result = described_class.new(socket).exchange(protocol, :do, Object, String, {})
 
     expect(result).to eq('reply')
-    expect(protocol.sent.first.header.to_h).to include(seq: 1, pid: 77)
-  end
-
-  it 'replaces transport header values supplied by the protocol' do
-    socket = BlockingFakeSocket.new([ack])
-    protocol = BlockingFakeProtocol.new
-    allow(protocol).to receive(:build_request).and_wrap_original do |original, *args|
-      original.call(*args).tap do |request|
-        request.header.seq = 100
-        request.header.pid = 200
-      end
-    end
-
-    described_class.new(socket).exchange(protocol, :do, Object, nil, {})
-
-    expect(protocol.sent.first.header.to_h).to include(seq: 1, pid: 77)
+    expect(protocol.sent.first.to_h).to include(seq: 1, pid: 77)
   end
 
   it 'returns the first multipart do reply after header-only DONE' do

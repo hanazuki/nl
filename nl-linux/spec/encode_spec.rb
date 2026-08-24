@@ -22,21 +22,18 @@ RSpec.describe Nl::Linux::RtLink do
   end
 
   describe 'Messages::DumpGetlinkRequest' do
-    subject(:frame) do
+    subject(:request) do
       result = described_class::PROTOCOL.build_request(:dump, described_class::Messages::DumpGetlinkRequest, {})
-      result.header.flags = 0
-      result.header.seq = 12345
-      result.header.pid = 67890
-      result
+      result.with(flags: 0)
     end
 
     it 'serializes to 32 bytes (nlmsghdr + ifinfomsg, no attributes)' do
-      described_class::PROTOCOL.encode_message(encoder, frame)
+      described_class::PROTOCOL.encode_message(encoder, request, seq: 12345, pid: 67890)
       expect(encoder.buffer.get_string.bytesize).to eq 32
     end
 
     it 'encodes nlmsghdr fields at the correct offsets' do
-      described_class::PROTOCOL.encode_message(encoder, frame)
+      described_class::PROTOCOL.encode_message(encoder, request, seq: 12345, pid: 67890)
       # len(U32), type(U16), flags(U16), seq(U32), pid(U32)
       len, type, flags, seq, pid = encoder.buffer.get_string.unpack('L< S< S< L< L<')
       expect(len).to eq 32
@@ -47,7 +44,7 @@ RSpec.describe Nl::Linux::RtLink do
     end
 
     it 'encodes ifinfomsg as all zeros at bytes 16-31' do
-      described_class::PROTOCOL.encode_message(encoder, frame)
+      described_class::PROTOCOL.encode_message(encoder, request, seq: 12345, pid: 67890)
       expect(encoder.buffer.get_string[16, 16]).to eq(?\x0.b * 16)
     end
   end

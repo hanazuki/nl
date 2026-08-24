@@ -30,10 +30,11 @@ module Nl
         @family_id or raise NotImplementedError, "Genetlink family ID for '#{name}' must be resolved via nlctrl"
       end
 
-      def encode_message(encoder, frame)
-        message = frame.message
+      def encode_message(encoder, request, seq:, pid:)
+        message = request.message
+        header = Core::NlMsgHdr.new(0, request.type, request.flags, seq, pid)
         encoder.measure(Endian::Host::U16) do
-          frame.header.encode(encoder)
+          header.encode(encoder)
           GenlMsgHdr.new(message.class::TYPE, 1, 0).encode(encoder)
           message.encode(encoder)
         end

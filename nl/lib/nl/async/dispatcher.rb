@@ -41,12 +41,15 @@ module Nl
         request = protocol.build_request(kind, request_class, args)
 
         key = nil
+        seq = pid = nil
         operation = sink = nil
         @send_mutex.synchronize do
           @mutex.synchronize do
             raise ClosedError, 'dispatcher is closed' if @closed
 
-            key = prepare(request.header)
+            pid = @socket.local_port_id
+            seq = @sequences.next { @pending.key?([it, pid]) }
+            key = [seq, pid]
             mailbox = Mailbox.new(
               capacity: stream_capacity,
               before_wait: -> { @driver.check_wait_context! },
@@ -61,7 +64,7 @@ module Nl
           end
 
           begin
-            protocol.send_message(@socket, request)
+            protocol.send_message(@socket, request, seq:, pid:)
           rescue Exception => error
             fail_pending(key, error)
             raise
@@ -105,12 +108,6 @@ module Nl
           @socket.close unless @socket.closed?
         end
         fail_all(error)
-      end
-
-      private def prepare(header)
-        header.pid = @socket.local_port_id
-        header.seq = @sequences.next { @pending.key?([it, header.pid]) }
-        [header.seq, header.pid]
       end
 
       private def dispatch_datagram(buffer)
