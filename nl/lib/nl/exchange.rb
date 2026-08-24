@@ -8,15 +8,13 @@ module Nl
     Failure = Data.define(:exception)
     Ignore = Data.define
 
-    class UnexpectedReplyError < StandardError; end
-
     attr_reader :kind
 
     def initialize(kind:, expects_reply:)
       @kind = kind
       @expects_reply = expects_reply
       @reply = nil
-      @reply_received = false
+      @state = kind == :dump ? :multi : :initial
       @acked = false
       @cancelled = false
       @complete = false
@@ -59,7 +57,7 @@ module Nl
 
     private def accept_ack
       @acked = true
-      if @cancelled || @kind == :dump || !@expects_reply || @reply_received
+      if @cancelled || !@expects_reply || @state == :single
         complete(@reply)
       else
         Ignore.new
@@ -68,14 +66,28 @@ module Nl
 
     private def accept_reply(message)
       return Ignore.new if @cancelled
-      return Item.new(message) if @kind == :dump
-      if @reply_received
-        return fail_with(UnexpectedReplyError.new('more than one reply in a single Netlink exchange'))
+
+      multipart = multipart?(message)
+      case @state
+      when :initial
+        @state = multipart ? :multi : :single
+      when :single
+        return fail_with(ProtocolViolation.new('more than one data message in a non-multipart Netlink response'))
+      when :multi
+        unless multipart
+          return fail_with(ProtocolViolation.new('multipart Netlink response contains data without NLM_F_MULTI'))
+        end
       end
 
-      @reply = message
-      @reply_received = true
-      @acked ? complete(message) : Ignore.new
+      return Item.new(message) if @kind == :dump
+
+      @reply ||= message
+      @acked && @state == :single ? complete(message) : Ignore.new
+    end
+
+    private def multipart?(message)
+      message.respond_to?(:nlmsg_header) &&
+        (message.nlmsg_header.flags.to_i & Core::NLM_F_MULTI) != 0
     end
 
     private def complete(value)

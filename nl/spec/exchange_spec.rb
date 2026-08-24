@@ -3,7 +3,17 @@
 require 'spec_helper'
 
 RSpec.describe Nl::Exchange do
-  let(:reply) { Object.new }
+  Reply = Data.define(:value, :nlmsg_header)
+
+  let(:reply) { make_reply(:first) }
+
+  def make_reply(value, flags: 0)
+    Reply.new(value:, nlmsg_header: Nl::Core::NlMsgHdr.new(0, 42, flags, 1, 77))
+  end
+
+  it 'defines protocol violations as Nl errors' do
+    expect(Nl::ProtocolViolation).to be < Nl::Error
+  end
 
   it 'completes a do exchange after reply followed by ACK' do
     exchange = described_class.new(kind: :do, expects_reply: true)
@@ -28,16 +38,57 @@ RSpec.describe Nl::Exchange do
 
   it 'emits dump items until DONE' do
     exchange = described_class.new(kind: :dump, expects_reply: true)
+    reply = make_reply(:first, flags: Nl::Core::NLM_F_MULTI)
 
     expect(exchange.accept(reply)).to eq(Nl::Exchange::Item.new(reply))
     expect(exchange.accept(Nl::Protocols::Raw::Done.new(error: nil))).to eq(Nl::Exchange::Complete.new(nil))
   end
 
-  it 'preserves a do reply when DONE terminates the exchange' do
-    exchange = described_class.new(kind: :do, expects_reply: true)
-    exchange.accept(reply)
+  it 'rejects a dump data frame without NLM_F_MULTI' do
+    exchange = described_class.new(kind: :dump, expects_reply: true)
 
-    expect(exchange.accept(Nl::Protocols::Raw::Done.new(error: nil))).to eq(Nl::Exchange::Complete.new(reply))
+    outcome = exchange.accept(reply)
+
+    expect(outcome).to be_a(Nl::Exchange::Failure)
+    expect(outcome.exception).to be_a(Nl::ProtocolViolation)
+  end
+
+  it 'keeps a dump exchange open when ACK arrives before DONE' do
+    exchange = described_class.new(kind: :dump, expects_reply: true)
+
+    expect(exchange.accept(Nl::Protocols::Raw::Ack.new)).to be_a(Nl::Exchange::Ignore)
+    expect(exchange).not_to be_complete
+    expect(exchange.accept(Nl::Protocols::Raw::Done.new(error: nil))).to eq(Nl::Exchange::Complete.new(nil))
+  end
+
+  it 'rejects inconsistent data flags in a multipart dump' do
+    exchange = described_class.new(kind: :dump, expects_reply: true)
+
+    expect(exchange.accept(make_reply(:first, flags: Nl::Core::NLM_F_MULTI))).to be_a(Nl::Exchange::Item)
+    outcome = exchange.accept(make_reply(:second))
+
+    expect(outcome).to be_a(Nl::Exchange::Failure)
+    expect(outcome.exception).to be_a(Nl::ProtocolViolation)
+  end
+
+  it 'returns the first reply when DONE terminates a multipart do exchange' do
+    exchange = described_class.new(kind: :do, expects_reply: true)
+    first = make_reply(:first, flags: Nl::Core::NLM_F_MULTI)
+    second = make_reply(:second, flags: Nl::Core::NLM_F_MULTI)
+    exchange.accept(first)
+    exchange.accept(second)
+
+    expect(exchange.accept(Nl::Protocols::Raw::Done.new(error: nil))).to eq(Nl::Exchange::Complete.new(first))
+    expect(exchange.result).to equal(first)
+  end
+
+  it 'keeps a multipart do exchange open when ACK arrives before DONE' do
+    exchange = described_class.new(kind: :do, expects_reply: true)
+    first = make_reply(:first, flags: Nl::Core::NLM_F_MULTI)
+
+    expect(exchange.accept(first)).to be_a(Nl::Exchange::Ignore)
+    expect(exchange.accept(Nl::Protocols::Raw::Ack.new)).to be_a(Nl::Exchange::Ignore)
+    expect(exchange.accept(Nl::Protocols::Raw::Done.new(error: nil))).to eq(Nl::Exchange::Complete.new(first))
   end
 
   it 'turns an error carried by DONE into a failure' do
@@ -70,10 +121,30 @@ RSpec.describe Nl::Exchange do
     exchange = described_class.new(kind: :do, expects_reply: true)
     exchange.accept(reply)
 
-    outcome = exchange.accept(Object.new)
+    outcome = exchange.accept(make_reply(:second))
 
     expect(outcome).to be_a(Nl::Exchange::Failure)
-    expect(outcome.exception).to be_a(Nl::Exchange::UnexpectedReplyError)
+    expect(outcome.exception).to be_a(Nl::ProtocolViolation)
+  end
+
+  it 'rejects a non-multipart data frame in a multipart do exchange' do
+    exchange = described_class.new(kind: :do, expects_reply: true)
+    exchange.accept(make_reply(:first, flags: Nl::Core::NLM_F_MULTI))
+
+    outcome = exchange.accept(make_reply(:second))
+
+    expect(outcome).to be_a(Nl::Exchange::Failure)
+    expect(outcome.exception).to be_a(Nl::ProtocolViolation)
+  end
+
+  it 'rejects a multipart data frame after a non-multipart one' do
+    exchange = described_class.new(kind: :do, expects_reply: true)
+    exchange.accept(reply)
+
+    outcome = exchange.accept(make_reply(:second, flags: Nl::Core::NLM_F_MULTI))
+
+    expect(outcome).to be_a(Nl::Exchange::Failure)
+    expect(outcome.exception).to be_a(Nl::ProtocolViolation)
   end
 
   it 'discards replies after cancellation and completes on ACK' do

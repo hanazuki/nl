@@ -36,6 +36,8 @@ module Nl
             errno = decoder.get_value(Endian::Host::SINT)
             errno == 0 ? Ack.new : SystemCallError.new(-errno)
           when Core::NLMSG_DONE
+            return Done.new(error: nil) unless decoder.available?
+
             errno = decoder.get_value(Endian::Host::SINT)
             if errno.positive?
               raise Decoder::Error, "expected zero or negative NLMSG_DONE errno, got #{errno}"

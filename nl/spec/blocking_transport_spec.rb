@@ -3,6 +3,15 @@
 require 'spec_helper'
 
 RSpec.describe Nl::BlockingTransport do
+  BlockingReply = Class.new(String) do
+    attr_reader :nlmsg_header
+
+    def initialize(value, nlmsg_header)
+      super(value)
+      @nlmsg_header = nlmsg_header
+    end
+  end
+
   BlockingFakeSocket = Struct.new(:datagrams, :closed) do
     def recvmsg = [datagrams.shift]
     def close = self.closed = true
@@ -18,14 +27,18 @@ RSpec.describe Nl::BlockingTransport do
     def send_message(_socket, _request) = [1, 77]
 
     def decode_frame(header, payload, _reply_class)
-      header.type < Nl::Core::NLMSG_MIN_TYPE ? @raw.decode_frame(header, payload, nil) : payload.get_string
+      if header.type < Nl::Core::NLMSG_MIN_TYPE
+        @raw.decode_frame(header, payload, nil)
+      else
+        BlockingReply.new(payload.get_string, header)
+      end
     end
   end
 
-  def frame(type:, sequence: 1, payload: ''.b)
+  def frame(type:, sequence: 1, flags: 0, payload: ''.b)
     encoder = Nl::Encoder.new
     encoder.measure(Nl::Endian::Host::U32) do
-      Nl::Core::NlMsgHdr.new(0, type, 0, sequence, 77).encode(encoder)
+      Nl::Core::NlMsgHdr.new(0, type, flags, sequence, 77).encode(encoder)
       encoder.put_string(payload)
     end
     encoder.align_to(Nl::Core::NLMSG_ALIGNTO)
@@ -52,8 +65,23 @@ RSpec.describe Nl::BlockingTransport do
     expect(result).to eq('reply')
   end
 
+  it 'returns the first multipart do reply after header-only DONE' do
+    socket = BlockingFakeSocket.new([
+      frame(type: 42, flags: Nl::Core::NLM_F_MULTI, payload: 'one') +
+        frame(type: 42, flags: Nl::Core::NLM_F_MULTI, payload: 'two') +
+        frame(type: Nl::Core::NLMSG_DONE),
+    ])
+
+    result = described_class.new(socket).exchange(BlockingFakeProtocol.new, :do, Object, String, {})
+
+    expect(result).to eq('one')
+  end
+
   it 'collects a multipart dump' do
-    socket = BlockingFakeSocket.new([frame(type: 42, payload: 'one') + frame(type: 42, payload: 'two') + done])
+    socket = BlockingFakeSocket.new([
+      frame(type: 42, flags: Nl::Core::NLM_F_MULTI, payload: 'one') +
+        frame(type: 42, flags: Nl::Core::NLM_F_MULTI, payload: 'two') + done,
+    ])
 
     result = described_class.new(socket).exchange(BlockingFakeProtocol.new, :dump, Object, String, {})
 
@@ -61,7 +89,7 @@ RSpec.describe Nl::BlockingTransport do
   end
 
   it 'streams a multipart dump through a block' do
-    socket = BlockingFakeSocket.new([frame(type: 42, payload: 'one') + done])
+    socket = BlockingFakeSocket.new([frame(type: 42, flags: Nl::Core::NLM_F_MULTI, payload: 'one') + done])
     values = []
 
     result = described_class.new(socket).exchange(BlockingFakeProtocol.new, :dump, Object, String, {}) do |value|
@@ -94,6 +122,14 @@ RSpec.describe Nl::BlockingTransport do
     expect do
       described_class.new(socket).exchange(BlockingFakeProtocol.new, :dump, Object, String, {})
     end.to raise_error(Nl::Decoder::OutOfBounds)
+  end
+
+  it 'accepts a header-only DONE as implicit success' do
+    socket = BlockingFakeSocket.new([frame(type: Nl::Core::NLMSG_DONE)])
+
+    result = described_class.new(socket).exchange(BlockingFakeProtocol.new, :dump, Object, String, {})
+
+    expect(result).to eq([])
   end
 
   it 'rejects a positive DONE errno' do

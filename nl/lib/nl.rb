@@ -1,3 +1,8 @@
+module Nl
+  class Error < StandardError; end
+  class ProtocolViolation < Error; end
+end
+
 require_relative 'nl/async'
 require_relative 'nl/blocking_transport'
 require_relative 'nl/core'
@@ -11,8 +16,6 @@ require_relative 'nl/socket'
 require_relative 'nl/version'
 
 module Nl
-  class Error < StandardError; end
-
   include Core
   include Genl
 end
