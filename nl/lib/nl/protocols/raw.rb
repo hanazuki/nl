@@ -64,11 +64,10 @@ module Nl
       end
 
       def send_message(socket, frame)
-        seq_pid = socket.complete(frame.header)
         encoder = Encoder.new
         encode_message(encoder, frame)
         socket.sendmsg(encoder.buffer.get_string, 0, Socket.sockaddr_nl(0, 0))
-        seq_pid
+        nil
       end
 
       def build_request(kind, request_class, args)

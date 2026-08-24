@@ -5,17 +5,25 @@ require 'spec_helper'
 RSpec.describe Nl::BlockingTransport do
   BlockingFakeSocket = Struct.new(:datagrams, :closed) do
     def recvmsg = [datagrams.shift]
+    def local_port_id = 77
     def close = self.closed = true
     def closed? = !!closed
   end
 
   BlockingFakeProtocol = Class.new do
+    attr_reader :sent
+
     def initialize
       @raw = Nl::Protocols::Raw.new('fake', 0)
+      @sent = []
     end
 
-    def build_request(kind, request_class, args) = [kind, request_class, args]
-    def send_message(_socket, _request) = [1, 77]
+    def build_request(_kind, _request_class, _args)
+      header = Nl::Core::NlMsgHdr.new(0, 42, 0, nil, nil)
+      Nl::Protocols::Raw::DataFrame.new(header:, message: nil)
+    end
+
+    def send_message(_socket, request) = @sent << request
 
     def decode_frame(header, payload, _reply_class)
       if header.type < Nl::Core::NLMSG_MIN_TYPE
@@ -50,10 +58,27 @@ RSpec.describe Nl::BlockingTransport do
 
   it 'returns a do reply after its ACK' do
     socket = BlockingFakeSocket.new([frame(type: 42, payload: 'reply') + ack])
+    protocol = BlockingFakeProtocol.new
 
-    result = described_class.new(socket).exchange(BlockingFakeProtocol.new, :do, Object, String, {})
+    result = described_class.new(socket).exchange(protocol, :do, Object, String, {})
 
     expect(result).to eq('reply')
+    expect(protocol.sent.first.header.to_h).to include(seq: 1, pid: 77)
+  end
+
+  it 'replaces transport header values supplied by the protocol' do
+    socket = BlockingFakeSocket.new([ack])
+    protocol = BlockingFakeProtocol.new
+    allow(protocol).to receive(:build_request).and_wrap_original do |original, *args|
+      original.call(*args).tap do |request|
+        request.header.seq = 100
+        request.header.pid = 200
+      end
+    end
+
+    described_class.new(socket).exchange(protocol, :do, Object, nil, {})
+
+    expect(protocol.sent.first.header.to_h).to include(seq: 1, pid: 77)
   end
 
   it 'returns the first multipart do reply after header-only DONE' do
