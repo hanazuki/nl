@@ -4,9 +4,9 @@ module Nl
   # State machine for one Netlink request/reply exchange.
   class Exchange
     Item = Data.define(:value)
-    Complete = Data.define(:value)
+    Complete = Data.define
+    COMPLETE = Complete.new
     Failure = Data.define(:exception)
-    Ignore = Data.define
 
     attr_reader :kind
 
@@ -24,11 +24,11 @@ module Nl
 
     def accept(frame)
       @mutex.synchronize do
-        return Ignore.new if @complete
+        return if @complete
 
         case frame
         when Protocols::Raw::UnknownFrame
-          Ignore.new
+          nil
         when Protocols::Raw::ErrorFrame
           @cancelled ? complete(nil) : fail_with(SystemCallError.new(frame.errno))
         when Protocols::Raw::DoneFrame
@@ -61,13 +61,11 @@ module Nl
       @acked = true
       if @cancelled || !@expects_reply || @state == :single
         complete(@reply)
-      else
-        Ignore.new
       end
     end
 
     private def accept_reply(frame)
-      return Ignore.new if @cancelled
+      return if @cancelled
 
       multipart = (frame.header.flags.to_i & Core::NLM_F_MULTI) != 0
       case @state
@@ -84,13 +82,13 @@ module Nl
       return Item.new(frame.message) if @kind == :dump
 
       @reply ||= frame.message
-      @acked && @state == :single ? complete(frame.message) : Ignore.new
+      complete(frame.message) if @acked && @state == :single
     end
 
     private def complete(value)
       @complete = true
       @result = value
-      Complete.new(value)
+      COMPLETE
     end
 
     private def fail_with(exception)

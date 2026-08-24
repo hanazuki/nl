@@ -118,9 +118,9 @@ module Nl
       end
 
       private def dispatch_outcome(key, pending, outcome)
+        return unless outcome
+
         case outcome
-        when Exchange::Ignore
-          nil
         when Exchange::Item
           begin
             pending.sink.push(outcome.value)
@@ -128,7 +128,7 @@ module Nl
             fail_pending(key, StreamOverflowError.new("reply buffer exceeded for sequence #{key.first}"))
           end
         when Exchange::Complete
-          complete_pending(key, pending, outcome.value)
+          complete_pending(key, pending, pending.exchange.result)
         when Exchange::Failure
           fail_pending(key, outcome.exception)
         end

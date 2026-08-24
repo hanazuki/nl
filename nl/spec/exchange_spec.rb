@@ -30,22 +30,22 @@ RSpec.describe Nl::Exchange do
   it 'completes a do exchange after reply followed by ACK' do
     exchange = described_class.new(kind: :do, expects_reply: true)
 
-    expect(exchange.accept(reply)).to be_a(Nl::Exchange::Ignore)
-    expect(exchange.accept(ack)).to eq(Nl::Exchange::Complete.new(reply.message))
+    expect(exchange.accept(reply)).to be_nil
+    expect(exchange.accept(ack)).to equal(Nl::Exchange::COMPLETE)
     expect(exchange.result).to equal(reply.message)
   end
 
   it 'completes a do exchange when reply arrives after ACK' do
     exchange = described_class.new(kind: :do, expects_reply: true)
 
-    expect(exchange.accept(ack)).to be_a(Nl::Exchange::Ignore)
-    expect(exchange.accept(reply)).to eq(Nl::Exchange::Complete.new(reply.message))
+    expect(exchange.accept(ack)).to be_nil
+    expect(exchange.accept(reply)).to equal(Nl::Exchange::COMPLETE)
   end
 
   it 'completes an operation without a reply on ACK' do
     exchange = described_class.new(kind: :do, expects_reply: false)
 
-    expect(exchange.accept(ack)).to eq(Nl::Exchange::Complete.new(nil))
+    expect(exchange.accept(ack)).to equal(Nl::Exchange::COMPLETE)
   end
 
   it 'emits dump items until DONE' do
@@ -53,7 +53,7 @@ RSpec.describe Nl::Exchange do
     reply = make_reply(:first, flags: Nl::Core::NLM_F_MULTI)
 
     expect(exchange.accept(reply)).to eq(Nl::Exchange::Item.new(reply.message))
-    expect(exchange.accept(done)).to eq(Nl::Exchange::Complete.new(nil))
+    expect(exchange.accept(done)).to equal(Nl::Exchange::COMPLETE)
   end
 
   it 'rejects a dump data frame without NLM_F_MULTI' do
@@ -68,9 +68,9 @@ RSpec.describe Nl::Exchange do
   it 'keeps a dump exchange open when ACK arrives before DONE' do
     exchange = described_class.new(kind: :dump, expects_reply: true)
 
-    expect(exchange.accept(ack)).to be_a(Nl::Exchange::Ignore)
+    expect(exchange.accept(ack)).to be_nil
     expect(exchange).not_to be_complete
-    expect(exchange.accept(done)).to eq(Nl::Exchange::Complete.new(nil))
+    expect(exchange.accept(done)).to equal(Nl::Exchange::COMPLETE)
   end
 
   it 'rejects inconsistent data flags in a multipart dump' do
@@ -90,7 +90,7 @@ RSpec.describe Nl::Exchange do
     exchange.accept(first)
     exchange.accept(second)
 
-    expect(exchange.accept(done)).to eq(Nl::Exchange::Complete.new(first.message))
+    expect(exchange.accept(done)).to equal(Nl::Exchange::COMPLETE)
     expect(exchange.result).to equal(first.message)
   end
 
@@ -98,9 +98,9 @@ RSpec.describe Nl::Exchange do
     exchange = described_class.new(kind: :do, expects_reply: true)
     first = make_reply(:first, flags: Nl::Core::NLM_F_MULTI)
 
-    expect(exchange.accept(first)).to be_a(Nl::Exchange::Ignore)
-    expect(exchange.accept(ack)).to be_a(Nl::Exchange::Ignore)
-    expect(exchange.accept(done)).to eq(Nl::Exchange::Complete.new(first.message))
+    expect(exchange.accept(first)).to be_nil
+    expect(exchange.accept(ack)).to be_nil
+    expect(exchange.accept(done)).to equal(Nl::Exchange::COMPLETE)
   end
 
   it 'turns an error carried by DONE into a failure' do
@@ -119,7 +119,7 @@ RSpec.describe Nl::Exchange do
 
     outcome = exchange.accept(done(errno: Errno::EINVAL::Errno))
 
-    expect(outcome).to eq(Nl::Exchange::Complete.new(nil))
+    expect(outcome).to equal(Nl::Exchange::COMPLETE)
     expect(exchange).to be_cancelled
   end
 
@@ -167,8 +167,8 @@ RSpec.describe Nl::Exchange do
     exchange = described_class.new(kind: :do, expects_reply: true)
     exchange.cancel
 
-    expect(exchange.accept(reply)).to be_a(Nl::Exchange::Ignore)
-    expect(exchange.accept(ack)).to eq(Nl::Exchange::Complete.new(nil))
+    expect(exchange.accept(reply)).to be_nil
+    expect(exchange.accept(ack)).to equal(Nl::Exchange::COMPLETE)
     expect(exchange).to be_cancelled
   end
 
@@ -178,7 +178,7 @@ RSpec.describe Nl::Exchange do
 
     outcome = exchange.accept(error_frame(Errno::EINVAL::Errno))
 
-    expect(outcome).to eq(Nl::Exchange::Complete.new(nil))
+    expect(outcome).to equal(Nl::Exchange::COMPLETE)
     expect(exchange).to be_cancelled
   end
 end
