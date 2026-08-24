@@ -27,6 +27,28 @@ RSpec.describe Ynl::Parser do
       expect(type.type_values).to eq %w[policy-id attribute-id]
       expect(type.attribute_set.name).to eq 'policy'
     end
+
+    it 'describes every type-value level in RBS' do
+      expect(type.rbs_type).to eq(
+        '::Hash[::Integer, ::Hash[::Integer, AttributeSets::Policy]]',
+      )
+    end
+  end
+
+  describe 'RBS types' do
+    it 'types binary payloads as strings' do
+      expect(Ynl::Types::Binary.new.rbs_type).to eq('::String')
+    end
+
+    it 'types opaque sub-message payloads as strings' do
+      expect(Ynl::Types::SubMessage.new.rbs_type).to eq('::String')
+    end
+
+    it 'preserves an indexed array element type' do
+      type = Ynl::Types::IndexedArray.new(Ynl::Types::Scalar.new(type: 'u32', byte_order: :host))
+
+      expect(type.rbs_type).to eq('::Array[::Integer]')
+    end
   end
 
   describe 'unified enum model' do
