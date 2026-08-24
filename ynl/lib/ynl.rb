@@ -33,7 +33,7 @@ module Ynl
       end
 
       def rbs_type
-        'untyped'
+        '::String'
       end
     end
     NestedAttributes = Struct.new(:attribute_set) do
@@ -49,13 +49,17 @@ module Ynl
       end
     end
     NestTypeValue = Struct.new(:attribute_set, :type_values) do
+      using Generator::Refinements
+
       def resolve(f)
         self.attribute_set = attribute_set.resolve(f)
         self
       end
 
       def rbs_type
-        'untyped'
+        type = 'AttributeSets::' + attribute_set.name.as_class_name
+        type_values.length.times { type = "::Hash[::Integer, #{type}]" }
+        type
       end
     end
     SubMessage = Struct.new(:sub_message, :selector) do
@@ -65,7 +69,7 @@ module Ynl
       end
 
       def rbs_type
-        'untyped'
+        '::String'
       end
     end
 
@@ -106,7 +110,7 @@ module Ynl
       end
 
       def rbs_type
-        'untyped'
+        "::Array[#{sub_type.rbs_type}]"
       end
     end
   end
