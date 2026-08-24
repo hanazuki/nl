@@ -29,16 +29,16 @@ module Nl
         case message
         when Protocols::Raw::Ignored
           Ignore.new
+        when Protocols::Raw::Error
+          @cancelled ? complete(nil) : fail_with(SystemCallError.new(message.errno))
         when Protocols::Raw::Done
-          if message.error && !@cancelled
-            fail_with(message.error)
+          if message.errno && !@cancelled
+            fail_with(SystemCallError.new(message.errno))
           else
             complete(@reply)
           end
         when Protocols::Raw::Ack
           accept_ack
-        when Exception
-          @cancelled ? complete(nil) : fail_with(message)
         else
           accept_reply(message)
         end

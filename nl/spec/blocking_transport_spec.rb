@@ -108,6 +108,14 @@ RSpec.describe Nl::BlockingTransport do
     end.to raise_error(Errno::EINVAL)
   end
 
+  it 'rejects a positive NLMSG_ERROR errno' do
+    socket = BlockingFakeSocket.new([ack(errno: Errno::EINVAL::Errno)])
+
+    expect do
+      described_class.new(socket).exchange(BlockingFakeProtocol.new, :dump, Object, String, {})
+    end.to raise_error(Nl::ProtocolViolation, 'expected zero or negative NLMSG_ERROR errno, got 22')
+  end
+
   it 'raises an error carried by DONE as the first dump response' do
     socket = BlockingFakeSocket.new([done(errno: -Errno::EINVAL::Errno)])
 
@@ -137,7 +145,7 @@ RSpec.describe Nl::BlockingTransport do
 
     expect do
       described_class.new(socket).exchange(BlockingFakeProtocol.new, :dump, Object, String, {})
-    end.to raise_error(Nl::Decoder::Error, 'expected zero or negative NLMSG_DONE errno, got 22')
+    end.to raise_error(Nl::ProtocolViolation, 'expected zero or negative NLMSG_DONE errno, got 22')
   end
 
   it 'rejects a datagram for another sequence' do

@@ -41,7 +41,7 @@ RSpec.describe Nl::Exchange do
     reply = make_reply(:first, flags: Nl::Core::NLM_F_MULTI)
 
     expect(exchange.accept(reply)).to eq(Nl::Exchange::Item.new(reply))
-    expect(exchange.accept(Nl::Protocols::Raw::Done.new(error: nil))).to eq(Nl::Exchange::Complete.new(nil))
+    expect(exchange.accept(Nl::Protocols::Raw::Done.new(errno: nil))).to eq(Nl::Exchange::Complete.new(nil))
   end
 
   it 'rejects a dump data frame without NLM_F_MULTI' do
@@ -58,7 +58,7 @@ RSpec.describe Nl::Exchange do
 
     expect(exchange.accept(Nl::Protocols::Raw::Ack.new)).to be_a(Nl::Exchange::Ignore)
     expect(exchange).not_to be_complete
-    expect(exchange.accept(Nl::Protocols::Raw::Done.new(error: nil))).to eq(Nl::Exchange::Complete.new(nil))
+    expect(exchange.accept(Nl::Protocols::Raw::Done.new(errno: nil))).to eq(Nl::Exchange::Complete.new(nil))
   end
 
   it 'rejects inconsistent data flags in a multipart dump' do
@@ -78,7 +78,7 @@ RSpec.describe Nl::Exchange do
     exchange.accept(first)
     exchange.accept(second)
 
-    expect(exchange.accept(Nl::Protocols::Raw::Done.new(error: nil))).to eq(Nl::Exchange::Complete.new(first))
+    expect(exchange.accept(Nl::Protocols::Raw::Done.new(errno: nil))).to eq(Nl::Exchange::Complete.new(first))
     expect(exchange.result).to equal(first)
   end
 
@@ -88,14 +88,16 @@ RSpec.describe Nl::Exchange do
 
     expect(exchange.accept(first)).to be_a(Nl::Exchange::Ignore)
     expect(exchange.accept(Nl::Protocols::Raw::Ack.new)).to be_a(Nl::Exchange::Ignore)
-    expect(exchange.accept(Nl::Protocols::Raw::Done.new(error: nil))).to eq(Nl::Exchange::Complete.new(first))
+    expect(exchange.accept(Nl::Protocols::Raw::Done.new(errno: nil))).to eq(Nl::Exchange::Complete.new(first))
   end
 
   it 'turns an error carried by DONE into a failure' do
     exchange = described_class.new(kind: :dump, expects_reply: true)
-    error = Errno::EINVAL.new
 
-    expect(exchange.accept(Nl::Protocols::Raw::Done.new(error:))).to eq(Nl::Exchange::Failure.new(error))
+    outcome = exchange.accept(Nl::Protocols::Raw::Done.new(errno: Errno::EINVAL::Errno))
+
+    expect(outcome).to be_a(Nl::Exchange::Failure)
+    expect(outcome.exception).to be_a(Errno::EINVAL)
     expect(exchange).to be_complete
   end
 
@@ -103,17 +105,19 @@ RSpec.describe Nl::Exchange do
     exchange = described_class.new(kind: :dump, expects_reply: true)
     exchange.cancel
 
-    outcome = exchange.accept(Nl::Protocols::Raw::Done.new(error: Errno::EINVAL.new))
+    outcome = exchange.accept(Nl::Protocols::Raw::Done.new(errno: Errno::EINVAL::Errno))
 
     expect(outcome).to eq(Nl::Exchange::Complete.new(nil))
     expect(exchange).to be_cancelled
   end
 
-  it 'turns a protocol exception into a failure' do
+  it 'turns an error response into a failure' do
     exchange = described_class.new(kind: :do, expects_reply: true)
-    error = Errno::EINVAL.new
 
-    expect(exchange.accept(error)).to eq(Nl::Exchange::Failure.new(error))
+    outcome = exchange.accept(Nl::Protocols::Raw::Error.new(errno: Errno::EINVAL::Errno))
+
+    expect(outcome).to be_a(Nl::Exchange::Failure)
+    expect(outcome.exception).to be_a(Errno::EINVAL)
     expect(exchange).to be_complete
   end
 
@@ -153,6 +157,16 @@ RSpec.describe Nl::Exchange do
 
     expect(exchange.accept(reply)).to be_a(Nl::Exchange::Ignore)
     expect(exchange.accept(Nl::Protocols::Raw::Ack.new)).to eq(Nl::Exchange::Complete.new(nil))
+    expect(exchange).to be_cancelled
+  end
+
+  it 'discards an error response after cancellation' do
+    exchange = described_class.new(kind: :do, expects_reply: true)
+    exchange.cancel
+
+    outcome = exchange.accept(Nl::Protocols::Raw::Error.new(errno: Errno::EINVAL::Errno))
+
+    expect(outcome).to eq(Nl::Exchange::Complete.new(nil))
     expect(exchange).to be_cancelled
   end
 end
