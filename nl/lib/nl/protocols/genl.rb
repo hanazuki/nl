@@ -30,24 +30,23 @@ module Nl
         @family_id or raise NotImplementedError, "Genetlink family ID for '#{name}' must be resolved via nlctrl"
       end
 
-      def encode_message(encoder, message)
-        cmd = message.nlmsg_header.type
+      def encode_message(encoder, frame)
+        message = frame.message
         encoder.measure(Endian::Host::U16) do
-          message.nlmsg_header.type = family_id
-          message.nlmsg_header.encode(encoder)
-          message.nlmsg_header.type = cmd
-          GenlMsgHdr.new(cmd, 1, 0).encode(encoder)
-          message.fixed_header&.encode(encoder)
-          message.attributes.encode(encoder)
+          frame.header.encode(encoder)
+          GenlMsgHdr.new(message.class::TYPE, 1, 0).encode(encoder)
+          message.encode(encoder)
         end
       end
 
       class Message < Raw::Message
-        def self.decode(decoder, header)
+        def self.decode(decoder, type:)
           genlhdr = GenlMsgHdr.decode(decoder)
-          super(decoder, header, type: genlhdr.cmd)
+          super(decoder, type: genlhdr.cmd)
         end
       end
+
+      private def frame_type(_message_class) = family_id
 
       private def default_family_id(name)
         Nl::Genl::GENL_ID_CTRL if name == 'nlctrl'

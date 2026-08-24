@@ -5,10 +5,11 @@ module Nl
   module Protocols
     # The raw Netlink protocol
     class Raw
-      Error = Data.define(:errno)
-      Done = Data.define(:errno)
-      Ack = Data.define
-      Ignored = Data.define
+      AckFrame = Data.define(:header)
+      ErrorFrame = Data.define(:header, :errno)
+      DoneFrame = Data.define(:header, :errno)
+      UnknownFrame = Data.define(:header)
+      DataFrame = Data.define(:header, :message)
 
       attr_reader :name, :protonum
 
@@ -17,14 +18,17 @@ module Nl
         @protonum = protonum
       end
 
-      def encode_message(encoder, message)
-        message.encode(encoder)
+      def encode_message(encoder, frame)
+        encoder.measure(Endian::Host::U16) do
+          frame.header.encode(encoder)
+          frame.message.encode(encoder)
+        end
       end
 
       def decode_message(decoder, message_class)
         header = NlMsgHdr.decode(decoder)
         decoder.limit(header.len - Core::NLMSG_HDRLEN) do
-          message_class.decode(decoder, header)
+          DataFrame.new(header:, message: message_class.decode(decoder, type: header.type))
         end
       end
 
@@ -39,30 +43,30 @@ module Nl
               raise ProtocolViolation, "expected zero or negative NLMSG_ERROR errno, got #{errno}"
             end
 
-            errno.zero? ? Ack.new : Error.new(errno: -errno)
+            errno.zero? ? AckFrame.new(header:) : ErrorFrame.new(header:, errno: -errno)
           when Core::NLMSG_DONE
-            return Done.new(errno: nil) unless decoder.available?
+            return DoneFrame.new(header:, errno: nil) unless decoder.available?
 
             errno = decoder.get_value(Endian::Host::SINT)
             if errno.positive?
               raise ProtocolViolation, "expected zero or negative NLMSG_DONE errno, got #{errno}"
             end
 
-            Done.new(errno: errno.negative? ? -errno : nil)
+            DoneFrame.new(header:, errno: errno.negative? ? -errno : nil)
           else
-            Ignored.new
+            UnknownFrame.new(header:)
           end
         else
           raise ArgumentError, 'reply class is required for a data message' unless message_class
 
-          message_class.decode(decoder, header)
+          DataFrame.new(header:, message: message_class.decode(decoder, type: header.type))
         end
       end
 
-      def send_message(socket, message)
-        seq_pid = socket.complete(message.nlmsg_header)
+      def send_message(socket, frame)
+        seq_pid = socket.complete(frame.header)
         encoder = Encoder.new
-        encode_message(encoder, message)
+        encode_message(encoder, frame)
         socket.sendmsg(encoder.buffer.get_string, 0, Socket.sockaddr_nl(0, 0))
         seq_pid
       end
@@ -71,10 +75,12 @@ module Nl
         flags = Core::NLM_F_REQUEST
         flags |= kind == :dump ? Core::NLM_F_DUMP : Core::NLM_F_ACK
 
-        request = request_class.from_params(args)
-        request.nlmsg_header.flags = flags
-        request
+        header = Core::NlMsgHdr.new(0, frame_type(request_class), flags, nil, nil)
+        message = request_class.from_params(args)
+        DataFrame.new(header:, message:)
       end
+
+      private def frame_type(message_class) = message_class::TYPE
 
       class AttributeSet
         Attribute = Struct.new(:value)
@@ -176,10 +182,9 @@ module Nl
       end
 
       class Message
-        attr_accessor :nlmsg_header, :fixed_header, :attributes
+        attr_accessor :fixed_header, :attributes
 
-        def initialize(header, fixed_header = nil, attributes = self.class::ATTRIBUTE_SET.new)
-          @nlmsg_header = header
+        def initialize(fixed_header = nil, attributes = self.class::ATTRIBUTE_SET.new)
           @fixed_header = fixed_header
           @attributes = attributes
         end
@@ -198,8 +203,7 @@ module Nl
             raise ArgumentError, "unknown parameters: #{unknown.join(', ')}"
           end
 
-          header = Core::NlMsgHdr.new(0, self::TYPE, nil, nil, nil)
-          new(header, fixed_header, attributes)
+          new(fixed_header, attributes)
         end
 
         def append_attribute(attribute)
@@ -207,14 +211,11 @@ module Nl
         end
 
         def encode(encoder)
-          encoder.measure(Endian::Host::U16) do
-            @nlmsg_header.encode(encoder)
-            @fixed_header&.encode(encoder)
-            @attributes.encode(encoder)
-          end
+          @fixed_header&.encode(encoder)
+          @attributes.encode(encoder)
         end
 
-        def self.decode(decoder, header, type: header.type)
+        def self.decode(decoder, type:)
           unless self::TYPE == type
             raise "Expected message type #{self::TYPE}, got #{type}"
           end
@@ -225,7 +226,7 @@ module Nl
 
           attributes = self::ATTRIBUTE_SET.decode(decoder)
 
-          new(header, fixed_header, attributes)
+          new(fixed_header, attributes)
         end
       end
 

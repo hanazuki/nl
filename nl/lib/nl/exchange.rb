@@ -4,9 +4,9 @@ module Nl
   # State machine for one Netlink request/reply exchange.
   class Exchange
     Item = Data.define(:value)
-    Complete = Data.define(:value)
+    Complete = Data.define
+    COMPLETE = Complete.new
     Failure = Data.define(:exception)
-    Ignore = Data.define
 
     attr_reader :kind
 
@@ -22,25 +22,27 @@ module Nl
       @mutex = Mutex.new
     end
 
-    def accept(message)
+    def accept(frame)
       @mutex.synchronize do
-        return Ignore.new if @complete
+        return if @complete
 
-        case message
-        when Protocols::Raw::Ignored
-          Ignore.new
-        when Protocols::Raw::Error
-          @cancelled ? complete(nil) : fail_with(SystemCallError.new(message.errno))
-        when Protocols::Raw::Done
-          if message.errno && !@cancelled
-            fail_with(SystemCallError.new(message.errno))
+        case frame
+        when Protocols::Raw::UnknownFrame
+          nil
+        when Protocols::Raw::ErrorFrame
+          @cancelled ? complete(nil) : fail_with(SystemCallError.new(frame.errno))
+        when Protocols::Raw::DoneFrame
+          if frame.errno && !@cancelled
+            fail_with(SystemCallError.new(frame.errno))
           else
             complete(@reply)
           end
-        when Protocols::Raw::Ack
+        when Protocols::Raw::AckFrame
           accept_ack
+        when Protocols::Raw::DataFrame
+          accept_reply(frame)
         else
-          accept_reply(message)
+          raise ArgumentError, "unexpected exchange input: #{frame.inspect}"
         end
       end
     end
@@ -59,15 +61,13 @@ module Nl
       @acked = true
       if @cancelled || !@expects_reply || @state == :single
         complete(@reply)
-      else
-        Ignore.new
       end
     end
 
-    private def accept_reply(message)
-      return Ignore.new if @cancelled
+    private def accept_reply(frame)
+      return if @cancelled
 
-      multipart = multipart?(message)
+      multipart = (frame.header.flags.to_i & Core::NLM_F_MULTI) != 0
       case @state
       when :initial
         @state = multipart ? :multi : :single
@@ -79,21 +79,16 @@ module Nl
         end
       end
 
-      return Item.new(message) if @kind == :dump
+      return Item.new(frame.message) if @kind == :dump
 
-      @reply ||= message
-      @acked && @state == :single ? complete(message) : Ignore.new
-    end
-
-    private def multipart?(message)
-      message.respond_to?(:nlmsg_header) &&
-        (message.nlmsg_header.flags.to_i & Core::NLM_F_MULTI) != 0
+      @reply ||= frame.message
+      complete(frame.message) if @acked && @state == :single
     end
 
     private def complete(value)
       @complete = true
       @result = value
-      Complete.new(value)
+      COMPLETE
     end
 
     private def fail_with(exception)
