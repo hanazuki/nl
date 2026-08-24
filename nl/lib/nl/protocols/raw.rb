@@ -5,10 +5,9 @@ module Nl
   module Protocols
     # The raw Netlink protocol
     class Raw
-      class Done
-      end
-      class Ack
-      end
+      Done = Data.define(:error)
+      Ack = Data.define
+      Ignored = Data.define
 
       attr_reader :name, :protonum
 
@@ -28,6 +27,32 @@ module Nl
         end
       end
 
+      # Decodes one frame using the reply class associated with its sequence.
+      def decode_frame(header, payload, message_class)
+        decoder = Decoder.new(payload)
+        if header.type < Core::NLMSG_MIN_TYPE
+          case header.type
+          when Core::NLMSG_ERROR
+            errno = decoder.get_value(Endian::Host::SINT)
+            errno == 0 ? Ack.new : SystemCallError.new(-errno)
+          when Core::NLMSG_DONE
+            errno = decoder.get_value(Endian::Host::SINT)
+            if errno.positive?
+              raise Decoder::Error, "expected zero or negative NLMSG_DONE errno, got #{errno}"
+            end
+
+            error = SystemCallError.new(-errno) if errno.negative?
+            Done.new(error:)
+          else
+            Ignored.new
+          end
+        else
+          raise ArgumentError, 'reply class is required for a data message' unless message_class
+
+          message_class.decode(decoder, header)
+        end
+      end
+
       def send_message(socket, message)
         seq_pid = socket.complete(message.nlmsg_header)
         encoder = Encoder.new
@@ -36,78 +61,13 @@ module Nl
         seq_pid
       end
 
-      def recv_message(socket, seq_pid, message_class)
-        data, = socket.recvmsg
-
-        decoder = Decoder.new(IO::Buffer.for(data))
-        while decoder.available?(Core::NLMSG_HDRLEN)
-          header = Core::NlMsgHdr.decode(decoder)
-          decoder.align_to(Core::NLMSG_ALIGNTO)
-          raise binding.irb unless [header.seq, header.pid] == seq_pid
-          if header.type < Core::NLMSG_MIN_TYPE
-            # Control messages
-            case header.type
-            when Core::NLMSG_ERROR
-              errno = decoder.get_value(Endian::Host::SINT)
-              if errno == 0
-                yield Ack.new
-              else
-                yield SystemCallError.new(-errno)
-              end
-              decoder.skip(header.len - Core::NLMSG_HDRLEN - 4)
-            when Core::NLMSG_DONE
-              yield Done.new
-              decoder.skip(header.len - Core::NLMSG_HDRLEN)
-            else
-              # just ignore NLMSG_NOOP and other unknown control messages
-              decoder.skip(header.len - Core::NLMSG_HDRLEN)
-            end
-          else
-            # Subsystem-specific messages
-            decoder.limit(header.len - Core::NLMSG_HDRLEN) do
-              decoder.align_to(Core::NLMSG_ALIGNTO)
-              yield message_class.decode(decoder, header)
-            end
-          end
-        end
-      end
-
-      # @param socket [Socket] Netlink socket
-      # @param type [:do, :dump] Request type
-      # @param request_class [Class] Request message class
-      # @param reply_class [Class] Reply message class
-      # @param args [Hash] Request arguments
-      def exchange_message(socket, type, request_class, reply_class, args)
+      def build_request(kind, request_class, args)
         flags = Core::NLM_F_REQUEST
-        flags |= type == :dump ? Core::NLM_F_DUMP : Core::NLM_F_ACK
+        flags |= kind == :dump ? Core::NLM_F_DUMP : Core::NLM_F_ACK
 
         request = request_class.from_params(args)
         request.nlmsg_header.flags = flags
-        seq_pid = send_message(socket, request)
-
-        result = [] unless block_given?
-
-        done = false
-        begin
-          recv_message(socket, seq_pid, reply_class) do |message|
-            case message
-            when Done, Ack
-              done = true
-            when Exception
-              raise message
-            else
-              if block_given?
-                yield message
-              else
-                result << message
-              end
-            end
-          end
-        end until done
-
-        unless block_given?
-          type == :dump ? result : result.first
-        end
+        request
       end
 
       class AttributeSet

@@ -256,6 +256,48 @@ module Ynl
             end
           end
         end
+
+        emit_class('AsyncOperations') do
+          emit_nodoc
+          write('def initialize(&exchange)')
+          indent do
+            write('@exchange = exchange')
+          end
+          write('end')
+
+          @ynl.operations.each do |name, oper|
+            %w[do dump].each do |method|
+              next unless request_reply = oper.public_send(method + 'it')
+
+              request_class = "Messages::#{method.as_class_name}#{oper.name.as_class_name}Request"
+              reply_class = request_reply.reply ? "Messages::#{method.as_class_name}#{oper.name.as_class_name}Reply" : 'nil'
+              header_params = oper.fixed_header&.members || []
+              attribute_params = oper.attribute_set.attributes.filter { request_reply.request.attributes.include?(it.name) }
+              attribute_params.reject! {|a| header_params.any? {|h| h.name == a.name } }
+              params = (header_params + attribute_params).reject { it.type.is_a? Types::Pad }
+              rbs_params = params.map { |it| "?#{it.name.as_variable_name}: #{it.type.rbs_type}" }.join(', ')
+              result = request_reply.reply ? reply_class : 'void'
+              operation = method == 'dump' ? "::Nl::Async::Stream[#{result}]" : "::Nl::Async::Future[#{result}]"
+
+              emit_comment(operation_doc(oper))
+              emit_rbs_comment("(#{rbs_params}) -> #{operation}")
+              write("def #{method.as_method_name}_#{oper.name.as_method_name}(**args)")
+              indent do
+                write("@exchange.call(#{method.as_symbol_literal}, #{request_class}, #{reply_class}, args)")
+              end
+              write('end')
+            end
+          end
+        end
+
+        emit_comment('Returns the asynchronous operation facade for this family.')
+        emit_rbs_comment('(?stream_capacity: ::Integer?) -> AsyncOperations')
+        write('def async(stream_capacity: nil)')
+        indent do
+          write('return @async_operations ||= build_async_facade(AsyncOperations) if stream_capacity.nil?')
+          write('build_async_facade(AsyncOperations, stream_capacity:)')
+        end
+        write('end')
       end
 
       classname
