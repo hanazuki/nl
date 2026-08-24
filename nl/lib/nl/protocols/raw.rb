@@ -5,7 +5,8 @@ module Nl
   module Protocols
     # The raw Netlink protocol
     class Raw
-      Done = Data.define(:error)
+      Error = Data.define(:errno)
+      Done = Data.define(:errno)
       Ack = Data.define
       Ignored = Data.define
 
@@ -34,15 +35,20 @@ module Nl
           case header.type
           when Core::NLMSG_ERROR
             errno = decoder.get_value(Endian::Host::SINT)
-            errno == 0 ? Ack.new : SystemCallError.new(-errno)
-          when Core::NLMSG_DONE
-            errno = decoder.get_value(Endian::Host::SINT)
             if errno.positive?
-              raise Decoder::Error, "expected zero or negative NLMSG_DONE errno, got #{errno}"
+              raise ProtocolViolation, "expected zero or negative NLMSG_ERROR errno, got #{errno}"
             end
 
-            error = SystemCallError.new(-errno) if errno.negative?
-            Done.new(error:)
+            errno.zero? ? Ack.new : Error.new(errno: -errno)
+          when Core::NLMSG_DONE
+            return Done.new(errno: nil) unless decoder.available?
+
+            errno = decoder.get_value(Endian::Host::SINT)
+            if errno.positive?
+              raise ProtocolViolation, "expected zero or negative NLMSG_DONE errno, got #{errno}"
+            end
+
+            Done.new(errno: errno.negative? ? -errno : nil)
           else
             Ignored.new
           end

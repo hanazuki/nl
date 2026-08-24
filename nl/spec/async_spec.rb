@@ -309,6 +309,15 @@ RSpec.describe Nl::Async do
   end
 
   describe Nl::Async::Dispatcher do
+    AsyncReply = Class.new(String) do
+      attr_reader :nlmsg_header
+
+      def initialize(value, nlmsg_header)
+        super(value)
+        @nlmsg_header = nlmsg_header
+      end
+    end
+
     FakeMessage = Struct.new(:nlmsg_header)
     FakeRequest = Class.new do
       def self.from_params(_params)
@@ -359,15 +368,15 @@ RSpec.describe Nl::Async do
         if header.type < Nl::Core::NLMSG_MIN_TYPE
           @raw.decode_frame(header, payload, nil)
         else
-          payload.get_string
+          AsyncReply.new(payload.get_string, header)
         end
       end
     end
 
-    def frame(type:, sequence:, payload: ''.b)
+    def frame(type:, sequence:, flags: 0, payload: ''.b)
       encoder = Nl::Encoder.new
       encoder.measure(Nl::Endian::Host::U32) do
-        Nl::Core::NlMsgHdr.new(0, type, 0, sequence, 77).encode(encoder)
+        Nl::Core::NlMsgHdr.new(0, type, flags, sequence, 77).encode(encoder)
         encoder.put_string(payload)
       end
       encoder.align_to(Nl::Core::NLMSG_ALIGNTO)
@@ -432,12 +441,34 @@ RSpec.describe Nl::Async do
     it 'streams multipart replies until DONE' do
       stream = @dispatcher.exchange_async(@protocol, :dump, FakeRequest, String, {})
       @sender.write(
-        frame(type: 42, sequence: 1, payload: 'one') +
-          frame(type: 42, sequence: 1, payload: 'two') +
+        frame(type: 42, sequence: 1, flags: Nl::Core::NLM_F_MULTI, payload: 'one') +
+          frame(type: 42, sequence: 1, flags: Nl::Core::NLM_F_MULTI, payload: 'two') +
           control_frame(type: Nl::Core::NLMSG_DONE, sequence: 1, errno: 0),
       )
 
       expect(stream.to_a).to eq(%w[one two])
+    end
+
+    it 'returns the first multipart do reply after header-only DONE' do
+      future = @dispatcher.exchange_async(@protocol, :do, FakeRequest, String, {})
+      @sender.write(
+        frame(type: 42, sequence: 1, flags: Nl::Core::NLM_F_MULTI, payload: 'one') +
+          control_frame(type: Nl::Core::NLMSG_ERROR, sequence: 1, errno: 0) +
+          frame(type: 42, sequence: 1, flags: Nl::Core::NLM_F_MULTI, payload: 'two') +
+          control_frame(type: Nl::Core::NLMSG_DONE, sequence: 1),
+      )
+
+      expect(future.await(timeout: 1)).to eq('one')
+    end
+
+    it 'fails a multipart do reply with inconsistent data flags' do
+      future = @dispatcher.exchange_async(@protocol, :do, FakeRequest, String, {})
+      @sender.write(
+        frame(type: 42, sequence: 1, flags: Nl::Core::NLM_F_MULTI, payload: 'one') +
+          frame(type: 42, sequence: 1, payload: 'two'),
+      )
+
+      expect { future.await(timeout: 1) }.to raise_error(Nl::ProtocolViolation)
     end
 
     it 'turns NLMSG_ERROR into a failed operation' do
@@ -450,7 +481,7 @@ RSpec.describe Nl::Async do
     it 'yields partial dump replies before raising an error carried by DONE' do
       stream = @dispatcher.exchange_async(@protocol, :dump, FakeRequest, String, {})
       @sender.write(
-        frame(type: 42, sequence: 1, payload: 'one') +
+        frame(type: 42, sequence: 1, flags: Nl::Core::NLM_F_MULTI, payload: 'one') +
           control_frame(type: Nl::Core::NLMSG_DONE, sequence: 1, errno: -Errno::EINVAL::Errno),
       )
       replies = []
@@ -464,8 +495,8 @@ RSpec.describe Nl::Async do
     it 'fails only an overflowing stream' do
       stream = @dispatcher.exchange_async(@protocol, :dump, FakeRequest, String, {}, stream_capacity: 1)
       @sender.write(
-        frame(type: 42, sequence: 1, payload: 'one') +
-          frame(type: 42, sequence: 1, payload: 'two'),
+        frame(type: 42, sequence: 1, flags: Nl::Core::NLM_F_MULTI, payload: 'one') +
+          frame(type: 42, sequence: 1, flags: Nl::Core::NLM_F_MULTI, payload: 'two'),
       )
 
       expect { stream.to_a }.to raise_error(Nl::Async::StreamOverflowError)
