@@ -1,5 +1,8 @@
 require 'rspec/core/rake_task'
 
+NLSPEC_PATH = 'Documentation/netlink/specs'
+NLSPEC_VERSION = File.read('NLSPEC_VERSION').chomp
+
 RSpec::Core::RakeTask.new(:spec)
 
 task default: :spec
@@ -20,13 +23,20 @@ end
 specs.each do |spec, h|
   h => {source:, target:}
   task :generate => target
-  task target => [source, 'generated/nl/linux'] do
+  task target => [source, 'generated/nl/linux', 'NLSPEC_VERSION', 'Rakefile'] do
     require 'ynl'
     File.open(source, 'r') do |src|
-      front = src.readlines.take_while {|l| !l.start_with?('---') }.grep(/\A\#/).join
+      comments = src.readlines.take_while {|l| !l.start_with?('---') }.grep(/\A\#/)
 
       File.open(target, 'w') do |out|
-        out << front
+        out << comments.shift
+        out << "#\n"
+        out << "# This file is based on #{NLSPEC_PATH}/#{spec} from Linux v#{NLSPEC_VERSION}.\n"
+        unless comments.empty?
+          out << "#\n"
+          out << "# Original YNL comment:\n"
+          out << comments.join
+        end
         out << "#--\n"
         out << Ynl::Generator::PRELUDE
         out << "module Nl; module Linux\n"
