@@ -6,8 +6,8 @@ Gem::Specification.new do |spec|
   spec.authors = ['Kasumi Hanazuki']
   spec.email = ['kasumi@rollingapple.net']
 
-  spec.summary = 'Linux Netlink - core'
-  spec.description = 'Linux Netlink'
+  spec.summary = 'YAML Netlink specification tools for Ruby'
+  spec.description = 'ynl parses YAML Netlink specifications (YNL) and generates Netlink clients for the interfaces they describe.'
   spec.homepage = 'https://github.com/hanazuki/nl'
   spec.license = 'MIT'
   spec.required_ruby_version = '>= 3.4'

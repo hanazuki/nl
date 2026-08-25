@@ -6,8 +6,8 @@ Gem::Specification.new do |spec|
   spec.authors = ['Kasumi Hanazuki']
   spec.email = ['kasumi@rollingapple.net']
 
-  spec.summary = 'Linux Netlink client'
-  spec.description = 'Linux Netlink client'
+  spec.summary = 'Clients for Linux kernel Netlink API'
+  spec.description = "nl-linux is a collection of Netlink clients for Linux kernel APIs, generated from the kernel's YAML specifications (YNL)."
   spec.homepage = 'https://github.com/hanazuki/nl'
   spec.license = '(GPL-2.0 WITH Linux-syscall-note) OR BSD-3-Clause'
   spec.required_ruby_version = '>= 3.4'
