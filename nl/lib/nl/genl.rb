@@ -1,4 +1,4 @@
-# General Netlink message handling
+# Generic Netlink wire definitions
 #--
 # rbs_inline: enabled
 
@@ -50,62 +50,25 @@ module Nl
     end
     include Constants
 
-    class Connection
-      #--
-      # @rbs (resolver: ^(instance, ::String) -> ::Integer, ?executor: executor?) -> instance
-      #  | [R] (resolver: ^(instance, ::String) -> ::Integer, ?executor: executor?) { (instance) -> R } -> R
-      def self.open(resolver:, executor: nil)
-        conn = new(resolver:, executor:)
-        if block_given?
-          begin
-            yield conn
-          ensure
-            conn.close
-          end
-        else
-          conn
-        end
+    GenlMsgHdr = Struct.new(:cmd, :version, :reserved)
+    # Generic Netlink message header
+    class GenlMsgHdr
+      FORMAT = Ractor.make_shareable([
+        Endian::Host::U8,
+        Endian::Host::U8,
+        Endian::Host::U16,
+      ])
+      private_constant :FORMAT
+
+      def self.decode(decoder)
+        new(*decoder.get_values(FORMAT))
       end
 
-      #--
-      # @rbs resolver: ^(instance, ::String) -> ::Integer
-      # @rbs executor: executor?
-      # @rbs return: instance
-      def initialize(resolver:, executor: nil)
-        socket = Socket.new(Core::NETLINK_GENERIC)
-        socket.bind(Socket.sockaddr_nl(0, 0))
-        @resolver = resolver
-        @id_cache = {}
-        @id_cache_mutex = Mutex.new
-        @exchanger = if executor
-          Async::Dispatcher.new(socket, executor:)
-        else
-          BlockingTransport.new(socket)
-        end
-      end
-
-      def open(family_class)
-        proto = family_class::PROTOCOL
-        id = family_id(proto)
-        family_class.new(
-          @exchanger,
-          protocol: Protocols::Genl.new(proto.name, family_id: id),
-        )
-      end
-
-      def close
-        @exchanger.close
-      end
-
-      private def family_id(protocol)
-        protocol.family_id
-      rescue NotImplementedError
-        cached_id = @id_cache_mutex.synchronize { @id_cache[protocol.name] }
-        return cached_id if cached_id
-
-        resolved_id = @resolver.call(self, protocol.name)
-        @id_cache_mutex.synchronize { @id_cache[protocol.name] ||= resolved_id }
+      def encode(encoder)
+        encoder.put_values(FORMAT, to_a)
       end
     end
   end
 end
+
+require_relative 'genl/connection'

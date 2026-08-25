@@ -1,26 +1,10 @@
+require_relative '../genl'
 require_relative 'raw'
 
 module Nl
   module Protocols
     # The Generic Netlink protocol
     class Genl < Raw
-      GenlMsgHdr = ::Struct.new(:cmd, :version, :reserved)
-      class GenlMsgHdr
-        FORMAT = Ractor.make_shareable([
-          Endian::Host::U8,
-          Endian::Host::U8,
-          Endian::Host::U16,
-        ])
-
-        def self.decode(decoder)
-          new(*decoder.get_values(FORMAT))
-        end
-
-        def encode(encoder)
-          encoder.put_values(FORMAT, to_a)
-        end
-      end
-
       def initialize(name, family_id: nil)
         super(name, Core::NETLINK_GENERIC)
         @family_id = family_id || default_family_id(name)
@@ -35,14 +19,14 @@ module Nl
         header = Core::NlMsgHdr.new(0, request.type, request.flags, seq, pid)
         encoder.measure(Endian::Host::U16) do
           header.encode(encoder)
-          GenlMsgHdr.new(message.class::TYPE, 1, 0).encode(encoder)
+          Nl::Genl::GenlMsgHdr.new(message.class::TYPE, 1, 0).encode(encoder)
           message.encode(encoder)
         end
       end
 
       class Message < Raw::Message
         def self.decode(decoder, type:)
-          genlhdr = GenlMsgHdr.decode(decoder)
+          genlhdr = Nl::Genl::GenlMsgHdr.decode(decoder)
           super(decoder, type: genlhdr.cmd)
         end
       end
