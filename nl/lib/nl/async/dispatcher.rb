@@ -1,5 +1,7 @@
 # rbs_inline: enabled
 
+require_relative '../datagram'
+require_relative '../exchange'
 require_relative '../sequence_allocator'
 
 module Nl

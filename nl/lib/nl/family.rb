@@ -1,5 +1,7 @@
 #--
 # rbs_inline: enabled
+require_relative 'async'
+require_relative 'blocking_transport'
 require_relative 'socket'
 
 module Nl

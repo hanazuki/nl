@@ -1,4 +1,4 @@
-# Data types and message handling
+# Netlink wire definitions
 
 require_relative 'endian'
 
