@@ -8,15 +8,9 @@ module Nl
           ::Thread.new(&block)
         end
 
-        def wait_readable(io)
-          io.wait_readable
-        end
-
         def stop(task)
           task.join
         end
-
-        def check_wait_context! = nil
       end
 
       class Fiber
@@ -26,20 +20,9 @@ module Nl
           ::Fiber.schedule(&block)
         end
 
-        def wait_readable(io)
-          io.wait_readable
-        end
-
         def stop(_task)
           # Scheduled fibers have no general join operation. Closing the socket
           # makes the receive loop terminate at its next scheduling point.
-        end
-
-        def check_wait_context!
-          return unless ::Fiber.blocking?
-
-          raise BlockingFiberError,
-            'fiber-backed operations must wait inside Fiber.schedule'
         end
       end
     end

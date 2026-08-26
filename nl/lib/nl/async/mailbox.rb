@@ -8,7 +8,7 @@ module Nl
       TimeoutError = Nl::Async::TimeoutError
       class FullError < StandardError; end
 
-      def initialize(capacity: nil, before_wait: -> {})
+      def initialize(capacity: nil)
         raise ArgumentError, 'capacity must be positive' if capacity && capacity <= 0
 
         @mutex = Mutex.new
@@ -16,7 +16,6 @@ module Nl
         @queue = []
         @closed = false
         @capacity = capacity
-        @before_wait = before_wait
       end
 
       # Adds a value without executing consumer code.
@@ -54,7 +53,6 @@ module Nl
             return @queue.shift unless @queue.empty?
             raise ClosedError if @closed
 
-            @before_wait.call
             remaining = deadline && deadline - Process.clock_gettime(Process::CLOCK_MONOTONIC)
             raise TimeoutError if remaining && remaining <= 0
 

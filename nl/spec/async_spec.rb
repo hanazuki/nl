@@ -288,16 +288,8 @@ RSpec.describe Nl::Async do
       Fiber.set_scheduler(scheduler)
       mailbox = Nl::Async::Mailbox.new
       result = nil
-      driver = described_class::Fiber.new
 
-      expect { driver.check_wait_context! }.to raise_error(
-        Nl::Async::BlockingFiberError,
-        'fiber-backed operations must wait inside Fiber.schedule',
-      )
-      driver.start do
-        driver.check_wait_context!
-        result = mailbox.pop
-      end
+      Fiber.schedule { result = mailbox.pop }
       Fiber.schedule { mailbox.push(:reply) }
       scheduler.run
 

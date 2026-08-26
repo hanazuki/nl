@@ -6,7 +6,6 @@ module Nl
     class TimeoutError < StandardError; end
     class ClosedError < StandardError; end
     class UnavailableError < StandardError; end
-    class BlockingFiberError < StandardError; end
   end
 end
 

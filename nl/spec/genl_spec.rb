@@ -18,7 +18,6 @@ RSpec.describe Nl::Genl::Connection do
     end
 
     def stop(_task) = nil
-    def check_wait_context! = nil
   end
 
   GenlControllerFamily = Class.new(Nl::Family)

@@ -25,7 +25,6 @@ module Nl
       end
 
       def exchange(protocol, kind, request_class, reply_class, args, &block)
-        @driver.check_wait_context!
         operation = exchange_async(protocol, kind, request_class, reply_class, args)
         if kind == :dump
           if block
@@ -52,10 +51,7 @@ module Nl
             pid = @socket.local_port_id
             seq = @sequences.next { @pending.key?([it, pid]) }
             key = [seq, pid]
-            mailbox = Mailbox.new(
-              capacity: stream_capacity,
-              before_wait: -> { @driver.check_wait_context! },
-            )
+            mailbox = Mailbox.new(capacity: stream_capacity)
             operation, sink = if kind == :dump
               Stream.build(mailbox:, on_close: -> { discard(key) })
             else
@@ -96,7 +92,7 @@ module Nl
         loop do
           break if @mutex.synchronize { @closed }
 
-          @driver.wait_readable(@socket)
+          @socket.wait_readable
           data = @socket.recvmsg_nonblock(exception: false)
           next if data == :wait_readable
 
