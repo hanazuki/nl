@@ -1,0 +1,6 @@
+source 'https://rubygems.org'
+
+gem 'nl', path: '../nl'
+gem 'nl-linux', path: '../nl-linux'
+
+gem 'async', '~> 2.0'
