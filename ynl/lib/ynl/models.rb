@@ -7,6 +7,7 @@ module Ynl
       def resolve
         structs.transform_values! {|s| s.resolve(self) }
         attribute_sets.transform_values! {|s| s.resolve(self) }
+        operations.transform_values! {|operation| operation.resolve(self) }
         self
       end
 
@@ -148,10 +149,12 @@ module Ynl
       end
     end
 
-    class Operation
-      attr_reader :name, :doc, :flags, :fixed_header, :attribute_set, :doit, :dumpit
+    McastGroup = ::Struct.new(:name, :value, :doc)
 
-      def initialize(name:, doc:, flags:, fixed_header:, attribute_set:, doit:, dumpit:)
+    class Operation
+      attr_reader :name, :doc, :flags, :fixed_header, :attribute_set, :doit, :dumpit, :notification
+
+      def initialize(name:, doc:, flags:, fixed_header:, attribute_set:, doit:, dumpit:, notification:)
         @name = name
         @doc = doc
         @flags = flags
@@ -159,12 +162,34 @@ module Ynl
         @attribute_set = attribute_set
         @doit = doit
         @dumpit = dumpit
+        @notification = notification
       end
 
       def resolve(f)
         @doit = @doit&.resolve(f)
         @dumpit = @dumpit&.resolve(f)
+        @notification = @notification&.resolve(f)
         self
+      end
+    end
+
+    class Notification
+      attr_reader :kind, :message, :source, :group
+
+      def initialize(kind:, message:, source:, group:)
+        @kind = kind
+        @message = message
+        @source = source
+        @group = group
+      end
+
+      def resolve(f)
+        @message = @message.resolve(f)
+        @source = f.operations.fetch(@source) if @source
+        @group = f.mcast_groups.fetch(@group) if @group
+        self
+      rescue KeyError => error
+        raise ParseError, "Failed to resolve #{kind} notification: #{error.message}"
       end
     end
 

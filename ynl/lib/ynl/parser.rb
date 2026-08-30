@@ -79,7 +79,7 @@ module Ynl
           end
         end
       end
-      @yaml['mcast-groups']&.each do |d|
+      @yaml.dig('mcast-groups', 'list')&.each do |d|
         parse_mcast_group(d)
       end
 
@@ -385,13 +385,30 @@ module Ynl
 
       doit = d['do']&.then { parse_request_reply(it, default_request_id: request_id, default_reply_id: reply_id) }
       dumpit = d['dump']&.then { parse_request_reply(it, default_request_id: request_id, default_reply_id: reply_id) }
-
-      # TODO: notify
+      notification = parse_notification(d, default_id: reply_id)
 
       @operations[name] = Models::Operation.new(
         name:, doc: translate_doc(d['doc']), flags: d.fetch('flags', []), fixed_header:, attribute_set:,
-        doit:, dumpit:,
+        doit:, dumpit:, notification:,
       )
+    end
+
+    private def parse_notification(d, default_id:)
+      if source = d['notify']
+        Models::Notification.new(
+          kind: :notify,
+          message: parse_message({}, default_id:),
+          source:,
+          group: d['mcgrp'],
+        )
+      elsif event = d['event']
+        Models::Notification.new(
+          kind: :event,
+          message: parse_message(event, default_id:),
+          source: nil,
+          group: d['mcgrp'],
+        )
+      end
     end
 
     private def parse_request_reply(d, default_request_id:, default_reply_id:)
@@ -406,6 +423,12 @@ module Ynl
     end
 
     private def parse_mcast_group(d)
+      name = d.fetch('name')
+      @mcast_groups[name] = Models::McastGroup.new(
+        name,
+        d['value'],
+        translate_doc(d['doc']),
+      )
     end
 
     private def translate_doc(doc)
