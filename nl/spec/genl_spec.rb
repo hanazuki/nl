@@ -32,7 +32,7 @@ RSpec.describe Nl::Genl::Connection do
     Nl::Protocols::Genl.new('dynamic-family'),
   )
 
-  it 'resolves and opens a family through one asynchronous exchanger and socket' do
+  it 'resolves a family through one asynchronous exchanger and socket' do
     socket = GenlFakeSocket.new
     driver = GenlIdleDriver.new
     resolver_calls = 0
@@ -42,14 +42,14 @@ RSpec.describe Nl::Genl::Connection do
       resolver_calls += 1
       expect(connection).to be(conn)
       expect(name).to eq('dynamic-family')
-      controller = connection.open(GenlControllerFamily)
+      controller = connection.family(GenlControllerFamily)
       42
     end
     expect(Nl::Socket).to receive(:new).once.with(Nl::Core::NETLINK_GENERIC).and_return(socket)
 
     conn = described_class.new(resolver:, executor: driver)
-    family = conn.open(GenlDynamicFamily)
-    cached_family = conn.open(GenlDynamicFamily)
+    family = conn.family(GenlDynamicFamily)
+    cached_family = conn.family(GenlDynamicFamily)
 
     exchanger = conn.instance_variable_get(:@exchanger)
     expect(exchanger).to be_a(Nl::Async::Dispatcher)
@@ -70,8 +70,8 @@ RSpec.describe Nl::Genl::Connection do
     expect(Nl::Socket).to receive(:new).once.with(Nl::Core::NETLINK_GENERIC).and_return(socket)
 
     conn = described_class.new(resolver: ->(_connection, _name) { 42 })
-    first = conn.open(GenlDynamicFamily)
-    second = conn.open(GenlDynamicFamily)
+    first = conn.family(GenlDynamicFamily)
+    second = conn.family(GenlDynamicFamily)
 
     exchanger = conn.instance_variable_get(:@exchanger)
     expect(exchanger).to be_a(Nl::BlockingTransport)

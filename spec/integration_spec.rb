@@ -6,7 +6,7 @@ require 'nl/linux'
 RSpec.describe do
   let(:resolver) do
     ->(connection, name) do
-      connection.open(Nl::Linux::Nlctrl).do_getfamily(family_name: name).family_id
+      connection.family(Nl::Linux::Nlctrl).do_getfamily(family_name: name).family_id
     end
   end
 
@@ -87,7 +87,7 @@ RSpec.describe do
   describe Nl::Linux::Netdev do
     example 'do_dev_get returns device info for loopback' do
       Nl::Genl::Connection.open(resolver:, executor: :thread) do |conn|
-        netdev = conn.open(Nl::Linux::Netdev)
+        netdev = conn.family(Nl::Linux::Netdev)
         dev = netdev.do_dev_get(ifindex: 1)
         expect(dev).to be_a Nl::Linux::Netdev::Messages::DoDevGetReply
 
@@ -244,7 +244,7 @@ RSpec.describe do
       header = Nl::Linux::Ethtool::AttributeSets::Header.build_attributes(dev_index: 1)
 
       Nl::Genl::Connection.open(resolver:) do |conn|
-        ethtool = conn.open(Nl::Linux::Ethtool)
+        ethtool = conn.family(Nl::Linux::Ethtool)
         reply = ethtool.do_linkstate_get(header:)
         expect(reply).to be_a Nl::Linux::Ethtool::Messages::DoLinkstateGetReply
 
@@ -256,7 +256,7 @@ RSpec.describe do
 
     example 'dump_strset_get returns string set counts' do
       Nl::Genl::Connection.open(resolver:) do |conn|
-        ethtool = conn.open(Nl::Linux::Ethtool)
+        ethtool = conn.family(Nl::Linux::Ethtool)
         # The kernel only parses counts-only when stringsets is present.
         stringsets = Nl::Linux::Ethtool::AttributeSets::Stringsets.build_attributes
         r = ethtool.dump_strset_get(stringsets:, counts_only: true)
@@ -270,7 +270,7 @@ RSpec.describe do
 
     example 'dump_features_get returns device features' do
       Nl::Genl::Connection.open(resolver:) do |conn|
-        ethtool = conn.open(Nl::Linux::Ethtool)
+        ethtool = conn.family(Nl::Linux::Ethtool)
         header = Nl::Linux::Ethtool::AttributeSets::Header.build_attributes(
           flags: 1, # ETHTOOL_FLAG_COMPACT_BITSETS
         )
@@ -285,7 +285,7 @@ RSpec.describe do
 
     example 'dump_linkstate_get returns entry for loopback' do
       Nl::Genl::Connection.open(resolver:) do |conn|
-        ethtool = conn.open(Nl::Linux::Ethtool)
+        ethtool = conn.family(Nl::Linux::Ethtool)
         r = ethtool.dump_linkstate_get
         expect(r).to be_an Array
 

@@ -44,7 +44,7 @@ module Nl
         end
       end
 
-      def open(family_class)
+      def family(family_class)
         proto = family_class::PROTOCOL
         id = family_id(proto)
         family_class.new(
