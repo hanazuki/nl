@@ -4,10 +4,6 @@ require 'spec_helper'
 
 RSpec.describe Nl::Async do
   describe Nl::Async::Mailbox do
-    it 'exposes timeout errors through the public async namespace' do
-      expect(described_class::TimeoutError).to equal(Nl::Async::TimeoutError)
-    end
-
     it 'wakes a blocked thread when a value is pushed' do
       mailbox = described_class.new
       consumer = Thread.new { mailbox.pop }
@@ -20,7 +16,7 @@ RSpec.describe Nl::Async do
     it 'supports monotonic timeouts' do
       mailbox = described_class.new
 
-      expect { mailbox.pop(timeout: 0.001) }.to raise_error(Nl::Async::Mailbox::TimeoutError)
+      expect { mailbox.pop(timeout: 0.001) }.to raise_error(Nl::TimeoutError)
     end
 
     it 'wakes a blocked consumer when closed' do
@@ -33,7 +29,7 @@ RSpec.describe Nl::Async do
 
       mailbox.close
 
-      expect(consumer.value).to be_a(Nl::Async::Mailbox::ClosedError)
+      expect(consumer.value).to be_a(Nl::ClosedError)
     end
 
     it 'rejects pushes beyond a configured capacity without blocking' do
@@ -48,7 +44,7 @@ RSpec.describe Nl::Async do
     it 'raises the public timeout error without closing the future' do
       future, sink = described_class.build
 
-      expect { future.await(timeout: 0.001) }.to raise_error(Nl::Async::TimeoutError)
+      expect { future.await(timeout: 0.001) }.to raise_error(Nl::TimeoutError)
 
       sink.succeed(:reply)
       expect(future.await).to eq(:reply)
@@ -89,7 +85,7 @@ RSpec.describe Nl::Async do
 
       expect(close_count).to eq(1)
       expect(sink.succeed(:reply)).to be(false)
-      expect { future.await }.to raise_error(Nl::Async::ClosedError, 'future is closed')
+      expect { future.await }.to raise_error(Nl::ClosedError, 'future is closed')
     end
 
     it 'closes without a callback' do
@@ -106,7 +102,7 @@ RSpec.describe Nl::Async do
     it 'raises the public timeout error without closing the stream' do
       stream, sink = described_class.build
 
-      expect { stream.next(timeout: 0.001) }.to raise_error(Nl::Async::TimeoutError)
+      expect { stream.next(timeout: 0.001) }.to raise_error(Nl::TimeoutError)
 
       sink.push(:reply)
       expect(stream.next).to eq(:reply)
@@ -130,8 +126,8 @@ RSpec.describe Nl::Async do
 
       stream.close
 
-      expect { stream.each {} }.to raise_error(Nl::Async::ClosedError, 'stream is closed')
-      expect { stream.next }.to raise_error(Nl::Async::ClosedError, 'stream is closed')
+      expect { stream.each {} }.to raise_error(Nl::ClosedError, 'stream is closed')
+      expect { stream.next }.to raise_error(Nl::ClosedError, 'stream is closed')
     end
 
     it 'wakes a consumer with the public closed error' do
@@ -148,7 +144,7 @@ RSpec.describe Nl::Async do
 
       stream.close
 
-      expect(consumer.value).to be_a(Nl::Async::ClosedError)
+      expect(consumer.value).to be_a(Nl::ClosedError)
     end
 
     it 'propagates an error after already-delivered items' do
@@ -323,6 +319,8 @@ RSpec.describe Nl::Async do
 
       def closed? = @socket.closed?
       def close = @socket.close
+      def add_membership(_group_id) = nil
+      def drop_membership(_group_id) = nil
     end
 
     FakeProtocol = Class.new do
@@ -348,6 +346,11 @@ RSpec.describe Nl::Async do
           Nl::Protocols::Raw::DataFrame.new(header:, message: payload.get_string)
         end
       end
+
+
+      def notification_frame?(header, _payload) = header.type == 43
+      def notification_class(header, _payload, classes) = classes[header.type]
+      def decode_notification(_header, payload, _message_class) = payload.get_string
     end
 
     def frame(type:, sequence:, flags: 0, payload: ''.b)
@@ -369,7 +372,15 @@ RSpec.describe Nl::Async do
       receiver, @sender = ::Socket.pair(:UNIX, :STREAM, 0)
       @socket = FakeSocket.new(receiver)
       @protocol = FakeProtocol.new
-      @dispatcher = described_class.new(@socket, executor: :thread)
+      @notifications = Nl::NotificationRouter.new(
+        routing: Nl::Protocols::Raw.new('fake', 0).notification_routing,
+        capacity: 1_024,
+      )
+      @dispatcher = described_class.new(
+        @socket,
+        executor: :thread,
+        notifications: @notifications,
+      )
     end
 
     after do
@@ -379,6 +390,17 @@ RSpec.describe Nl::Async do
 
     it 'is async-capable' do
       expect(@dispatcher).to be_async_capable
+    end
+
+    it 'fails pending and new operations with the public closed error' do
+      future = @dispatcher.exchange_async(@protocol, :do, FakeRequest, String, {})
+
+      @dispatcher.close
+
+      expect { future.await }.to raise_error(Nl::ClosedError, 'dispatcher is closed')
+      expect do
+        @dispatcher.exchange_async(@protocol, :do, FakeRequest, String, {})
+      end.to raise_error(Nl::ClosedError, 'dispatcher is closed')
     end
 
     it 'waits for ACK before completing a request' do
@@ -403,6 +425,63 @@ RSpec.describe Nl::Async do
 
       expect(first.await(timeout: 1)).to eq('first')
       expect(second.await(timeout: 1)).to eq('second')
+    end
+
+    it 'routes unsolicited notifications without disturbing a pending exchange' do
+      @notifications.register(@protocol, 43 => String)
+      future = @dispatcher.exchange_async(@protocol, :do, FakeRequest, String, {})
+      @sender.write(
+        frame(type: 43, sequence: 0, payload: 'notice') +
+          frame(type: 42, sequence: 1, payload: 'reply') +
+          control_frame(type: Nl::Core::NLMSG_ERROR, sequence: 1, errno: 0),
+      )
+
+      expect(future.await(timeout: 1)).to eq('reply')
+      expect(@dispatcher.receive_notification(@protocol, timeout: 1)).to eq('notice')
+    end
+
+    it 'reports ENOBUFS to blocking exchanges and notification waiters' do
+      @notifications.register(@protocol, 43 => String)
+      original_receive = @socket.method(:recvmsg_nonblock)
+      first_receive = true
+      allow(@socket).to receive(:recvmsg_nonblock) do |exception: true|
+        value = original_receive.call(exception:)
+        if first_receive
+          first_receive = false
+          raise Errno::ENOBUFS
+        end
+        value
+      end
+      sent = Queue.new
+      allow(@protocol).to receive(:send_message).and_wrap_original do |method, *args, **kwargs|
+        method.call(*args, **kwargs).tap { sent << kwargs[:seq] }
+      end
+
+      notification = Thread.new do
+        @dispatcher.receive_notification(@protocol, timeout: 1)
+      rescue StandardError => error
+        error
+      end
+      exchange = Thread.new do
+        @dispatcher.exchange(@protocol, :do, FakeRequest, String, {})
+      rescue StandardError => error
+        error
+      end
+      expect(sent.pop(timeout: 1)).to eq(1)
+      @sender.write('wake')
+
+      expect(exchange.value).to be_a(Errno::ENOBUFS)
+      expect(notification.value).to be_a(Nl::NotificationLossError)
+
+      next_exchange = Thread.new do
+        @dispatcher.exchange(@protocol, :do, FakeRequest, String, {})
+      end
+      expect(sent.pop(timeout: 1)).to eq(2)
+      @sender.write(
+        frame(type: 42, sequence: 2, payload: 'reply') +
+          control_frame(type: Nl::Core::NLMSG_ERROR, sequence: 2, errno: 0),
+      )
+      expect(next_exchange.value).to eq('reply')
     end
 
     it 'retains a request when ACK arrives before its reply' do
@@ -477,6 +556,16 @@ RSpec.describe Nl::Async do
       )
 
       expect { stream.to_a }.to raise_error(Nl::Async::StreamOverflowError)
+    end
+
+    it 'closes notification channels when the receive loop fails' do
+      @notifications.register(@protocol, 43 => String)
+      allow(@socket).to receive(:recvmsg_nonblock).and_raise(IOError, 'receive failed')
+      @sender.write('wake')
+
+      expect do
+        @dispatcher.receive_notification(@protocol, timeout: 1)
+      end.to raise_error(Nl::ClosedError, 'notification channel is closed')
     end
 
   end

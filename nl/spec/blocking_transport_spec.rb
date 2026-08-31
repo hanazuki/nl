@@ -8,6 +8,8 @@ RSpec.describe Nl::BlockingTransport do
     def local_port_id = 77
     def close = self.closed = true
     def closed? = !!closed
+    def add_membership(_group_id) = nil
+    def drop_membership(_group_id) = nil
   end
 
   BlockingFakeProtocol = Class.new do
@@ -35,6 +37,25 @@ RSpec.describe Nl::BlockingTransport do
         Nl::Protocols::Raw::DataFrame.new(header:, message: payload.get_string)
       end
     end
+
+    def notification_frame?(header, _payload) = header.type == 43
+    def notification_class(header, _payload, classes) = classes[header.type]
+    def decode_notification(_header, payload, _message_class) = payload.get_string
+  end
+
+  def build_transport(socket, **options)
+    notifications = Nl::NotificationRouter.new(
+      routing: Nl::Protocols::Raw.new('fake', 0).notification_routing,
+      capacity: options.fetch(:notification_capacity, 1_024),
+    )
+    described_class.new(
+      socket,
+      notifications:,
+    )
+  end
+
+  def register_notifications(transport, protocol, classes)
+    transport.instance_variable_get(:@notifications).register(protocol, classes)
   end
 
   def frame(type:, sequence: 1, flags: 0, payload: ''.b)
@@ -63,7 +84,7 @@ RSpec.describe Nl::BlockingTransport do
     socket = BlockingFakeSocket.new([frame(type: 42, payload: 'reply') + ack])
     protocol = BlockingFakeProtocol.new
 
-    result = described_class.new(socket).exchange(protocol, :do, Object, String, {})
+    result = build_transport(socket).exchange(protocol, :do, Object, String, {})
 
     expect(result).to eq('reply')
     expect(protocol.sent.first.to_h).to include(seq: 1, pid: 77)
@@ -76,7 +97,7 @@ RSpec.describe Nl::BlockingTransport do
         frame(type: Nl::Core::NLMSG_DONE),
     ])
 
-    result = described_class.new(socket).exchange(BlockingFakeProtocol.new, :do, Object, String, {})
+    result = build_transport(socket).exchange(BlockingFakeProtocol.new, :do, Object, String, {})
 
     expect(result).to eq('one')
   end
@@ -87,7 +108,7 @@ RSpec.describe Nl::BlockingTransport do
         frame(type: 42, flags: Nl::Core::NLM_F_MULTI, payload: 'two') + done,
     ])
 
-    result = described_class.new(socket).exchange(BlockingFakeProtocol.new, :dump, Object, String, {})
+    result = build_transport(socket).exchange(BlockingFakeProtocol.new, :dump, Object, String, {})
 
     expect(result).to eq(%w[one two])
   end
@@ -96,7 +117,7 @@ RSpec.describe Nl::BlockingTransport do
     socket = BlockingFakeSocket.new([frame(type: 42, flags: Nl::Core::NLM_F_MULTI, payload: 'one') + done])
     values = []
 
-    result = described_class.new(socket).exchange(BlockingFakeProtocol.new, :dump, Object, String, {}) do |value|
+    result = build_transport(socket).exchange(BlockingFakeProtocol.new, :dump, Object, String, {}) do |value|
       values << value
     end
 
@@ -108,7 +129,7 @@ RSpec.describe Nl::BlockingTransport do
     socket = BlockingFakeSocket.new([ack(errno: -22)])
 
     expect do
-      described_class.new(socket).exchange(BlockingFakeProtocol.new, :dump, Object, String, {})
+      build_transport(socket).exchange(BlockingFakeProtocol.new, :dump, Object, String, {})
     end.to raise_error(Errno::EINVAL)
   end
 
@@ -116,7 +137,7 @@ RSpec.describe Nl::BlockingTransport do
     socket = BlockingFakeSocket.new([ack(errno: Errno::EINVAL::Errno)])
 
     expect do
-      described_class.new(socket).exchange(BlockingFakeProtocol.new, :dump, Object, String, {})
+      build_transport(socket).exchange(BlockingFakeProtocol.new, :dump, Object, String, {})
     end.to raise_error(Nl::ProtocolViolation, 'expected zero or negative NLMSG_ERROR errno, got 22')
   end
 
@@ -124,7 +145,7 @@ RSpec.describe Nl::BlockingTransport do
     socket = BlockingFakeSocket.new([done(errno: -Errno::EINVAL::Errno)])
 
     expect do
-      described_class.new(socket).exchange(BlockingFakeProtocol.new, :dump, Object, String, {})
+      build_transport(socket).exchange(BlockingFakeProtocol.new, :dump, Object, String, {})
     end.to raise_error(Errno::EINVAL)
   end
 
@@ -132,14 +153,14 @@ RSpec.describe Nl::BlockingTransport do
     socket = BlockingFakeSocket.new([frame(type: Nl::Core::NLMSG_DONE, payload: "\0\0\0".b)])
 
     expect do
-      described_class.new(socket).exchange(BlockingFakeProtocol.new, :dump, Object, String, {})
+      build_transport(socket).exchange(BlockingFakeProtocol.new, :dump, Object, String, {})
     end.to raise_error(Nl::Decoder::OutOfBounds)
   end
 
   it 'accepts a header-only DONE as implicit success' do
     socket = BlockingFakeSocket.new([frame(type: Nl::Core::NLMSG_DONE)])
 
-    result = described_class.new(socket).exchange(BlockingFakeProtocol.new, :dump, Object, String, {})
+    result = build_transport(socket).exchange(BlockingFakeProtocol.new, :dump, Object, String, {})
 
     expect(result).to eq([])
   end
@@ -148,7 +169,7 @@ RSpec.describe Nl::BlockingTransport do
     socket = BlockingFakeSocket.new([done(errno: Errno::EINVAL::Errno)])
 
     expect do
-      described_class.new(socket).exchange(BlockingFakeProtocol.new, :dump, Object, String, {})
+      build_transport(socket).exchange(BlockingFakeProtocol.new, :dump, Object, String, {})
     end.to raise_error(Nl::ProtocolViolation, 'expected zero or negative NLMSG_DONE errno, got 22')
   end
 
@@ -156,35 +177,93 @@ RSpec.describe Nl::BlockingTransport do
     socket = BlockingFakeSocket.new([frame(type: 42, sequence: 2, payload: 'reply')])
 
     expect do
-      described_class.new(socket).exchange(BlockingFakeProtocol.new, :do, Object, String, {})
+      build_transport(socket).exchange(BlockingFakeProtocol.new, :do, Object, String, {})
     end.to raise_error(Nl::BlockingTransport::UnexpectedSequenceError) do |error|
       expect(error.expected).to eq([1, 77])
       expect(error.actual).to eq([2, 77])
     end
   end
 
-  it 'rejects a concurrent exchange' do
+  it 'queues an interleaved notification and continues the exchange' do
+    socket = BlockingFakeSocket.new([
+      frame(type: 43, sequence: 0, payload: 'notice') +
+        frame(type: 42, payload: 'reply') + ack,
+    ])
+    protocol = BlockingFakeProtocol.new
+    transport = build_transport(socket)
+    register_notifications(transport, protocol, 43 => String)
+
+    expect(transport.exchange(protocol, :do, Object, String, {})).to eq('reply')
+    expect(transport.receive_notification(protocol)).to eq('notice')
+  end
+
+  it 'marks notification loss without blocking an exchange when the queue is full' do
+    socket = BlockingFakeSocket.new([
+      frame(type: 43, sequence: 0, payload: 'first') +
+        frame(type: 43, sequence: 0, payload: 'overflow') + ack,
+    ])
+    protocol = BlockingFakeProtocol.new
+    transport = build_transport(socket, notification_capacity: 1)
+    register_notifications(transport, protocol, 43 => String)
+
+    expect(transport.exchange(protocol, :do, Object, nil, {})).to be_nil
+    expect { transport.receive_notification(protocol) }.to raise_error(Nl::NotificationLossError)
+  end
+
+  it 'marks notification loss when a notification receive reports ENOBUFS' do
+    socket = BlockingFakeSocket.new([])
+    calls = 0
+    allow(socket).to receive(:recvmsg) do
+      calls += 1
+      raise Errno::ENOBUFS if calls == 1
+
+      [frame(type: 43, sequence: 0, payload: 'after-loss')]
+    end
+    protocol = BlockingFakeProtocol.new
+    transport = build_transport(socket)
+    register_notifications(transport, protocol, 43 => String)
+
+    expect { transport.receive_notification(protocol) }.to raise_error(Nl::NotificationLossError)
+    expect(transport.receive_notification(protocol)).to eq('after-loss')
+  end
+
+  it 'preserves ENOBUFS for an exchange and records notification loss' do
+    socket = BlockingFakeSocket.new([])
+    allow(socket).to receive(:recvmsg).and_raise(Errno::ENOBUFS)
+    protocol = BlockingFakeProtocol.new
+    transport = build_transport(socket)
+    register_notifications(transport, protocol, 43 => String)
+
+    expect do
+      transport.exchange(protocol, :do, Object, String, {})
+    end.to raise_error(Errno::ENOBUFS)
+    expect { transport.receive_notification(protocol) }.to raise_error(Nl::NotificationLossError)
+  end
+
+  it 'rejects notification receive during an exchange' do
     entered_receive = Queue.new
     release_receive = Queue.new
     ack_frame = ack
     socket = BlockingFakeSocket.new([])
-    socket.define_singleton_method(:recvmsg) do
+    allow(socket).to receive(:recvmsg) do
       entered_receive << true
       release_receive.pop
       [ack_frame]
     end
-    exchanger = described_class.new(socket)
+    transport = build_transport(socket)
+    protocol = BlockingFakeProtocol.new
+    register_notifications(transport, protocol, 43 => String)
     active_exchange = Thread.new do
-      exchanger.exchange(BlockingFakeProtocol.new, :do, Object, nil, {})
+      transport.exchange(protocol, :do, Object, nil, {})
     end
     entered_receive.pop
 
     begin
       expect do
-        exchanger.exchange(BlockingFakeProtocol.new, :do, Object, nil, {})
+        transport.receive_notification(protocol)
       end.to raise_error(
-        Nl::BlockingTransport::ConcurrentExchangeError,
-        'BlockingTransport supports only one active exchange',
+        Nl::BlockingTransport::ConcurrentOperationError,
+        'BlockingTransport supports only one active operation',
       )
     ensure
       release_receive << true
@@ -192,12 +271,41 @@ RSpec.describe Nl::BlockingTransport do
     expect(active_exchange.value).to be_nil
   end
 
+  it 'rejects an exchange during notification receive' do
+    entered_receive = Queue.new
+    release_receive = Queue.new
+    notification_frame = frame(type: 43, sequence: 0, payload: 'notice')
+    socket = BlockingFakeSocket.new([])
+    allow(socket).to receive(:recvmsg) do
+      entered_receive << true
+      release_receive.pop
+      [notification_frame]
+    end
+    transport = build_transport(socket)
+    protocol = BlockingFakeProtocol.new
+    register_notifications(transport, protocol, 43 => String)
+    notification_receive = Thread.new { transport.receive_notification(protocol) }
+    entered_receive.pop
+
+    begin
+      expect do
+        transport.exchange(protocol, :do, Object, nil, {})
+      end.to raise_error(
+        Nl::BlockingTransport::ConcurrentOperationError,
+        'BlockingTransport supports only one active operation',
+      )
+    ensure
+      release_receive << true
+    end
+    expect(notification_receive.value).to eq('notice')
+  end
+
   it 'closes its socket once' do
     socket = BlockingFakeSocket.new([])
-    exchanger = described_class.new(socket)
+    transport = build_transport(socket)
 
-    exchanger.close
-    exchanger.close
+    transport.close
+    transport.close
 
     expect(socket).to be_closed
   end

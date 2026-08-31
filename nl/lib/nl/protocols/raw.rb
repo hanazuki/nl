@@ -5,6 +5,13 @@ module Nl
   module Protocols
     # The raw Netlink protocol
     class Raw
+      class NotificationRouting
+        def family_key(_protocol) = nil
+        def frame_key(_header) = nil
+      end
+
+      NOTIFICATION_ROUTING = NotificationRouting.new.freeze
+
       AckFrame = Data.define(:header)
       ErrorFrame = Data.define(:header, :errno)
       DoneFrame = Data.define(:header, :errno)
@@ -78,6 +85,28 @@ module Nl
 
         message = request_class.from_params(args)
         Request.new(type: frame_type(request_class), flags:, message:)
+      end
+
+      # Raw Netlink sockets carry a single protocol family.
+      def notification_routing = NOTIFICATION_ROUTING
+
+      # Whether an unsolicited data frame belongs to this protocol.
+      def notification_frame?(header, _payload)
+        header.type >= Core::NLMSG_MIN_TYPE
+      end
+
+      # Looks up the generated notification class for an unsolicited frame.
+      def notification_class(header, _payload, classes)
+        classes[header.type]
+      end
+
+      def decode_notification(header, payload, message_class)
+        decode_frame(header, payload, message_class).message
+      end
+
+      def multicast_group_id(name, value)
+        value or raise UnresolvedMulticastGroupError,
+          "multicast group #{name.inspect} has no fixed ID"
       end
 
       private def frame_type(message_class) = message_class::TYPE

@@ -191,4 +191,43 @@ RSpec.describe Ynl::Parser do
       expect(operations.fetch('unprivileged').flags).to be_empty
     end
   end
+
+  describe 'notifications' do
+    subject(:family) { parse('notifications.yaml') }
+
+    it 'parses and resolves multicast groups' do
+      expect(family.mcast_groups.fetch('changes')).to have_attributes(
+        name: 'changes',
+        value: nil,
+        doc: 'Object lifecycle changes.',
+      )
+      expect(family.mcast_groups.fetch('fixed-id').value).to eq 42
+    end
+
+    it 'parses notify operations and resolves their source operation and group' do
+      notification = family.operations.fetch('object-changed').notification
+
+      expect(notification.kind).to eq :notify
+      expect(notification.message.value).to eq 2
+      expect(notification.message.attributes).to be_empty
+      expect(notification.source).to equal family.operations.fetch('object-get')
+      expect(notification.group).to equal family.mcast_groups.fetch('changes')
+    end
+
+    it 'parses event operations with their inline message schema' do
+      notification = family.operations.fetch('object-failed').notification
+
+      expect(notification.kind).to eq :event
+      expect(notification.message.value).to eq 3
+      expect(notification.message.attributes).to eq %w[item-id reason]
+      expect(notification.source).to be_nil
+      expect(notification.group).to equal family.mcast_groups.fetch('changes')
+    end
+
+    it 'allows notifications without an explicit multicast group' do
+      notification = family.operations.fetch('ungrouped-event').notification
+
+      expect(notification.group).to be_nil
+    end
+  end
 end

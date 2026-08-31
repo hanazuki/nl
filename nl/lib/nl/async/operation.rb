@@ -1,5 +1,7 @@
 # rbs_inline: enabled
 
+require_relative '../error'
+
 module Nl
   module Async
     module Events
@@ -44,9 +46,7 @@ module Nl
         end
         @mailbox.close
         terminal_result
-      rescue Mailbox::TimeoutError
-        raise
-      rescue Mailbox::ClosedError
+      rescue ClosedError
         terminal_result
       end
       alias value await
@@ -159,7 +159,7 @@ module Nl
             end
           end
           self
-        rescue Mailbox::ClosedError
+        rescue ClosedError
           terminal_result
         ensure
           close if open?
@@ -192,7 +192,7 @@ module Nl
 
           terminal_result(next_item: true)
         end
-      rescue Mailbox::ClosedError
+      rescue ClosedError
         terminal_result(next_item: true)
       end
 

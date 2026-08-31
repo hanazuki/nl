@@ -1,11 +1,11 @@
 # rbs_inline: enabled
 
+require_relative '../error'
+
 module Nl
   module Async
     # A thread-safe, scheduler-aware, single-consumer mailbox.
     class Mailbox
-      class ClosedError < StandardError; end
-      TimeoutError = Nl::Async::TimeoutError
       class FullError < StandardError; end
 
       def initialize(capacity: nil)

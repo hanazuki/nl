@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Generate notification and event message classes, multicast group metadata,
+  and typed subscription methods.
 - Generate nested type-value attributes with their declared type-key depth.
 - Generate methods for operations with implicit empty requests.
 

@@ -8,6 +8,11 @@ module Nl
     module Constants
       # From include/linux/socket.h
       PF_NETLINK = AF_NETLINK = 16
+
+      # From include/uapi/linux/netlink.h
+      SOL_NETLINK = 270
+      NETLINK_ADD_MEMBERSHIP = 1
+      NETLINK_DROP_MEMBERSHIP = 2
     end
     include Constants
 
@@ -36,6 +41,16 @@ module Nl
     # @return [Integer] Local Netlink port ID assigned to this socket
     def local_port_id
       Socket.unpack_sockaddr_nl(local_address.to_sockaddr).first
+    end
+
+    # Adds this socket to a Netlink multicast group.
+    def add_membership(group_id)
+      setsockopt(SOL_NETLINK, NETLINK_ADD_MEMBERSHIP, group_id)
+    end
+
+    # Removes this socket from a Netlink multicast group.
+    def drop_membership(group_id)
+      setsockopt(SOL_NETLINK, NETLINK_DROP_MEMBERSHIP, group_id)
     end
   end
 end

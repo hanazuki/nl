@@ -1,0 +1,47 @@
+name: notifications
+protocol: genetlink
+
+attribute-sets:
+  - name: attrs
+    attributes:
+      - name: item-id
+        type: u32
+      - name: reason
+        type: string
+
+operations:
+  list:
+    - name: object-get
+      attribute-set: attrs
+      do:
+        request:
+          attributes: [item-id]
+        reply:
+          attributes: [item-id, reason]
+    - name: object-changed
+      notify: object-get
+      mcgrp: changes
+    - name: object-failed
+      attribute-set: attrs
+      mcgrp: changes
+      event:
+        attributes: [item-id, reason]
+    - name: ungrouped-event
+      attribute-set: attrs
+      event:
+        attributes: [reason]
+    - name: object-list
+      attribute-set: attrs
+      dump:
+        reply:
+          attributes: [item-id]
+    - name: object-list-changed
+      notify: object-list
+      mcgrp: changes
+
+mcast-groups:
+  list:
+    - name: changes
+      doc: Object lifecycle changes.
+    - name: fixed-id
+      value: 42
