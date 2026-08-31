@@ -43,7 +43,9 @@ RSpec.describe Ynl do
     it 'rejects asynchronous operations when no executor is configured' do
       cls = Ynl::Family.build(Pathname(__dir__) + 'fixtures/ops_unified.yaml')
       family = cls.allocate
-      family.instance_variable_set(:@exchanger, Nl::BlockingTransport.allocate)
+      connection = Nl::Connection.allocate
+      connection.instance_variable_set(:@transport, Nl::BlockingTransport.allocate)
+      family.instance_variable_set(:@connection, connection)
 
       expect(family).not_to be_async_capable
       expect { family.async }.to raise_error(
@@ -55,7 +57,9 @@ RSpec.describe Ynl do
     it 'reports asynchronous capability when an executor is configured' do
       cls = Ynl::Family.build(Pathname(__dir__) + 'fixtures/ops_unified.yaml')
       family = cls.allocate
-      family.instance_variable_set(:@exchanger, Nl::Async::Dispatcher.allocate)
+      connection = Nl::Connection.allocate
+      connection.instance_variable_set(:@transport, Nl::Async::Dispatcher.allocate)
+      family.instance_variable_set(:@connection, connection)
 
       expect(family).to be_async_capable
       expect(family.async).to be_a(cls::AsyncOperations)
@@ -66,14 +70,16 @@ RSpec.describe Ynl do
       path = Pathname(__dir__) + 'fixtures/ops_unified.yaml'
       path.open { |source| Ynl::Family.generate(source, generated) }
       cls = Ynl::Family.build(path)
-      exchanger = Object.new
+      connection = Object.new
       calls = []
-      exchanger.define_singleton_method(:async_capable?) { true }
-      exchanger.define_singleton_method(:exchange_async) do |*args, **kwargs|
+      allow(connection).to receive(:async_capable?).and_return(true)
+      allow(connection).to receive(:register_notifications).and_return(Object.new)
+      allow(connection).to receive(:receive_notification) { |_protocol, timeout:| timeout }
+      allow(connection).to receive(:exchange_async) do |*args, **kwargs|
         calls << [args, kwargs]
         :operation
       end
-      family = cls.new(exchanger)
+      family = cls.new(connection)
 
       operations = family.async(stream_capacity: 7)
       expect(operations.do_op_a).to eq(:operation)

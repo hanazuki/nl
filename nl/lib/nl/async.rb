@@ -1,10 +1,10 @@
 # rbs_inline: enabled
 
+require_relative 'error'
+
 module Nl
   # Asynchronous request handling support.
   module Async
-    class TimeoutError < StandardError; end
-    class ClosedError < StandardError; end
     class UnavailableError < StandardError; end
   end
 end

@@ -7,6 +7,9 @@ RSpec.describe Nl::Genl::Connection do
     def bind(address) = self.bound_address = address
     def close = self.closed = true
     def closed? = !!closed
+    def add_membership(_group_id) = nil
+    def drop_membership(_group_id) = nil
+    def local_port_id = 77
   end
 
   GenlIdleDriver = Class.new do
@@ -31,8 +34,9 @@ RSpec.describe Nl::Genl::Connection do
     :PROTOCOL,
     Nl::Protocols::Genl.new('dynamic-family'),
   )
+  GenlDynamicFamily.const_set(:MCAST_GROUPS, {events: nil}.freeze)
 
-  it 'resolves a family through one asynchronous exchanger and socket' do
+  it 'resolves a family through one asynchronous connection and socket' do
     socket = GenlFakeSocket.new
     driver = GenlIdleDriver.new
     resolver_calls = 0
@@ -51,12 +55,13 @@ RSpec.describe Nl::Genl::Connection do
     family = conn.family(GenlDynamicFamily)
     cached_family = conn.family(GenlDynamicFamily)
 
-    exchanger = conn.instance_variable_get(:@exchanger)
-    expect(exchanger).to be_a(Nl::Async::Dispatcher)
-    expect(controller.instance_variable_get(:@exchanger)).to equal(exchanger)
-    expect(family.instance_variable_get(:@exchanger)).to equal(exchanger)
-    expect(cached_family.instance_variable_get(:@exchanger)).to equal(exchanger)
-    expect(exchanger.instance_variable_get(:@socket)).to equal(socket)
+    connection = conn.instance_variable_get(:@connection)
+    transport = connection.instance_variable_get(:@transport)
+    expect(transport).to be_a(Nl::Async::Dispatcher)
+    expect(controller.instance_variable_get(:@connection)).to equal(connection)
+    expect(family.instance_variable_get(:@connection)).to equal(connection)
+    expect(cached_family.instance_variable_get(:@connection)).to equal(connection)
+    expect(transport.instance_variable_get(:@socket)).to equal(socket)
     expect(family).not_to respond_to(:close)
     expect(family.instance_variable_get(:@protocol).family_id).to eq(42)
     expect(resolver_calls).to eq(1)
@@ -64,7 +69,7 @@ RSpec.describe Nl::Genl::Connection do
     conn&.close
   end
 
-  it 'shares one blocking exchanger across synchronous families' do
+  it 'shares one connection across synchronous families' do
     socket = GenlFakeSocket.new
     conn = nil
     expect(Nl::Socket).to receive(:new).once.with(Nl::Core::NETLINK_GENERIC).and_return(socket)
@@ -73,11 +78,27 @@ RSpec.describe Nl::Genl::Connection do
     first = conn.family(GenlDynamicFamily)
     second = conn.family(GenlDynamicFamily)
 
-    exchanger = conn.instance_variable_get(:@exchanger)
-    expect(exchanger).to be_a(Nl::BlockingTransport)
-    expect(first.instance_variable_get(:@exchanger)).to equal(exchanger)
-    expect(second.instance_variable_get(:@exchanger)).to equal(exchanger)
-    expect(exchanger.instance_variable_get(:@socket)).to equal(socket)
+    connection = conn.instance_variable_get(:@connection)
+    transport = connection.instance_variable_get(:@transport)
+    expect(transport).to be_a(Nl::BlockingTransport)
+    expect(first.instance_variable_get(:@connection)).to equal(connection)
+    expect(second.instance_variable_get(:@connection)).to equal(connection)
+    expect(transport.instance_variable_get(:@socket)).to equal(socket)
+  ensure
+    conn&.close
+  end
+
+
+  it 'uses resolved Generic Netlink multicast group IDs on the shared socket' do
+    socket = GenlFakeSocket.new
+    expect(Nl::Socket).to receive(:new).once.with(Nl::Core::NETLINK_GENERIC).and_return(socket)
+    expect(socket).to receive(:add_membership).once.with(99)
+
+    info = Nl::Genl::FamilyInfo.new(id: 42, multicast_groups: {events: 99})
+    conn = described_class.new(resolver: ->(_connection, _name) { info })
+    family = conn.family(GenlDynamicFamily)
+
+    expect(family.subscribe(:events)).to equal(family)
   ensure
     conn&.close
   end

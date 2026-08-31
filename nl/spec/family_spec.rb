@@ -7,10 +7,13 @@ RSpec.describe Nl::Family do
     def bind(address) = self.bound_address = address
     def close = self.closed = true
     def closed? = !!closed
+    def add_membership(_group_id) = nil
+    def drop_membership(_group_id) = nil
   end
 
   StandaloneFamily = Class.new(described_class)
   StandaloneFamily.const_set(:PROTOCOL, Nl::Protocols::Raw.new('standalone', 12))
+  StandaloneFamily.const_set(:MCAST_GROUPS, {events: 7}.freeze)
   StandaloneFamily.class_eval do
     def do_action(value, option:, &block) = [value, option, block&.call]
     def dump_items(limit:) = (1..limit).to_a
@@ -30,7 +33,7 @@ RSpec.describe Nl::Family do
     expect(socket).to be_closed
   end
 
-  it 'owns and closes its exchanger around the block' do
+  it 'owns and closes its connection around the block' do
     socket = FamilyFakeSocket.new
     family = nil
     expect(Nl::Socket).to receive(:new).once.with(12).and_return(socket)
@@ -47,7 +50,7 @@ RSpec.describe Nl::Family do
     expect(socket).to be_closed
   end
 
-  it 'closes its exchanger when the block raises' do
+  it 'closes its connection when the block raises' do
     socket = FamilyFakeSocket.new
     expect(Nl::Socket).to receive(:new).once.with(12).and_return(socket)
 
@@ -56,5 +59,29 @@ RSpec.describe Nl::Family do
     end.to raise_error(RuntimeError, 'failed')
 
     expect(socket).to be_closed
+  end
+
+
+  it 'adds and removes memberships on its existing socket' do
+    socket = FamilyFakeSocket.new
+    expect(Nl::Socket).to receive(:new).once.with(12).and_return(socket)
+    expect(socket).to receive(:add_membership).twice.with(7)
+    expect(socket).to receive(:drop_membership).once.with(7)
+
+    StandaloneFamily.open do |family|
+      expect(family.subscribe(:events)).to equal(family)
+      family.subscribe(:events)
+      expect(family.unsubscribe(:events)).to equal(family)
+    end
+  end
+
+  it 'rejects an unknown multicast group before changing the socket' do
+    socket = FamilyFakeSocket.new
+    expect(Nl::Socket).to receive(:new).once.with(12).and_return(socket)
+    expect(socket).not_to receive(:add_membership)
+
+    StandaloneFamily.open do |family|
+      expect { family.subscribe(:missing) }.to raise_error(Nl::UnknownMulticastGroupError)
+    end
   end
 end

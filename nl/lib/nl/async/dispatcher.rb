@@ -1,21 +1,22 @@
 # rbs_inline: enabled
 
 require_relative '../datagram'
+require_relative '../error'
 require_relative '../exchange'
+require_relative '../notification_router'
 require_relative '../sequence_allocator'
 
 module Nl
   module Async
     # Owns the single receive loop for a socket and routes replies by sequence.
     class Dispatcher
-      class ClosedError < IOError; end
-
       Pending = Data.define(:exchange, :protocol, :reply_class, :sink)
       private_constant :Pending
 
-      def initialize(socket, executor: :thread)
+      def initialize(socket, executor: :thread, notifications:)
         @socket = socket
         @sequences = SequenceAllocator.new
+        @notifications = notifications
         @driver = executor.respond_to?(:start) ? executor : Async.driver(executor)
         @mutex = Mutex.new
         @send_mutex = Mutex.new
@@ -75,6 +76,10 @@ module Nl
         true
       end
 
+      def receive_notification(protocol, timeout: nil)
+        @notifications.channel(protocol).pop(timeout:)
+      end
+
       def close
         task = @mutex.synchronize do
           next if @closed
@@ -97,27 +102,43 @@ module Nl
           next if data == :wait_readable
 
           dispatch_datagram(IO::Buffer.for(data.first))
+        rescue Errno::ENOBUFS => e
+          @notifications.lose_all(NotificationLossError.new('kernel receive buffer overflowed'))
+          fail_all(e)
         end
-      rescue IOError, Errno::EBADF
-        raise unless @mutex.synchronize { @closed }
-      rescue Exception => error
-        @mutex.synchronize do
+      rescue Exception => e
+        fail_receive_loop(e)
+      end
+
+      private def fail_receive_loop(error)
+        failed = @mutex.synchronize do
+          next false if @closed
+
           @closed = true
           @socket.close unless @socket.closed?
+          true
         end
+        return unless failed
+
         fail_all(error)
+        @notifications.close
       end
 
       private def dispatch_datagram(buffer)
         Datagram.each_frame(buffer) do |header, payload|
           key = [header.seq, header.pid]
           pending = @mutex.synchronize { @pending[key] }
-          next unless pending # TOOD: seq=0 notifications and late replies
+          unless pending
+            @notifications.route(header, payload) if header.seq.zero?
+            next
+          end
 
-          message = pending.protocol.decode_frame(header, payload, pending.reply_class)
-          dispatch_outcome(key, pending, pending.exchange.accept(message))
-        rescue Exception => error
-          fail_pending(key, error) if pending
+          begin
+            message = pending.protocol.decode_frame(header, payload, pending.reply_class)
+            dispatch_outcome(key, pending, pending.exchange.accept(message))
+          rescue Exception => error
+            fail_pending(key, error) if pending
+          end
         end
       end
 
