@@ -3,6 +3,10 @@
 require_relative 'error'
 
 module Nl
+  # A multicast group. `name` is the kernel-facing name.
+  # `id` is the fixed ID when the specification provides one.
+  McastGroup = Data.define(:name, :id)
+
   # An unsolicited message whose wire type is not present in the loaded spec.
   UnknownNotification = Data.define(:header, :payload)
 

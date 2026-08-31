@@ -13,7 +13,10 @@ RSpec.describe Nl::Family do
 
   StandaloneFamily = Class.new(described_class)
   StandaloneFamily.const_set(:PROTOCOL, Nl::Protocols::Raw.new('standalone', 12))
-  StandaloneFamily.const_set(:MCAST_GROUPS, {events: 7}.freeze)
+  StandaloneFamily.const_set(
+    :MCAST_GROUPS,
+    {events: Nl::McastGroup.new('events', 7)}.freeze,
+  )
   StandaloneFamily.class_eval do
     def do_action(value, option:, &block) = [value, option, block&.call]
     def dump_items(limit:) = (1..limit).to_a

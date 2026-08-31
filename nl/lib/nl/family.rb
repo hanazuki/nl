@@ -144,10 +144,10 @@ module Nl
     private def multicast_group_ids(names)
       names.map do |name|
         key = name.to_sym
-        value = multicast_groups.fetch(key) do
+        group = multicast_groups.fetch(key) do
           raise UnknownMulticastGroupError, "unknown multicast group #{name.inspect} for #{@protocol.name}"
         end
-        @protocol.multicast_group_id(key, value)
+        @protocol.multicast_group_id(group.name, group.id)
       end
     end
   end

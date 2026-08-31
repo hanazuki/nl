@@ -64,6 +64,8 @@ module Ynl
           emit_const('PROTOCOL', "Ractor.make_shareable(::Nl::Protocols::Genl.new(#{@ynl.name.as_string_literal}))")
         end
 
+        emit_mcast_groups
+
         emit_module('Structs') do
           @ynl.structs.each do |name, struct|
             emit_comment(struct.doc)
@@ -169,52 +171,37 @@ module Ynl
             %w[do dump].each do |method|
               if request_reply = oper.public_send(method + 'it')
                 %w[request reply].to_h { [it, request_reply.public_send(it)] }.compact.each do |type, msg|
-                  emit_comment(operation_doc(oper))
-                  emit_class(method.as_class_name + oper.name.as_class_name + type.as_class_name, "#{@protocol}::Message") do
-                    emit_const('TYPE', msg.value)
-                    emit_const('FIXED_HEADER', oper.fixed_header&.then { 'Structs::' + it.name.as_class_name } || 'nil')
-                    emit_const('ATTRIBUTE_SET', "AttributeSets::#{oper.attribute_set.name.as_class_name}")
-                    params = msg.attributes
-                    attribute_params = oper.attribute_set.attributes.map(&:name) & params
-                    emit_const('ATTRIBUTES', "Ractor.make_shareable(%i[#{attribute_params.map { it.as_variable_name }.join(' ')}])")
-                    oper.fixed_header.members.each do |member|
-                      param = member.name
-                      datatype = member.type
-                      next if datatype.is_a? Types::Pad
-                      next if attribute_params.include?(param)
-                      emit_comment("Gets the value of `#{param}` field in the message's fixed header.")
-                      emit_rbs_comment(
-                        'return: ' + datatype.rbs_type,
-                      )
-                      emit_getter(param.as_method_name, "fixed_header.#{param.as_method_name}")
-                    end if oper.fixed_header
-                    attribute_params.each do |param|
-                      datatype = oper.attribute_set.attributes.find { it.name == param }.type
-                      next if datatype.is_a? Types::Pad
-                      extending = oper.fixed_header&.members&.any? { it.name == param }
-
-                      if extending
-                        emit_comment("Gets the value of `#{param}` attribute or fixed header in the message.")
-                      else
-                        emit_comment("Gets the value of `#{param}` attribute in the message.")
-                      end
-                      emit_rbs_comment(
-                        'return: ' + datatype.rbs_type,
-                      )
-                      if extending
-                        # If the fixed header and the attribute set have the same-name parameter, the value from the attribute should have
-                        # the precedence over that from the header.
-                        emit_getter(param.as_method_name, "attributes[#{param.as_variable_name.as_symbol_literal}]&.value || fixed_header.#{param.as_method_name}")
-                      else
-                        emit_getter(param.as_method_name, "attributes[#{param.as_variable_name.as_symbol_literal}]&.value")
-                      end
-                    end
-                  end
+                  emit_message_class(
+                    method.as_class_name + oper.name.as_class_name + type.as_class_name,
+                    msg,
+                    fixed_header: oper.fixed_header,
+                    attribute_set: oper.attribute_set,
+                    doc: operation_doc(oper),
+                  )
                 end
               end
             end
           end
         end
+
+        emit_module('Notifications') do
+          notification_operations.each do |oper|
+            message, fixed_header, attribute_set = notification_layout(oper)
+            emit_message_class(
+              oper.name.as_class_name,
+              message,
+              fixed_header:,
+              attribute_set:,
+              doc: notification_doc(oper),
+            )
+          end
+        end
+
+        emit_const(
+          'NOTIFICATIONS',
+          "Ractor.make_shareable({#{notification_operations.map { |oper| "#{oper.notification.message.value} => Notifications::#{oper.name.as_class_name}" }.join(', ') }})",
+          rbs: 'Hash[::Integer, ::Class]',
+        )
 
         # emit request methods
         @ynl.operations.each do |name, oper|
@@ -298,6 +285,8 @@ module Ynl
           write('build_async_facade(AsyncOperations, stream_capacity:)')
         end
         write('end')
+
+        emit_subscription_methods unless @ynl.mcast_groups.empty?
       end
 
       classname
@@ -362,6 +351,104 @@ module Ynl
     private def operation_doc(operation)
       flag_docs = operation.flags.filter_map { OPERATION_FLAG_DOCS[it] }
       [operation.doc, *flag_docs].compact.join("\n\n")
+    end
+
+    private def notification_operations
+      @notification_operations ||= @ynl.operations.values.select(&:notification)
+    end
+
+    private def notification_doc(operation)
+      group = operation.notification.group
+      [operation.doc, ("Multicast group: `#{group.name}`." if group)].compact.join("\n\n")
+    end
+
+    private def notification_layout(operation)
+      notification = operation.notification
+      if notification.kind == :event
+        [notification.message, operation.fixed_header, operation.attribute_set]
+      else
+        source = notification.source
+        mode = source.doit || source.dumpit
+        reply = mode&.reply
+        unless reply
+          selected = source.doit ? 'do' : 'dump'
+          raise ParseError,
+            "Notification #{operation.name.inspect} references #{source.name.inspect}, which has no #{selected} reply"
+        end
+        message = Models::Message.new(
+          value: notification.message.value,
+          attributes: reply.attributes,
+        )
+        [message, source.fixed_header, source.attribute_set]
+      end
+    end
+
+    private def emit_message_class(name, message, fixed_header:, attribute_set:, doc:)
+      emit_comment(doc)
+      emit_class(name, "#{@protocol}::Message") do
+        emit_const('TYPE', message.value)
+        emit_const('FIXED_HEADER', fixed_header&.then { 'Structs::' + it.name.as_class_name } || 'nil')
+        emit_const('ATTRIBUTE_SET', "AttributeSets::#{attribute_set.name.as_class_name}")
+        attribute_params = attribute_set.attributes.map(&:name) & message.attributes
+        emit_const('ATTRIBUTES', "Ractor.make_shareable(%i[#{attribute_params.map { it.as_variable_name }.join(' ')}])")
+        fixed_header&.members&.each do |member|
+          param = member.name
+          datatype = member.type
+          next if datatype.is_a? Types::Pad
+          next if attribute_params.include?(param)
+          emit_comment("Gets the value of `#{param}` field in the message's fixed header.")
+          emit_rbs_comment('return: ' + datatype.rbs_type)
+          emit_getter(param.as_method_name, "fixed_header.#{param.as_method_name}")
+        end
+        attribute_params.each do |param|
+          datatype = attribute_set.attributes.find { it.name == param }.type
+          next if datatype.is_a? Types::Pad
+          extending = fixed_header&.members&.any? { it.name == param }
+
+          if extending
+            emit_comment("Gets the value of `#{param}` attribute or fixed header in the message.")
+          else
+            emit_comment("Gets the value of `#{param}` attribute in the message.")
+          end
+          emit_rbs_comment('return: ' + datatype.rbs_type)
+          if extending
+            emit_getter(param.as_method_name, "attributes[#{param.as_variable_name.as_symbol_literal}]&.value || fixed_header.#{param.as_method_name}")
+          else
+            emit_getter(param.as_method_name, "attributes[#{param.as_variable_name.as_symbol_literal}]&.value")
+          end
+        end
+      end
+    end
+
+    private def emit_mcast_groups
+      groups = @ynl.mcast_groups.values
+      grouped = groups.group_by { it.name.as_variable_name }
+      if collision = grouped.find { |_name, matches| matches.length > 1 }
+        ruby_name, matches = collision
+        raise ParseError,
+          "Multicast groups #{matches.map(&:name).map(&:inspect).join(' and ')} normalize to #{ruby_name.to_sym.inspect}"
+      end
+
+      entries = groups.map do |group|
+        key = group.name.as_variable_name.as_symbol_literal
+        value = "::Nl::McastGroup.new(#{group.name.as_string_literal}, #{group.value.inspect})"
+        "#{key} => #{value}"
+      end
+      emit_const(
+        'MCAST_GROUPS',
+        "Ractor.make_shareable({#{entries.join(', ')}})",
+        rbs: 'Hash[::Symbol, ::Nl::McastGroup]',
+      )
+    end
+
+    private def emit_subscription_methods
+      group_type = @ynl.mcast_groups.values
+        .map { ":#{it.name.as_variable_name}" }
+        .join(' | ')
+      emit_rbs_comment("(*(#{group_type}) groups) -> self")
+      write('def subscribe(*groups) = super')
+      emit_rbs_comment("(*(#{group_type}) groups) -> self")
+      write('def unsubscribe(*groups) = super')
     end
 
     private def emit_rbs_comment(*args)

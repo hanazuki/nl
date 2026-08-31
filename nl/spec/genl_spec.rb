@@ -34,7 +34,10 @@ RSpec.describe Nl::Genl::Connection do
     :PROTOCOL,
     Nl::Protocols::Genl.new('dynamic-family'),
   )
-  GenlDynamicFamily.const_set(:MCAST_GROUPS, {events: nil}.freeze)
+  GenlDynamicFamily.const_set(
+    :MCAST_GROUPS,
+    {events: Nl::McastGroup.new('events', nil)}.freeze,
+  )
 
   it 'resolves a family through one asynchronous connection and socket' do
     socket = GenlFakeSocket.new

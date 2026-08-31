@@ -219,7 +219,7 @@ RSpec.describe Ynl::Parser do
 
       expect(notification.kind).to eq :event
       expect(notification.message.value).to eq 3
-      expect(notification.message.attributes).to eq %w[object-id reason]
+      expect(notification.message.attributes).to eq %w[item-id reason]
       expect(notification.source).to be_nil
       expect(notification.group).to equal family.mcast_groups.fetch('changes')
     end

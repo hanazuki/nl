@@ -4,7 +4,7 @@ protocol: genetlink
 attribute-sets:
   - name: attrs
     attributes:
-      - name: object-id
+      - name: item-id
         type: u32
       - name: reason
         type: string
@@ -15,9 +15,9 @@ operations:
       attribute-set: attrs
       do:
         request:
-          attributes: [object-id]
+          attributes: [item-id]
         reply:
-          attributes: [object-id, reason]
+          attributes: [item-id, reason]
     - name: object-changed
       notify: object-get
       mcgrp: changes
@@ -25,11 +25,19 @@ operations:
       attribute-set: attrs
       mcgrp: changes
       event:
-        attributes: [object-id, reason]
+        attributes: [item-id, reason]
     - name: ungrouped-event
       attribute-set: attrs
       event:
         attributes: [reason]
+    - name: object-list
+      attribute-set: attrs
+      dump:
+        reply:
+          attributes: [item-id]
+    - name: object-list-changed
+      notify: object-list
+      mcgrp: changes
 
 mcast-groups:
   list:
