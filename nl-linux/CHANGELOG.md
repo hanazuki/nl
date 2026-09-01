@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.3.0 (2026-09-01)
+
 ## v0.2.4 (2026-08-22)
 
 - Update kernel YNL specification from Linux 7.2.

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.3.0 (2026-09-01)
+
 - Fix encoding of nested attributes and mark them with `NLA_F_NESTED`.
 - Support encoding and decoding of nested type-value attributes.
 - Support multiplexing requests via `Family.async`

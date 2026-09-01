@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.3.0 (2026-09-01)
+
 - Generate notification and event message classes, multicast group metadata,
   and typed subscription methods.
 - Generate nested type-value attributes with their declared type-key depth.
