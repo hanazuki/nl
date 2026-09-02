@@ -44,6 +44,29 @@ RSpec.describe Ynl do
       expect(cls::Messages::DumpOpARequest::ATTRIBUTES).to be_empty
     end
 
+    it 'injects a default resolver into Generic Netlink family open methods' do
+      generated = StringIO.new
+      path = Pathname(__dir__) + 'fixtures/ops_unified.yaml'
+      path.open do |source|
+        Ynl::Family.generate(source, generated, default_resolver: 'DefaultResolver')
+      end
+
+      expect(generated.string).to include(
+        'def self.open(resolver: DefaultResolver, executor: nil, notification_capacity: DEFAULT_NOTIFICATION_CAPACITY)',
+      )
+      expect(generated.string).to include('super')
+    end
+
+    it 'does not inject a resolver into raw Netlink families' do
+      generated = StringIO.new
+      yaml.open do |source|
+        Ynl::Family.generate(source, generated, default_resolver: 'DefaultResolver')
+      end
+
+      expect(generated.string).not_to include('def self.open')
+      expect(generated.string).not_to include('DefaultResolver')
+    end
+
     it 'rejects asynchronous operations when no executor is configured' do
       cls = Ynl::Family.build(Pathname(__dir__) + 'fixtures/ops_unified.yaml')
       family = cls.allocate

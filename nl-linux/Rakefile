@@ -40,7 +40,11 @@ specs.each do |spec, h|
         out << "#--\n"
         out << Ynl::Generator::PRELUDE
         out << "module Nl; module Linux\n"
-        Ynl::Family.generate(src.tap(&:rewind), out)
+        Ynl::Family.generate(
+          src.tap(&:rewind),
+          out,
+          default_resolver: '::Nl::Linux::DEFAULT_RESOLVER',
+        )
         out << "end; end\n"
       end
     end

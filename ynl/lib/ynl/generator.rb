@@ -49,7 +49,7 @@ module Ynl
       @indent = 0
     end
 
-    def generate(superclass: nil, namespace: nil)
+    def generate(superclass: nil, namespace: nil, default_resolver: nil)
       raw = @ynl.protocol == 'netlink-raw'
       @wire = raw ? '::Nl::Raw' : '::Nl::Genl'
       superclass ||= raw ? '::Nl::Raw::Family' : '::Nl::Genl::Family'
@@ -61,6 +61,7 @@ module Ynl
         emit_const('NAME', @ynl.name.as_string_literal)
 
         emit_const('PROTONUM', @ynl.protonum) if raw
+        emit_default_resolver(default_resolver) if default_resolver && !raw
 
         emit_mcast_groups
 
@@ -337,6 +338,16 @@ module Ynl
 
     private def emit_nodoc
       write('# :nodoc:')
+    end
+
+    private def emit_default_resolver(default_resolver)
+      emit_rbs_comment(
+        '(?resolver: ^(::Nl::Genl::Connection, ::String) -> ::Nl::Genl::FamilyInfo, ?executor: executor?, ?notification_capacity: ::Integer?) -> (::Nl::Family::Session & instance)',
+        '| [R] (?resolver: ^(::Nl::Genl::Connection, ::String) -> ::Nl::Genl::FamilyInfo, ?executor: executor?, ?notification_capacity: ::Integer?) { (instance) -> R } -> R',
+      )
+      write("def self.open(resolver: #{default_resolver}, executor: nil, notification_capacity: DEFAULT_NOTIFICATION_CAPACITY)")
+      indent { write('super') }
+      write('end')
     end
 
     private def emit_comment(comment)

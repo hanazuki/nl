@@ -82,8 +82,7 @@ RSpec.describe do
 
   describe Nl::Linux::Netdev do
     example 'do_dev_get returns device info for loopback' do
-      Nl::Genl::Connection.open(resolver:, executor: :thread) do |conn|
-        netdev = conn.family(Nl::Linux::Netdev)
+      Nl::Linux::Netdev.open(executor: :thread) do |netdev|
         dev = netdev.do_dev_get(ifindex: 1)
         expect(dev).to be_a Nl::Linux::Netdev::Messages::DoDevGetReply
 
