@@ -168,7 +168,7 @@ RSpec.describe Ynl do
         protocol = Nl::Protocols::Genl.new(
           'notifications',
           family_id: 42,
-          multicast_groups: {:'fixed-id' => 99},
+          multicast_groups: {'fixed-id' => 99},
         )
         connection = Object.new
         allow(connection).to receive(:register_notifications)

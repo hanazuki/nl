@@ -26,7 +26,7 @@ RSpec.describe Nl::Genl::Connection do
   GenlControllerFamily = Class.new(Nl::Family)
   GenlControllerFamily.const_set(
     :PROTOCOL,
-    Nl::Protocols::Genl.new('nlctrl'),
+    Nl::Protocols::Genl.new('nlctrl', family_id: Nl::Genl::GENL_ID_CTRL),
   )
 
   GenlDynamicFamily = Class.new(Nl::Family)
@@ -50,7 +50,7 @@ RSpec.describe Nl::Genl::Connection do
       expect(connection).to be(conn)
       expect(name).to eq('dynamic-family')
       controller = connection.family(GenlControllerFamily)
-      42
+      Nl::Genl::FamilyInfo.new(id: 42, multicast_groups: {})
     end
     expect(Nl::Socket).to receive(:new).once.with(Nl::Core::NETLINK_GENERIC).and_return(socket)
 
@@ -77,7 +77,8 @@ RSpec.describe Nl::Genl::Connection do
     conn = nil
     expect(Nl::Socket).to receive(:new).once.with(Nl::Core::NETLINK_GENERIC).and_return(socket)
 
-    conn = described_class.new(resolver: ->(_connection, _name) { 42 })
+    info = Nl::Genl::FamilyInfo.new(id: 42, multicast_groups: {})
+    conn = described_class.new(resolver: ->(_connection, _name) { info })
     first = conn.family(GenlDynamicFamily)
     second = conn.family(GenlDynamicFamily)
 
@@ -97,7 +98,7 @@ RSpec.describe Nl::Genl::Connection do
     expect(Nl::Socket).to receive(:new).once.with(Nl::Core::NETLINK_GENERIC).and_return(socket)
     expect(socket).to receive(:add_membership).once.with(99)
 
-    info = Nl::Genl::FamilyInfo.new(id: 42, multicast_groups: {events: 99})
+    info = Nl::Genl::FamilyInfo.new(id: 42, multicast_groups: {'events' => 99})
     conn = described_class.new(resolver: ->(_connection, _name) { info })
     family = conn.family(GenlDynamicFamily)
 

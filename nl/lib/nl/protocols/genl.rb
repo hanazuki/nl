@@ -16,8 +16,8 @@ module Nl
 
       def initialize(name, family_id: nil, multicast_groups: {})
         super(name, self.class.protonum)
-        @family_id = family_id || default_family_id(name)
-        @multicast_groups = multicast_groups.transform_keys(&:to_sym).freeze
+        @family_id = family_id
+        @multicast_groups = multicast_groups
       end
 
       def family_id
@@ -58,7 +58,7 @@ module Nl
       end
 
       def multicast_group_id(name, _value)
-        @multicast_groups.fetch(name.to_sym) do
+        @multicast_groups.fetch(name) do
           raise UnresolvedMulticastGroupError,
             "Generic Netlink multicast group #{name.inspect} was not resolved"
         end
@@ -66,9 +66,6 @@ module Nl
 
       private def frame_type(_message_class) = family_id
 
-      private def default_family_id(name)
-        Nl::Genl::GENL_ID_CTRL if name == 'nlctrl'
-      end
     end
   end
 end

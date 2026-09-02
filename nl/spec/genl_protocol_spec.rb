@@ -33,6 +33,12 @@ RSpec.describe Nl::Protocols::Genl do
     expect([length, type, command]).to eq([20, 42, 7])
   end
 
+  it 'does not special-case the nlctrl family ID' do
+    protocol = described_class.new('nlctrl')
+
+    expect { protocol.family_id }.to raise_error(NotImplementedError)
+  end
+
   it 'selects and decodes notifications by family ID and command ID' do
     protocol = described_class.new('fake', family_id: 42)
     header = Nl::Core::NlMsgHdr.new(20, 42, 0, 0, 0)
@@ -46,8 +52,8 @@ RSpec.describe Nl::Protocols::Genl do
   end
 
   it 'resolves multicast groups by name rather than their specification value' do
-    protocol = described_class.new('fake', family_id: 42, multicast_groups: {events: 99})
+    protocol = described_class.new('fake', family_id: 42, multicast_groups: {'events' => 99})
 
-    expect(protocol.multicast_group_id(:events, nil)).to eq(99)
+    expect(protocol.multicast_group_id('events', nil)).to eq(99)
   end
 end

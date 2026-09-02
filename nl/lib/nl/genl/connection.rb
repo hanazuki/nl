@@ -8,19 +8,15 @@ require_relative '../protocols/genl'
 
 module Nl
   module Genl
-    FamilyInfo = Data.define(:id, :multicast_groups) do
-      def self.from_reply(reply)
-        groups = (reply.mcast_groups || []).to_h do |attributes|
-          [attributes[:name].value.to_sym, attributes[:id].value]
-        end
-        new(id: reply.family_id, multicast_groups: groups.freeze)
-      end
-    end
+    FamilyInfo = Data.define(
+      :id, #: Integer
+      :multicast_groups, #: Hash[String, Integer]
+    )
 
     class Connection
       #--
-      # @rbs (resolver: ^(instance, ::String) -> (Integer | FamilyInfo | untyped), ?executor: executor?, ?notification_capacity: Integer?) -> instance
-      #  | [R] (resolver: ^(instance, ::String) -> (Integer | FamilyInfo | untyped), ?executor: executor?, ?notification_capacity: Integer?) { (instance) -> R } -> R
+      # @rbs (resolver: ^(instance, ::String) -> FamilyInfo, ?executor: executor?, ?notification_capacity: Integer?) -> instance
+      #  | [R] (resolver: ^(instance, ::String) -> FamilyInfo, ?executor: executor?, ?notification_capacity: Integer?) { (instance) -> R } -> R
       def self.open(resolver:, executor: nil, notification_capacity: Nl::Connection::DEFAULT_NOTIFICATION_CAPACITY)
         conn = new(resolver:, executor:, notification_capacity:)
         if block_given?
@@ -35,7 +31,7 @@ module Nl
       end
 
       #--
-      # @rbs resolver: ^(instance, ::String) -> (Integer | FamilyInfo | untyped)
+      # @rbs resolver: ^(instance, ::String) -> FamilyInfo
       # @rbs executor: executor?
       # @rbs return: instance
       def initialize(resolver:, executor: nil, notification_capacity: Nl::Connection::DEFAULT_NOTIFICATION_CAPACITY)
@@ -73,15 +69,7 @@ module Nl
         cached_info = @family_cache_mutex.synchronize { @family_cache[protocol.name] }
         return cached_info if cached_info
 
-        resolved = @resolver.call(self, protocol.name)
-        info = case resolved
-        when Integer
-          FamilyInfo.new(id: resolved, multicast_groups: {}.freeze)
-        when FamilyInfo
-          resolved
-        else
-          FamilyInfo.from_reply(resolved)
-        end
+        info = @resolver.call(self, protocol.name)
         @family_cache_mutex.synchronize { @family_cache[protocol.name] ||= info }
       end
     end

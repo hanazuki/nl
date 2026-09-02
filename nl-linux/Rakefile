@@ -47,7 +47,7 @@ specs.each do |spec, h|
   end
 end
 
-task 'generated/nl/linux.rb' => specs.values.map { it[:target] } do |t|
+task 'generated/nl/linux.rb' => [*specs.values.map { it[:target] }, 'Rakefile'] do |t|
   File.open(t.name, 'w') do |out|
     out << "require 'nl/linux/version'\n"
     out << "module Nl\n"
@@ -60,6 +60,7 @@ task 'generated/nl/linux.rb' => specs.values.map { it[:target] } do |t|
     end
     out << "  end\n"
     out << "end\n"
+    out << "require 'nl/linux/nlctrl_resolver'\n"
   end
 end
 task :generate => 'generated/nl/linux.rb'

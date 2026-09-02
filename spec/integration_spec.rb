@@ -4,11 +4,7 @@ CoverageHelper.start('integration')
 require 'nl/linux'
 
 RSpec.describe do
-  let(:resolver) do
-    ->(connection, name) do
-      connection.family(Nl::Linux::Nlctrl).do_getfamily(family_name: name).family_id
-    end
-  end
+  let(:resolver) { Nl::Linux::DEFAULT_RESOLVER }
 
   describe Nl::Linux::RtLink do
     example 'multiplexes asynchronous do and dump operations on one socket' do
@@ -98,7 +94,8 @@ RSpec.describe do
 
   describe Nl::Linux::Nlctrl do
     example 'do_getfamily returns family info for nlctrl' do
-      Nl::Linux::Nlctrl.open do |nlctrl|
+      Nl::Genl::Connection.open(resolver:) do |connection|
+        nlctrl = connection.family(Nl::Linux::Nlctrl)
         reply = nlctrl.do_getfamily(family_name: 'nlctrl')
         expect(reply).to be_a Nl::Linux::Nlctrl::Messages::DoGetfamilyReply
 
@@ -107,7 +104,8 @@ RSpec.describe do
     end
 
     example 'dump_getfamily returns family list including nlctrl' do
-      Nl::Linux::Nlctrl.open do |nlctrl|
+      Nl::Genl::Connection.open(resolver:) do |connection|
+        nlctrl = connection.family(Nl::Linux::Nlctrl)
         replies = nlctrl.dump_getfamily
         expect(replies).to be_an Array
 
@@ -118,7 +116,8 @@ RSpec.describe do
     end
 
     example 'dump_getpolicy returns policies for nlctrl' do
-      Nl::Linux::Nlctrl.open do |nlctrl|
+      Nl::Genl::Connection.open(resolver:) do |connection|
+        nlctrl = connection.family(Nl::Linux::Nlctrl)
         replies = nlctrl.dump_getpolicy(family_name: 'nlctrl')
         expect(replies).not_to be_empty
         expect(replies).to all be_a Nl::Linux::Nlctrl::Messages::DumpGetpolicyReply
