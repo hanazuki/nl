@@ -6,10 +6,10 @@ RSpec.describe Nl::Datagram do
   def frame(type:, sequence:, payload: ''.b)
     encoder = Nl::Encoder.new
     encoder.measure(Nl::Endian::Host::U32) do
-      Nl::Core::NlMsgHdr.new(0, type, 0, sequence, 77).encode(encoder)
+      Nl::Raw::NlMsgHdr.new(0, type, 0, sequence, 77).encode(encoder)
       encoder.put_string(payload)
     end
-    encoder.align_to(Nl::Core::NLMSG_ALIGNTO)
+    encoder.align_to(Nl::Raw::NLMSG_ALIGNTO)
     encoder.buffer.get_string
   end
 
@@ -30,7 +30,7 @@ RSpec.describe Nl::Datagram do
 
   it 'rejects a payload shorter than its declared message length' do
     encoder = Nl::Encoder.new
-    Nl::Core::NlMsgHdr.new(20, 20, 0, 1, 77).encode(encoder)
+    Nl::Raw::NlMsgHdr.new(20, 20, 0, 1, 77).encode(encoder)
 
     expect do
       described_class.each_frame(encoder.buffer).to_a

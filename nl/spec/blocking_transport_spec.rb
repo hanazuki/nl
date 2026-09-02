@@ -15,41 +15,45 @@ RSpec.describe Nl::BlockingTransport do
   BlockingFakeProtocol = Class.new do
     Sent = Data.define(:request, :seq, :pid)
 
-    attr_reader :sent
+      attr_reader :sent
 
-    def initialize
-      @raw = Nl::Protocols::Raw.new('fake', 0)
-      @sent = []
+      def initialize
+        @raw = Nl::Raw::Protocol.new(0)
+        @sent = []
+      end
+
+    def build_request(_endpoint, _kind, _request_class, _args)
+      Nl::Raw::Request.new(type: 42, flags: 0, message: nil)
     end
 
-    def build_request(_kind, _request_class, _args)
-      Nl::Protocols::Raw::Request.new(type: 42, flags: 0, message: nil)
-    end
-
-    def send_message(_socket, request, seq:, pid:)
+    def send_message(_socket, _endpoint, request, seq:, pid:)
       @sent << Sent.new(request:, seq:, pid:)
     end
 
-    def decode_frame(header, payload, _reply_class)
-      if header.type < Nl::Core::NLMSG_MIN_TYPE
-        @raw.decode_frame(header, payload, nil)
+    def decode_frame(endpoint, header, payload, _reply_class)
+      if header.type < Nl::Raw::NLMSG_MIN_TYPE
+        @raw.decode_frame(endpoint, header, payload, nil)
       else
-        Nl::Protocols::Raw::DataFrame.new(header:, message: payload.get_string)
+        Nl::Raw::DataFrame.new(header:, message: payload.get_string)
       end
     end
 
-    def notification_frame?(header, _payload) = header.type == 43
-    def notification_class(header, _payload, classes) = classes[header.type]
-    def decode_notification(_header, payload, _message_class) = payload.get_string
+    def family_key(_endpoint) = nil
+    def frame_key(_header) = nil
+    def notification_frame?(_endpoint, header, _payload) = header.type == 43
+    def notification_class(_endpoint, header, _payload, classes) = classes[header.type]
+    def decode_notification(_endpoint, _header, payload, _message_class) = payload.get_string
   end
 
   def build_transport(socket, **options)
+    protocol = options.fetch(:protocol) { BlockingFakeProtocol.new }
     notifications = Nl::NotificationRouter.new(
-      routing: Nl::Protocols::Raw.new('fake', 0).notification_routing,
+      protocol:,
       capacity: options.fetch(:notification_capacity, 1_024),
     )
     described_class.new(
       socket,
+      protocol:,
       notifications:,
     )
   end
@@ -61,19 +65,19 @@ RSpec.describe Nl::BlockingTransport do
   def frame(type:, sequence: 1, flags: 0, payload: ''.b)
     encoder = Nl::Encoder.new
     encoder.measure(Nl::Endian::Host::U32) do
-      Nl::Core::NlMsgHdr.new(0, type, flags, sequence, 77).encode(encoder)
+      Nl::Raw::NlMsgHdr.new(0, type, flags, sequence, 77).encode(encoder)
       encoder.put_string(payload)
     end
-    encoder.align_to(Nl::Core::NLMSG_ALIGNTO)
+    encoder.align_to(Nl::Raw::NLMSG_ALIGNTO)
     encoder.buffer.get_string
   end
 
   def ack(sequence: 1, errno: 0)
-    frame(type: Nl::Core::NLMSG_ERROR, sequence:, payload: [errno].pack('i!'))
+    frame(type: Nl::Raw::NLMSG_ERROR, sequence:, payload: [errno].pack('i!'))
   end
 
   def done(sequence: 1, errno: 0)
-    frame(type: Nl::Core::NLMSG_DONE, sequence:, payload: [errno].pack('i!'))
+    frame(type: Nl::Raw::NLMSG_DONE, sequence:, payload: [errno].pack('i!'))
   end
 
   it 'is not async-capable' do
@@ -84,7 +88,7 @@ RSpec.describe Nl::BlockingTransport do
     socket = BlockingFakeSocket.new([frame(type: 42, payload: 'reply') + ack])
     protocol = BlockingFakeProtocol.new
 
-    result = build_transport(socket).exchange(protocol, :do, Object, String, {})
+    result = build_transport(socket, protocol:).exchange(protocol, :do, Object, String, {})
 
     expect(result).to eq('reply')
     expect(protocol.sent.first.to_h).to include(seq: 1, pid: 77)
@@ -92,9 +96,9 @@ RSpec.describe Nl::BlockingTransport do
 
   it 'returns the first multipart do reply after header-only DONE' do
     socket = BlockingFakeSocket.new([
-      frame(type: 42, flags: Nl::Core::NLM_F_MULTI, payload: 'one') +
-        frame(type: 42, flags: Nl::Core::NLM_F_MULTI, payload: 'two') +
-        frame(type: Nl::Core::NLMSG_DONE),
+      frame(type: 42, flags: Nl::Raw::NLM_F_MULTI, payload: 'one') +
+        frame(type: 42, flags: Nl::Raw::NLM_F_MULTI, payload: 'two') +
+        frame(type: Nl::Raw::NLMSG_DONE),
     ])
 
     result = build_transport(socket).exchange(BlockingFakeProtocol.new, :do, Object, String, {})
@@ -104,8 +108,8 @@ RSpec.describe Nl::BlockingTransport do
 
   it 'collects a multipart dump' do
     socket = BlockingFakeSocket.new([
-      frame(type: 42, flags: Nl::Core::NLM_F_MULTI, payload: 'one') +
-        frame(type: 42, flags: Nl::Core::NLM_F_MULTI, payload: 'two') + done,
+      frame(type: 42, flags: Nl::Raw::NLM_F_MULTI, payload: 'one') +
+        frame(type: 42, flags: Nl::Raw::NLM_F_MULTI, payload: 'two') + done,
     ])
 
     result = build_transport(socket).exchange(BlockingFakeProtocol.new, :dump, Object, String, {})
@@ -114,7 +118,7 @@ RSpec.describe Nl::BlockingTransport do
   end
 
   it 'streams a multipart dump through a block' do
-    socket = BlockingFakeSocket.new([frame(type: 42, flags: Nl::Core::NLM_F_MULTI, payload: 'one') + done])
+    socket = BlockingFakeSocket.new([frame(type: 42, flags: Nl::Raw::NLM_F_MULTI, payload: 'one') + done])
     values = []
 
     result = build_transport(socket).exchange(BlockingFakeProtocol.new, :dump, Object, String, {}) do |value|
@@ -150,7 +154,7 @@ RSpec.describe Nl::BlockingTransport do
   end
 
   it 'rejects a truncated DONE errno' do
-    socket = BlockingFakeSocket.new([frame(type: Nl::Core::NLMSG_DONE, payload: "\0\0\0".b)])
+    socket = BlockingFakeSocket.new([frame(type: Nl::Raw::NLMSG_DONE, payload: "\0\0\0".b)])
 
     expect do
       build_transport(socket).exchange(BlockingFakeProtocol.new, :dump, Object, String, {})
@@ -158,7 +162,7 @@ RSpec.describe Nl::BlockingTransport do
   end
 
   it 'accepts a header-only DONE as implicit success' do
-    socket = BlockingFakeSocket.new([frame(type: Nl::Core::NLMSG_DONE)])
+    socket = BlockingFakeSocket.new([frame(type: Nl::Raw::NLMSG_DONE)])
 
     result = build_transport(socket).exchange(BlockingFakeProtocol.new, :dump, Object, String, {})
 

@@ -11,7 +11,11 @@ RSpec.describe Nl::Connection do
     def drop_membership(_group_id) = nil
   end
 
-  let(:protocol) { Nl::Protocols::Raw.new('fake', 12) }
+  let(:protocol) { Nl::Raw::Protocol.new(12) }
+  let(:endpoint) do
+    family = Class.new { const_set(:NAME, 'fake') }
+    Nl::Raw::Endpoint.new(family)
+  end
 
   it 'owns the socket and multicast memberships' do
     socket = ConnectionFakeSocket.new
@@ -34,7 +38,7 @@ RSpec.describe Nl::Connection do
     allow(Nl::Socket).to receive(:new).with(12).and_return(socket)
     allow(socket).to receive(:close).and_raise(IOError, 'socket close failed')
     connection = described_class.new(protocol:)
-    channel = connection.register_notifications(protocol, {})
+    channel = connection.register_notifications(endpoint, {})
 
     expect { connection.close }.to raise_error(IOError, 'socket close failed')
     expect { channel.pop }.to raise_error(Nl::ClosedError, 'notification channel is closed')

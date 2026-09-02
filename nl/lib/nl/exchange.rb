@@ -1,7 +1,7 @@
 # rbs_inline: enabled
 
 require_relative 'error'
-require_relative 'protocols/raw'
+require_relative 'raw'
 
 module Nl
   # State machine for one Netlink request/reply exchange.
@@ -30,19 +30,19 @@ module Nl
         return if @complete
 
         case frame
-        when Protocols::Raw::UnknownFrame
+        when Raw::UnknownFrame
           nil
-        when Protocols::Raw::ErrorFrame
+        when Raw::ErrorFrame
           @cancelled ? complete(nil) : fail_with(SystemCallError.new(frame.errno))
-        when Protocols::Raw::DoneFrame
+        when Raw::DoneFrame
           if frame.errno && !@cancelled
             fail_with(SystemCallError.new(frame.errno))
           else
             complete(@reply)
           end
-        when Protocols::Raw::AckFrame
+        when Raw::AckFrame
           accept_ack
-        when Protocols::Raw::DataFrame
+        when Raw::DataFrame
           accept_reply(frame)
         else
           raise ArgumentError, "unexpected exchange input: #{frame.inspect}"
@@ -70,7 +70,7 @@ module Nl
     private def accept_reply(frame)
       return if @cancelled
 
-      multipart = (frame.header.flags.to_i & Core::NLM_F_MULTI) != 0
+      multipart = (frame.header.flags.to_i & Raw::NLM_F_MULTI) != 0
       case @state
       when :initial
         @state = multipart ? :multi : :single

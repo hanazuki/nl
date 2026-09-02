@@ -20,28 +20,29 @@ module Nl
       end
     end
 
-    def initialize(socket, notifications:)
+    def initialize(socket, protocol:, notifications:)
       @socket = socket
+      @protocol = protocol
       @sequences = SequenceAllocator.new
       @mutex = Mutex.new
       @notifications = notifications
     end
 
-    def exchange(protocol, kind, request_class, reply_class, args)
+    def exchange(endpoint, kind, request_class, reply_class, args)
       unless locked = @mutex.try_lock
         raise ConcurrentOperationError, 'BlockingTransport supports only one active operation'
       end
 
-      request = protocol.build_request(kind, request_class, args)
+      request = @protocol.build_request(endpoint, kind, request_class, args)
       seq = @sequences.next
       pid = @socket.local_port_id
       key = [seq, pid]
-      protocol.send_message(@socket, request, seq:, pid:)
+      @protocol.send_message(@socket, endpoint, request, seq:, pid:)
       exchange = Exchange.new(kind:, expects_reply: !reply_class.nil?)
       result = [] unless block_given?
 
       until exchange.complete?
-        receive(protocol, key, reply_class) do |message|
+        receive(endpoint, key, reply_class) do |message|
           case outcome = exchange.accept(message)
           when Exchange::Item
             block_given? ? yield(outcome.value) : result << outcome.value
@@ -62,8 +63,8 @@ module Nl
       false
     end
 
-    def receive_notification(protocol, timeout: nil)
-      channel = @notifications.channel(protocol)
+    def receive_notification(endpoint, timeout: nil)
+      channel = @notifications.channel(endpoint)
       return channel.pop(timeout: 0)
     rescue TimeoutError
       unless locked = @mutex.try_lock
@@ -95,11 +96,11 @@ module Nl
       nil
     end
 
-    private def receive(protocol, expected_key, reply_class)
+    private def receive(endpoint, expected_key, reply_class)
       Datagram.each_frame(receive_datagram) do |header, payload|
         actual_key = [header.seq, header.pid]
         if actual_key == expected_key
-          yield protocol.decode_frame(header, payload, reply_class)
+          yield @protocol.decode_frame(endpoint, header, payload, reply_class)
         elsif header.seq.zero?
           @notifications.route(header, payload)
         else

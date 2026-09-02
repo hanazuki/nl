@@ -27,13 +27,17 @@ RSpec.describe Ynl do
 
       expect(cls.name).to match /::Conntrack\z/
       expect(cls::NAME).to eq 'conntrack'
-      expect(cls::PROTOCOL).to be_kind_of Nl::Protocols::Raw
+      expect(cls::PROTONUM).to eq 12
+      expect(cls).to be < Nl::Raw::Family
+      expect(cls.const_defined?(:PROTOCOL, false)).to be(false)
     end
 
     it 'generates a dump method for an operation with an implicit empty request' do
       cls = Ynl::Family.build(Pathname(__dir__) + 'fixtures/ops_unified.yaml')
 
       expect(cls.instance_methods(false)).to include(:dump_op_a)
+      expect(cls).to be < Nl::Genl::Family
+      expect(cls.const_defined?(:PROTOCOL, false)).to be(false)
       expect(cls.instance_methods(false)).to include(:async)
       expect(cls::AsyncOperations.instance_methods(false)).to include(:dump_op_a)
       expect(cls::Messages::DumpOpARequest::TYPE).to eq 1
@@ -74,20 +78,22 @@ RSpec.describe Ynl do
       calls = []
       allow(connection).to receive(:async_capable?).and_return(true)
       allow(connection).to receive(:register_notifications).and_return(Object.new)
-      allow(connection).to receive(:receive_notification) { |_protocol, timeout:| timeout }
+      allow(connection).to receive(:receive_notification) { |_endpoint, timeout:| timeout }
       allow(connection).to receive(:exchange_async) do |*args, **kwargs|
         calls << [args, kwargs]
         :operation
       end
-      family = cls.new(connection)
+      info = Nl::Genl::FamilyInfo.new(id: 42, multicast_groups: {})
+      endpoint = Nl::Genl::Endpoint.new(cls, info)
+      family = cls.new(connection, endpoint:)
 
       operations = family.async(stream_capacity: 7)
       expect(operations.do_op_a).to eq(:operation)
       expect(operations.dump_op_a).to eq(:operation)
       expect(calls).to eq([
-        [[cls::PROTOCOL, :do, cls::Messages::DoOpARequest,
+        [[endpoint, :do, cls::Messages::DoOpARequest,
           cls::Messages::DoOpAReply, {}], {stream_capacity: 7}],
-        [[cls::PROTOCOL, :dump, cls::Messages::DumpOpARequest,
+        [[endpoint, :dump, cls::Messages::DumpOpARequest,
           cls::Messages::DumpOpAReply, {}], {stream_capacity: 7}],
       ])
       expect(generated.string).not_to include('__send__')
@@ -141,23 +147,26 @@ RSpec.describe Ynl do
       end
 
       it 'registers and decodes generated notifications' do
-        protocol = Nl::Protocols::Genl.new('notifications', family_id: 42)
+        protocol = Nl::Genl::Protocol.new
+        info = Nl::Genl::FamilyInfo.new(id: 42, multicast_groups: {})
+        endpoint = Nl::Genl::Endpoint.new(family_class, info)
         message_class = family_class::Notifications::ObjectChanged
         request = protocol.build_request(
+          endpoint,
           :do,
           message_class,
           item_id: 7,
           reason: 'updated',
         )
         encoder = Nl::Encoder.new
-        protocol.encode_message(encoder, request, seq: 0, pid: 0)
+        protocol.encode_message(encoder, endpoint, request, seq: 0, pid: 0)
         encoded = encoder.buffer
         decoder = Nl::Decoder.new(encoded)
-        header = Nl::Core::NlMsgHdr.decode(decoder)
+        header = Nl::Raw::NlMsgHdr.decode(decoder)
         payload = decoder.get_buffer
 
-        selected = protocol.notification_class(header, payload, family_class::NOTIFICATIONS)
-        notification = protocol.decode_notification(header, payload, selected)
+        selected = protocol.notification_class(endpoint, header, payload, family_class::NOTIFICATIONS)
+        notification = protocol.decode_notification(endpoint, header, payload, selected)
 
         expect(notification).to be_a(message_class)
         expect(notification.item_id).to eq 7
@@ -165,17 +174,17 @@ RSpec.describe Ynl do
       end
 
       it 'subscribes with normalized symbols while resolving the kernel group name' do
-        protocol = Nl::Protocols::Genl.new(
-          'notifications',
-          family_id: 42,
+        info = Nl::Genl::FamilyInfo.new(
+          id: 42,
           multicast_groups: {'fixed-id' => 99},
         )
+        endpoint = Nl::Genl::Endpoint.new(family_class, info)
         connection = Object.new
         allow(connection).to receive(:register_notifications)
         allow(connection).to receive(:receive_notification)
         expect(connection).to receive(:add_memberships).with([99])
         expect(connection).to receive(:drop_memberships).with([99])
-        family = family_class.new(connection, protocol:)
+        family = family_class.new(connection, endpoint:)
 
         expect(family.subscribe(:fixed_id)).to equal family
         expect(family.unsubscribe(:fixed_id)).to equal family

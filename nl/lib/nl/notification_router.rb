@@ -1,58 +1,58 @@
-require_relative 'core'
+require_relative 'raw/wire'
 require_relative 'notification'
 
 module Nl
   # Routes unsolicited frames to per-family notification channels.
   class NotificationRouter
-    Entry = Struct.new(:protocol, :classes, :channel)
+    Entry = Struct.new(:endpoint, :classes, :channel)
     private_constant :Entry
 
-    def initialize(routing:, capacity:)
-      @routing = routing
+    def initialize(protocol:, capacity:)
+      @protocol = protocol
       @capacity = capacity
       @mutex = Mutex.new
       @entries = {}
       @closed = false
     end
 
-    def register(protocol, classes)
+    def register(endpoint, classes)
       @mutex.synchronize do
         raise ClosedError, 'notification router is closed' if @closed
 
-        key = @routing.family_key(protocol)
+        key = @protocol.family_key(endpoint)
         if entry = @entries[key]
           entry.classes.merge!(classes)
         else
-          entry = Entry.new(protocol, classes.dup, NotificationChannel.new(capacity: @capacity))
+          entry = Entry.new(endpoint, classes.dup, NotificationChannel.new(capacity: @capacity))
           @entries[key] = entry
         end
         entry.channel
       end
     end
 
-    def channel(protocol)
+    def channel(endpoint)
       @mutex.synchronize do
-        @entries.fetch(@routing.family_key(protocol)).channel
+        @entries.fetch(@protocol.family_key(endpoint)).channel
       end
     end
 
     # Returns true if the frame belongs to a registered notification family.
     def route(header, payload)
-      if header.type == Core::NLMSG_OVERRUN
+      if header.type == Raw::NLMSG_OVERRUN
         entries = @mutex.synchronize { @entries.values.dup }
         entries.each { it.channel.fail(NotificationLossError.new('kernel reported Netlink overrun')) }
         return true
       end
 
       entry = @mutex.synchronize do
-        @entries[@routing.frame_key(header)]
+        @entries[@protocol.frame_key(header)]
       end
       return false unless entry
-      return false unless entry.protocol.notification_frame?(header, payload)
+      return false unless @protocol.notification_frame?(entry.endpoint, header, payload)
 
-      message_class = entry.protocol.notification_class(header, payload, entry.classes)
+      message_class = @protocol.notification_class(entry.endpoint, header, payload, entry.classes)
       notification = if message_class
-        entry.protocol.decode_notification(header, payload, message_class)
+        @protocol.decode_notification(entry.endpoint, header, payload, message_class)
       else
         UnknownNotification.new(header:, payload: payload.get_string)
       end

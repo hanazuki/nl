@@ -10,11 +10,12 @@ module Nl
   module Async
     # Owns the single receive loop for a socket and routes replies by sequence.
     class Dispatcher
-      Pending = Data.define(:exchange, :protocol, :reply_class, :sink)
+      Pending = Data.define(:exchange, :endpoint, :reply_class, :sink)
       private_constant :Pending
 
-      def initialize(socket, executor: :thread, notifications:)
+      def initialize(socket, protocol:, executor: :thread, notifications:)
         @socket = socket
+        @protocol = protocol
         @sequences = SequenceAllocator.new
         @notifications = notifications
         @driver = executor.respond_to?(:start) ? executor : Async.driver(executor)
@@ -25,8 +26,8 @@ module Nl
         @task = @driver.start { receive_loop }
       end
 
-      def exchange(protocol, kind, request_class, reply_class, args, &block)
-        operation = exchange_async(protocol, kind, request_class, reply_class, args)
+      def exchange(endpoint, kind, request_class, reply_class, args, &block)
+        operation = exchange_async(endpoint, kind, request_class, reply_class, args)
         if kind == :dump
           if block
             operation.each(&block)
@@ -39,8 +40,8 @@ module Nl
         end
       end
 
-      def exchange_async(protocol, kind, request_class, reply_class, args, stream_capacity: nil)
-        request = protocol.build_request(kind, request_class, args)
+      def exchange_async(endpoint, kind, request_class, reply_class, args, stream_capacity: nil)
+        request = @protocol.build_request(endpoint, kind, request_class, args)
 
         key = nil
         seq = pid = nil
@@ -59,11 +60,11 @@ module Nl
               Future.build(mailbox:, on_close: -> { discard(key) })
             end
             exchange = Exchange.new(kind:, expects_reply: !reply_class.nil?)
-            @pending[key] = Pending.new(exchange:, protocol:, reply_class:, sink:)
+            @pending[key] = Pending.new(exchange:, endpoint:, reply_class:, sink:)
           end
 
           begin
-            protocol.send_message(@socket, request, seq:, pid:)
+            @protocol.send_message(@socket, endpoint, request, seq:, pid:)
           rescue Exception => error
             fail_pending(key, error)
             raise
@@ -76,8 +77,8 @@ module Nl
         true
       end
 
-      def receive_notification(protocol, timeout: nil)
-        @notifications.channel(protocol).pop(timeout:)
+      def receive_notification(endpoint, timeout: nil)
+        @notifications.channel(endpoint).pop(timeout:)
       end
 
       def close
@@ -134,7 +135,7 @@ module Nl
           end
 
           begin
-            message = pending.protocol.decode_frame(header, payload, pending.reply_class)
+            message = @protocol.decode_frame(pending.endpoint, header, payload, pending.reply_class)
             dispatch_outcome(key, pending, pending.exchange.accept(message))
           rescue Exception => error
             fail_pending(key, error) if pending
