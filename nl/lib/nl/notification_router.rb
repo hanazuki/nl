@@ -51,11 +51,9 @@ module Nl
       return false unless @protocol.notification_frame?(entry.endpoint, header, payload)
 
       message_class = @protocol.notification_class(entry.endpoint, header, payload, entry.classes)
-      notification = if message_class
-        @protocol.decode_notification(entry.endpoint, header, payload, message_class)
-      else
-        UnknownNotification.new(header:, payload: payload.get_string)
-      end
+      return true unless message_class
+
+      notification = @protocol.decode_notification(entry.endpoint, header, payload, message_class)
       entry.channel.push(notification)
       true
     rescue Exception => error

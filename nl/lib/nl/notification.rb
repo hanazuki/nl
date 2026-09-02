@@ -7,9 +7,6 @@ module Nl
   # `id` is the fixed ID when the specification provides one.
   McastGroup = Data.define(:name, :id)
 
-  # An unsolicited message whose wire type is not present in the loaded spec.
-  UnknownNotification = Data.define(:header, :payload)
-
   # Thread-safe queue shared by a family's blocking and asynchronous facades.
   class NotificationChannel
     def initialize(capacity:)
