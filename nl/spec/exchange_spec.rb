@@ -8,14 +8,14 @@ RSpec.describe Nl::Exchange do
   let(:reply) { make_reply(:first) }
 
   def make_reply(value, flags: 0)
-    header = Nl::Core::NlMsgHdr.new(0, 42, flags, 1, 77)
-    Nl::Protocols::Raw::DataFrame.new(header:, message: Reply.new(value:))
+    header = Nl::Raw::NlMsgHdr.new(0, 42, flags, 1, 77)
+    Nl::Raw::DataFrame.new(header:, message: Reply.new(value:))
   end
 
-  def control_header(type) = Nl::Core::NlMsgHdr.new(0, type, 0, 1, 77)
-  def ack = Nl::Protocols::Raw::AckFrame.new(header: control_header(Nl::Core::NLMSG_ERROR))
-  def done(errno: nil) = Nl::Protocols::Raw::DoneFrame.new(header: control_header(Nl::Core::NLMSG_DONE), errno:)
-  def error_frame(errno) = Nl::Protocols::Raw::ErrorFrame.new(header: control_header(Nl::Core::NLMSG_ERROR), errno:)
+  def control_header(type) = Nl::Raw::NlMsgHdr.new(0, type, 0, 1, 77)
+  def ack = Nl::Raw::AckFrame.new(header: control_header(Nl::Raw::NLMSG_ERROR))
+  def done(errno: nil) = Nl::Raw::DoneFrame.new(header: control_header(Nl::Raw::NLMSG_DONE), errno:)
+  def error_frame(errno) = Nl::Raw::ErrorFrame.new(header: control_header(Nl::Raw::NLMSG_ERROR), errno:)
 
   it 'defines protocol violations as Nl errors' do
     expect(Nl::ProtocolViolation).to be < Nl::Error
@@ -50,7 +50,7 @@ RSpec.describe Nl::Exchange do
 
   it 'emits dump items until DONE' do
     exchange = described_class.new(kind: :dump, expects_reply: true)
-    reply = make_reply(:first, flags: Nl::Core::NLM_F_MULTI)
+    reply = make_reply(:first, flags: Nl::Raw::NLM_F_MULTI)
 
     expect(exchange.accept(reply)).to eq(Nl::Exchange::Item.new(reply.message))
     expect(exchange.accept(done)).to equal(Nl::Exchange::COMPLETE)
@@ -76,7 +76,7 @@ RSpec.describe Nl::Exchange do
   it 'rejects inconsistent data flags in a multipart dump' do
     exchange = described_class.new(kind: :dump, expects_reply: true)
 
-    expect(exchange.accept(make_reply(:first, flags: Nl::Core::NLM_F_MULTI))).to be_a(Nl::Exchange::Item)
+    expect(exchange.accept(make_reply(:first, flags: Nl::Raw::NLM_F_MULTI))).to be_a(Nl::Exchange::Item)
     outcome = exchange.accept(make_reply(:second))
 
     expect(outcome).to be_a(Nl::Exchange::Failure)
@@ -85,8 +85,8 @@ RSpec.describe Nl::Exchange do
 
   it 'returns the first reply when DONE terminates a multipart do exchange' do
     exchange = described_class.new(kind: :do, expects_reply: true)
-    first = make_reply(:first, flags: Nl::Core::NLM_F_MULTI)
-    second = make_reply(:second, flags: Nl::Core::NLM_F_MULTI)
+    first = make_reply(:first, flags: Nl::Raw::NLM_F_MULTI)
+    second = make_reply(:second, flags: Nl::Raw::NLM_F_MULTI)
     exchange.accept(first)
     exchange.accept(second)
 
@@ -96,7 +96,7 @@ RSpec.describe Nl::Exchange do
 
   it 'keeps a multipart do exchange open when ACK arrives before DONE' do
     exchange = described_class.new(kind: :do, expects_reply: true)
-    first = make_reply(:first, flags: Nl::Core::NLM_F_MULTI)
+    first = make_reply(:first, flags: Nl::Raw::NLM_F_MULTI)
 
     expect(exchange.accept(first)).to be_nil
     expect(exchange.accept(ack)).to be_nil
@@ -145,7 +145,7 @@ RSpec.describe Nl::Exchange do
 
   it 'rejects a non-multipart data frame in a multipart do exchange' do
     exchange = described_class.new(kind: :do, expects_reply: true)
-    exchange.accept(make_reply(:first, flags: Nl::Core::NLM_F_MULTI))
+    exchange.accept(make_reply(:first, flags: Nl::Raw::NLM_F_MULTI))
 
     outcome = exchange.accept(make_reply(:second))
 
@@ -157,7 +157,7 @@ RSpec.describe Nl::Exchange do
     exchange = described_class.new(kind: :do, expects_reply: true)
     exchange.accept(reply)
 
-    outcome = exchange.accept(make_reply(:second, flags: Nl::Core::NLM_F_MULTI))
+    outcome = exchange.accept(make_reply(:second, flags: Nl::Raw::NLM_F_MULTI))
 
     expect(outcome).to be_a(Nl::Exchange::Failure)
     expect(outcome.exception).to be_a(Nl::ProtocolViolation)

@@ -23,21 +23,30 @@ RSpec.describe Nl::Genl::Connection do
     def stop(_task) = nil
   end
 
-  GenlControllerFamily = Class.new(Nl::Family)
-  GenlControllerFamily.const_set(
-    :PROTOCOL,
-    Nl::Protocols::Genl.new('nlctrl', family_id: Nl::Genl::GENL_ID_CTRL),
-  )
+  GenlControllerFamily = Class.new(Nl::Genl::Family)
+  GenlControllerFamily.const_set(:NAME, 'nlctrl')
 
-  GenlDynamicFamily = Class.new(Nl::Family)
-  GenlDynamicFamily.const_set(
-    :PROTOCOL,
-    Nl::Protocols::Genl.new('dynamic-family'),
-  )
+  GenlDynamicFamily = Class.new(Nl::Genl::Family)
+  GenlDynamicFamily.const_set(:NAME, 'dynamic-family')
   GenlDynamicFamily.const_set(
     :MCAST_GROUPS,
     {events: Nl::McastGroup.new('events', nil)}.freeze,
   )
+
+  it 'opens only after resolving a complete endpoint' do
+    socket = GenlFakeSocket.new
+    info = Nl::Genl::FamilyInfo.new(id: 42, multicast_groups: {})
+    expect(Nl::Socket).to receive(:new).once.with(Nl::Raw::NETLINK_GENERIC).and_return(socket)
+
+    result = GenlDynamicFamily.open(resolver: ->(_connection, _name) { info }) do |family|
+      expect(family.instance_variable_get(:@endpoint).family_id).to eq(42)
+      expect(socket).not_to be_closed
+      :result
+    end
+
+    expect(result).to eq(:result)
+    expect(socket).to be_closed
+  end
 
   it 'resolves a family through one asynchronous connection and socket' do
     socket = GenlFakeSocket.new
@@ -46,13 +55,17 @@ RSpec.describe Nl::Genl::Connection do
     controller = nil
     conn = nil
     resolver = lambda do |connection, name|
-      resolver_calls += 1
       expect(connection).to be(conn)
+      if name == 'nlctrl'
+        next Nl::Genl::FamilyInfo.new(id: Nl::Genl::GENL_ID_CTRL, multicast_groups: {})
+      end
+
+      resolver_calls += 1
       expect(name).to eq('dynamic-family')
       controller = connection.family(GenlControllerFamily)
       Nl::Genl::FamilyInfo.new(id: 42, multicast_groups: {})
     end
-    expect(Nl::Socket).to receive(:new).once.with(Nl::Core::NETLINK_GENERIC).and_return(socket)
+    expect(Nl::Socket).to receive(:new).once.with(Nl::Raw::NETLINK_GENERIC).and_return(socket)
 
     conn = described_class.new(resolver:, executor: driver)
     family = conn.family(GenlDynamicFamily)
@@ -66,7 +79,7 @@ RSpec.describe Nl::Genl::Connection do
     expect(cached_family.instance_variable_get(:@connection)).to equal(connection)
     expect(transport.instance_variable_get(:@socket)).to equal(socket)
     expect(family).not_to respond_to(:close)
-    expect(family.instance_variable_get(:@protocol).family_id).to eq(42)
+    expect(family.instance_variable_get(:@endpoint).family_id).to eq(42)
     expect(resolver_calls).to eq(1)
   ensure
     conn&.close
@@ -75,7 +88,7 @@ RSpec.describe Nl::Genl::Connection do
   it 'shares one connection across synchronous families' do
     socket = GenlFakeSocket.new
     conn = nil
-    expect(Nl::Socket).to receive(:new).once.with(Nl::Core::NETLINK_GENERIC).and_return(socket)
+    expect(Nl::Socket).to receive(:new).once.with(Nl::Raw::NETLINK_GENERIC).and_return(socket)
 
     info = Nl::Genl::FamilyInfo.new(id: 42, multicast_groups: {})
     conn = described_class.new(resolver: ->(_connection, _name) { info })
@@ -95,7 +108,7 @@ RSpec.describe Nl::Genl::Connection do
 
   it 'uses resolved Generic Netlink multicast group IDs on the shared socket' do
     socket = GenlFakeSocket.new
-    expect(Nl::Socket).to receive(:new).once.with(Nl::Core::NETLINK_GENERIC).and_return(socket)
+    expect(Nl::Socket).to receive(:new).once.with(Nl::Raw::NETLINK_GENERIC).and_return(socket)
     expect(socket).to receive(:add_membership).once.with(99)
 
     info = Nl::Genl::FamilyInfo.new(id: 42, multicast_groups: {'events' => 99})

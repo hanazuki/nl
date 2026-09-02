@@ -14,16 +14,16 @@ module Nl
       socket = Socket.new(protocol.protonum)
       socket.bind(Socket.sockaddr_nl(0, 0))
       notifications = NotificationRouter.new(
-        routing: protocol.notification_routing,
+        protocol:,
         capacity: notification_capacity,
       )
 
       @socket = socket
       @notifications = notifications
       @transport = if executor
-        Async::Dispatcher.new(socket, executor:, notifications:)
+        Async::Dispatcher.new(socket, protocol:, executor:, notifications:)
       else
-        BlockingTransport.new(socket, notifications:)
+        BlockingTransport.new(socket, protocol:, notifications:)
       end
     rescue Exception
       @transport ? @transport.close : socket&.close
@@ -35,8 +35,8 @@ module Nl
     def exchange_async(...) = @transport.exchange_async(...)
     def async_capable? = @transport.async_capable?
 
-    def register_notifications(protocol, classes)
-      @notifications.register(protocol, classes)
+    def register_notifications(endpoint, classes)
+      @notifications.register(endpoint, classes)
     end
 
     def add_memberships(group_ids)
@@ -49,8 +49,8 @@ module Nl
       nil
     end
 
-    def receive_notification(protocol, timeout: nil)
-      @transport.receive_notification(protocol, timeout:)
+    def receive_notification(endpoint, timeout: nil)
+      @transport.receive_notification(endpoint, timeout:)
     end
 
     def close

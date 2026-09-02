@@ -49,8 +49,10 @@ module Ynl
       @indent = 0
     end
 
-    def generate(superclass: '::Nl::Family', namespace: nil)
-      @protocol = '::Nl::Protocols::' + (@ynl.protocol == 'netlink-raw' ? 'Raw' : 'Genl')
+    def generate(superclass: nil, namespace: nil)
+      raw = @ynl.protocol == 'netlink-raw'
+      @wire = raw ? '::Nl::Raw' : '::Nl::Genl'
+      superclass ||= raw ? '::Nl::Raw::Family' : '::Nl::Genl::Family'
 
       emit_comment(@ynl.doc)
 
@@ -58,11 +60,7 @@ module Ynl
       emit_class([*namespace, classname].join('::'), superclass) do
         emit_const('NAME', @ynl.name.as_string_literal)
 
-        if @ynl.protocol == 'netlink-raw'
-          emit_const('PROTOCOL', "Ractor.make_shareable(::Nl::Protocols::Raw.new(#{@ynl.name.as_string_literal}, #{@ynl.protonum}))")
-        else
-          emit_const('PROTOCOL', "Ractor.make_shareable(::Nl::Protocols::Genl.new(#{@ynl.name.as_string_literal}))")
-        end
+        emit_const('PROTONUM', @ynl.protonum) if raw
 
         emit_mcast_groups
 
@@ -113,9 +111,9 @@ module Ynl
           deferred_consts = []
           @ynl.attribute_sets.each do |name, attr_set|
             emit_comment(attr_set.doc)
-            emit_class(name.as_class_name, @protocol + '::AttributeSet') do
+            emit_class(name.as_class_name, "#@wire::AttributeSet") do
               emit_comment("Abstract class")
-              emit_class('Attribute', @protocol + '::AttributeSet::Attribute') do
+              emit_class('Attribute', "#@wire::AttributeSet::Attribute") do
               end
               attr_set.attributes.each do |attr|
                 emit_comment(attr.doc)
@@ -385,7 +383,7 @@ module Ynl
 
     private def emit_message_class(name, message, fixed_header:, attribute_set:, doc:)
       emit_comment(doc)
-      emit_class(name, "#{@protocol}::Message") do
+      emit_class(name, "#@wire::Message") do
         emit_const('TYPE', message.value)
         emit_const('FIXED_HEADER', fixed_header&.then { 'Structs::' + it.name.as_class_name } || 'nil')
         emit_const('ATTRIBUTE_SET', "AttributeSets::#{attribute_set.name.as_class_name}")
@@ -461,29 +459,29 @@ module Ynl
     private def to_datatype(type, checks)
       case type
       when Types::Pad
-        "#{@protocol}::DataTypes::Pad.new(#{type.length})"
+        "::Nl::DataTypes::Pad.new(#{type.length})"
       when Types::Flag
-        "#{@protocol}::DataTypes::Flag.new"
+        "::Nl::DataTypes::Flag.new"
       when Types::Bitfield32
-        "#{@protocol}::DataTypes::Bitfield32.new"
+        "::Nl::DataTypes::Bitfield32.new"
       when Types::Scalar
-        "#{@protocol}::DataTypes::Scalar.new(::Nl::Endian::#{type.byte_order.name.as_class_name}::#{type.type.as_const_name}, check: #{to_checks(checks)})"
+        "::Nl::DataTypes::Scalar.new(::Nl::Endian::#{type.byte_order.name.as_class_name}::#{type.type.as_const_name}, check: #{to_checks(checks)})"
       when Types::String
-        "#{@protocol}::DataTypes::String.new(check: #{to_checks(checks)})"
+        "::Nl::DataTypes::String.new(check: #{to_checks(checks)})"
       when Types::Binary
         # if type.struct
         #   "Structs::" + type.struct.name.as_class_name
         # else
-        "#{@protocol}::DataTypes::Binary.new(check: #{to_checks(checks)})"
+        "::Nl::DataTypes::Binary.new(check: #{to_checks(checks)})"
         # end
       when Types::NestedAttributes
-        "#{@protocol}::DataTypes::NestedAttributes.new(#{type.attribute_set.name.as_class_name})"
+        "::Nl::DataTypes::NestedAttributes.new(#{type.attribute_set.name.as_class_name})"
       when Types::NestTypeValue
-        "#{@protocol}::DataTypes::NestTypeValue.new(#{type.attribute_set.name.as_class_name}, #{type.type_values.length})"
+        "::Nl::DataTypes::NestTypeValue.new(#{type.attribute_set.name.as_class_name}, #{type.type_values.length})"
       when Types::IndexedArray
-        "#{@protocol}::DataTypes::IndexedArray.new(#{to_datatype(type.sub_type, nil)})"
+        "::Nl::DataTypes::IndexedArray.new(#{to_datatype(type.sub_type, nil)})"
       when Types::SubMessage
-        "#{@protocol}::DataTypes::Binary.new(check: nil)"
+        "::Nl::DataTypes::Binary.new(check: nil)"
       else
         raise "Unknown type: #{type.class}"
       end

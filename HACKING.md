@@ -7,13 +7,18 @@ Basic Netlink protocol handling.
 - lib/
   - nl.rb - Library entrypoint.
   - nl/
-    - family.rb - High-level API to interact with Netlink protocol families.
-    - protocols/
-      - raw.rb - Low-level implementation of the raw Netlink protocol (netlink-raw).
-      - genl.rb - Low-level implementation of the Generic Netlink protocol (netlink-generic).
+    - family.rb - Shared high-level family API and the raw-family base class.
+    - datatypes.rb - Datatype codecs shared by raw and Generic Netlink schemas.
+    - raw.rb - Raw family message and attribute schema classes.
+    - raw/
+      - wire.rb - Netlink wire constants and structures.
+      - protocol.rb - Raw Netlink endpoints and protocol behavior.
+    - genl.rb - Generic Netlink family base class and entrypoint.
+    - genl/
+      - wire.rb - Generic Netlink wire constants and structures.
+      - protocol.rb - Generic Netlink endpoints and protocol behavior.
+      - connection.rb - Family lookup and binding on a shared Generic Netlink socket.
     - socket.rb - Netlink socket.
-    - core.rb - Core Netlink structures and constants (NlMsgHdr, NlAttr, etc.).
-    - genl.rb - Generic Netlink message handling.
     - decoder.rb - Binary message decoder.
     - encoder.rb - Binary message encoder.
     - endian.rb - Endianness utilities.

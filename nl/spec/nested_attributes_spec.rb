@@ -1,14 +1,14 @@
 require 'nl'
 
-RSpec.describe Nl::Protocols::Raw::DataTypes::NestedAttributes do
+RSpec.describe Nl::DataTypes::NestedAttributes do
   let(:inner_attribute_set) do
-    Class.new(Nl::Protocols::Raw::AttributeSet).tap do |attribute_set|
+    Class.new(Nl::Raw::AttributeSet).tap do |attribute_set|
       attribute = Class.new(attribute_set::Attribute)
       attribute.const_set(:TYPE, 2)
       attribute.const_set(:NAME, :value)
       attribute.const_set(
         :DATATYPE,
-        Nl::Protocols::Raw::DataTypes::Scalar.new(Nl::Endian::Host::U32, check: nil),
+        Nl::DataTypes::Scalar.new(Nl::Endian::Host::U32, check: nil),
       )
       attribute_set.const_set(:Value, attribute)
       attribute_set.const_set(:BY_NAME, { value: attribute }.freeze)
@@ -19,7 +19,7 @@ RSpec.describe Nl::Protocols::Raw::DataTypes::NestedAttributes do
   let(:outer_attribute_set) do
     nested_datatype = described_class.new(inner_attribute_set)
 
-    Class.new(Nl::Protocols::Raw::AttributeSet).tap do |attribute_set|
+    Class.new(Nl::Raw::AttributeSet).tap do |attribute_set|
       attribute = Class.new(attribute_set::Attribute)
       attribute.const_set(:TYPE, 1)
       attribute.const_set(:NAME, :nested)
@@ -37,7 +37,7 @@ RSpec.describe Nl::Protocols::Raw::DataTypes::NestedAttributes do
 
     outer.encode(encoder)
 
-    nested = Nl::Core::NLA_F_NESTED
+    nested = Nl::Raw::NLA_F_NESTED
     expect(encoder.buffer.get_string).to eq(
       [12, nested | 1, 8, 2, 0x12345678].pack('S<S<S<S<L<'),
     )

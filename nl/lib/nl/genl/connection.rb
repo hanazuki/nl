@@ -3,8 +3,7 @@
 # rbs_inline: enabled
 
 require_relative '../connection'
-require_relative '../core'
-require_relative '../protocols/genl'
+require_relative 'wire'
 
 module Nl
   module Genl
@@ -39,22 +38,21 @@ module Nl
         @family_cache = {}
         @family_cache_mutex = Mutex.new
         @connection = Nl::Connection.new(
-          protocol: Protocols::Genl,
+          protocol: Protocol.new,
           executor:,
           notification_capacity:,
         )
       end
 
       def family(family_class)
-        proto = family_class::PROTOCOL
-        info = family_info(proto)
+        unless family_class <= Family
+          raise TypeError, "family class must inherit from #{Family}"
+        end
+
+        info = family_info(family_class::NAME)
         family_class.new(
           @connection,
-          protocol: Protocols::Genl.new(
-            proto.name,
-            family_id: info.id,
-            multicast_groups: info.multicast_groups,
-          ),
+          endpoint: Endpoint.new(family_class, info),
         )
       end
 
@@ -62,15 +60,12 @@ module Nl
         @connection.close
       end
 
-      private def family_info(protocol)
-        id = protocol.family_id
-        FamilyInfo.new(id:, multicast_groups: {}.freeze)
-      rescue NotImplementedError
-        cached_info = @family_cache_mutex.synchronize { @family_cache[protocol.name] }
+      private def family_info(name)
+        cached_info = @family_cache_mutex.synchronize { @family_cache[name] }
         return cached_info if cached_info
 
-        info = @resolver.call(self, protocol.name)
-        @family_cache_mutex.synchronize { @family_cache[protocol.name] ||= info }
+        info = @resolver.call(self, name)
+        @family_cache_mutex.synchronize { @family_cache[name] ||= info }
       end
     end
   end

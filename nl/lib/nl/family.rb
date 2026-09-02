@@ -2,6 +2,7 @@
 # rbs_inline: enabled
 require_relative 'connection'
 require_relative 'notification'
+require_relative 'raw'
 
 module Nl
   # @rbs!
@@ -9,14 +10,14 @@ module Nl
   #
   #   interface _Connection
   #     def exchange: (
-  #       Protocols::Raw protocol,
+  #       Raw::Endpoint endpoint,
   #       Symbol kind,
   #       Class request_class,
   #       Class reply_class,
   #       Hash[Symbol, untyped] args
   #     ) ?{ (untyped) -> void } -> untyped
   #     def exchange_async: (
-  #       Protocols::Raw protocol,
+  #       Raw::Endpoint endpoint,
   #       Symbol kind,
   #       Class request_class,
   #       Class reply_class,
@@ -24,10 +25,10 @@ module Nl
   #       ?stream_capacity: Integer?
   #     ) -> (Async::Future[untyped] | Async::Stream[untyped])
   #     def async_capable?: () -> bool
-  #     def register_notifications: (Protocols::Raw, Hash[Integer, Class]) -> NotificationChannel
+  #     def register_notifications: (Raw::Endpoint, Hash[Integer, Class]) -> NotificationChannel
   #     def add_memberships: (Array[Integer]) -> nil
   #     def drop_memberships: (Array[Integer]) -> nil
-  #     def receive_notification: (Protocols::Raw, ?timeout: Numeric?) -> untyped
+  #     def receive_notification: (Raw::Endpoint, ?timeout: Numeric?) -> untyped
   #     def close: () -> nil
   #   end
 
@@ -42,45 +43,19 @@ module Nl
 
     #--
     # @rbs connection: _Connection
-    # @rbs protocol: Protocol
+    # @rbs endpoint: Raw::Endpoint
     # @rbs return: instance
-    def initialize(connection, protocol: self.class::PROTOCOL)
-      @protocol = protocol
+    def initialize(connection, endpoint:)
+      @endpoint = endpoint
       @connection = connection
-      @connection.register_notifications(@protocol, notification_classes)
+      @connection.register_notifications(@endpoint, notification_classes)
       @notification_stream = NotificationStream.new do |timeout|
-        @connection.receive_notification(@protocol, timeout:)
-      end
-    end
-
-    #--
-    # @rbs (?executor: executor?, ?notification_capacity: Integer?) -> (Session & instance)
-    #  | [R] (?executor: executor?, ?notification_capacity: Integer?) { (instance) -> R } -> R
-    def self.open(executor: nil, notification_capacity: DEFAULT_NOTIFICATION_CAPACITY)
-      session = build_session(executor:, notification_capacity:)
-      return session unless block_given?
-
-      begin
-        yield session
-      ensure
-        session.close
-      end
-    end
-
-    class << self
-      # @rbs (?executor: executor?, notification_capacity: Integer) -> (Session & instance)
-      private def build_session(executor: nil, notification_capacity:)
-        protocol = self::PROTOCOL
-        connection = Connection.new(protocol:, executor:, notification_capacity:)
-        new(connection).extend(Session)
-      rescue Exception
-        connection&.close
-        raise
+        @connection.receive_notification(@endpoint, timeout:)
       end
     end
 
     private def exchange_message(kind, request_class, reply_class, args, &block)
-      @connection.exchange(@protocol, kind, request_class, reply_class, args, &block)
+      @connection.exchange(@endpoint, kind, request_class, reply_class, args, &block)
     end
 
     def async_capable? #: bool
@@ -126,7 +101,7 @@ module Nl
     end
 
     private def exchange_message_async(kind, request_class, reply_class, args, stream_capacity: nil)
-      @connection.exchange_async(@protocol, kind, request_class, reply_class, args, stream_capacity:)
+      @connection.exchange_async(@endpoint, kind, request_class, reply_class, args, stream_capacity:)
     end
 
     private def notification_classes
@@ -145,9 +120,41 @@ module Nl
       names.map do |name|
         key = name.to_sym
         group = multicast_groups.fetch(key) do
-          raise UnknownMulticastGroupError, "unknown multicast group #{name.inspect} for #{@protocol.name}"
+          raise UnknownMulticastGroupError, "unknown multicast group #{name.inspect} for #{@endpoint.name}"
         end
-        @protocol.multicast_group_id(group.name, group.id)
+        @endpoint.multicast_group_id(group.name, group.id)
+      end
+    end
+  end
+
+  module Raw
+    class Family < Nl::Family
+      #--
+      # @rbs (?executor: executor?, ?notification_capacity: Integer?) -> (Nl::Family::Session & instance)
+      #  | [R] (?executor: executor?, ?notification_capacity: Integer?) { (instance) -> R } -> R
+      def self.open(executor: nil, notification_capacity: DEFAULT_NOTIFICATION_CAPACITY)
+        session = build_session(executor:, notification_capacity:)
+        return session unless block_given?
+
+        begin
+          yield session
+        ensure
+          session.close
+        end
+      end
+
+      class << self
+        #--
+        # @rbs (executor: executor?, notification_capacity: Integer) -> (Nl::Family::Session & instance)
+        private def build_session(executor:, notification_capacity:)
+          protocol = Protocol.new(self::PROTONUM)
+          connection = Connection.new(protocol:, executor:, notification_capacity:)
+          endpoint = Endpoint.new(self)
+          new(connection, endpoint:).extend(Nl::Family::Session)
+        rescue Exception
+          connection&.close
+          raise
+        end
       end
     end
   end

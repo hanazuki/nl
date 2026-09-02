@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Nl::Family do
+RSpec.describe Nl::Raw::Family do
   FamilyFakeSocket = Struct.new(:bound_address, :closed) do
     def bind(address) = self.bound_address = address
     def close = self.closed = true
@@ -12,7 +12,8 @@ RSpec.describe Nl::Family do
   end
 
   StandaloneFamily = Class.new(described_class)
-  StandaloneFamily.const_set(:PROTOCOL, Nl::Protocols::Raw.new('standalone', 12))
+  StandaloneFamily.const_set(:NAME, 'standalone')
+  StandaloneFamily.const_set(:PROTONUM, 12)
   StandaloneFamily.const_set(
     :MCAST_GROUPS,
     {events: Nl::McastGroup.new('events', 7)}.freeze,

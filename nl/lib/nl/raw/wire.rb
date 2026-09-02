@@ -1,9 +1,9 @@
 # Netlink wire definitions
 
-require_relative 'endian'
+require_relative '../endian'
 
 module Nl
-  module Core
+  module Raw
     module Constants
       # From include/uapi/linux/netlink.h
       NETLINK_ROUTE = 0
