@@ -22,6 +22,23 @@ RSpec.describe Ynl do
   end
 
   describe Ynl::Family do
+    it 'exposes definitions and uses them in attribute checks' do
+      path = Pathname(__dir__) + 'fixtures/constants.yaml'
+      generated = StringIO.new
+      path.open {|source| Ynl::Family.generate(source, generated) }
+      cls = Ynl::Family.build(path)
+
+      expect(cls::Constants::TEST_MAXIMUM_LENGTH).to eq 4
+      expect(cls::Constants::DISPLAY_NAME).to eq 'a "quoted" value'
+      expect(generated.string).to include(
+        'unless it.bytesize <= Constants::TEST_MAXIMUM_LENGTH',
+      )
+      expect do
+        attributes = cls::AttributeSets::Attrs.build_attributes(payload: '12345')
+        attributes.encode(Nl::Encoder.new)
+      end.to raise_error(ArgumentError, 'Value "12345" is longer than maximum length 4')
+    end
+
     example do
       cls = Ynl::Family.build(yaml)
 

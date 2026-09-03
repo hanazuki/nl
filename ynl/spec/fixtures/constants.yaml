@@ -1,0 +1,24 @@
+name: constants
+protocol: genetlink
+
+definitions:
+  -
+    name-prefix: test-
+    name: maximum-length
+    type: const
+    value: 4
+    doc: Maximum payload length.
+  -
+    name: display-name
+    type: const
+    value: 'a "quoted" value'
+
+attribute-sets:
+  -
+    name: attrs
+    attributes:
+      -
+        name: payload
+        type: binary
+        checks:
+          max-len: test-maximum-length
