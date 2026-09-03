@@ -13,6 +13,7 @@ module Ynl
       @structs = {}
 
       @attribute_sets = {}
+      @attribute_definitions = {}
       @sub_messages = {}
       @operations = {}
       @mcast_groups = {}
@@ -324,30 +325,49 @@ module Ynl
       name = d.fetch('name')
       if subset_of = d['subset-of']
         superset = @attribute_sets.fetch(subset_of)
-        result = Models::AttributeSubset.new(name:, superset:, attributes: d.fetch('attributes'), doc: translate_doc(d['doc']))
+        inherited = @attribute_definitions.fetch(subset_of).to_h { [it.fetch('name'), it] }
+        definitions = d.fetch('attributes').uniq { it.fetch('name') }.map do |override|
+          parent = inherited.fetch(override.fetch('name'))
+          parent.merge(override).merge('value' => parent.fetch('value'))
+        end
+        attributes = definitions.filter_map { parse_attribute(it) }
+        result = Models::AttributeSubset.new(name:, superset:, attributes:, doc: translate_doc(d['doc']))
       else
         name_prefix = d['name_prefix']
         result = Models::AttributeSet.new(name:, name_prefix:, doc: translate_doc(d['doc']))
         value = 0
-
-        d.fetch('attributes').each do |v|
+        definitions = d.fetch('attributes').map do |v|
           value = v.fetch('value', value + 1)
-          if type = parse_attribute_type(v)
-            attribute = Models::AttributeSet::Attribute.new(name: v.fetch('name'), type: type, value:)
-            result.attributes << attribute
-            if checks = v['checks']
-              attribute.checks = parse_checks(checks)
-            end
-          end
-        rescue
-          raise ParseError, "Failed to parse attribute: #{v.fetch('name')}"
+          v.merge('value' => value)
         end
+        result.attributes.concat(definitions.filter_map { parse_attribute(it) })
       end
 
       @attribute_sets[name] = result
+      @attribute_definitions[name] = definitions
 
     rescue
       raise ParseError, "Failed to parse attribute set: #{d.fetch('name')}"
+    end
+
+    private def parse_attribute(d)
+      multi_attr = d.fetch('multi-attr', false)
+      unless multi_attr == true || multi_attr == false
+        raise ParseError, "multi-attr must be a boolean"
+      end
+
+      return unless type = parse_attribute_type(d)
+
+      Models::AttributeSet::Attribute.new(
+        name: d.fetch('name'),
+        type:,
+        value: d.fetch('value'),
+        checks: (parse_checks(d['checks']) if d['checks']),
+        doc: translate_doc(d['doc']),
+        multi_attr:,
+      )
+    rescue
+      raise ParseError, "Failed to parse attribute: #{d.fetch('name')}"
     end
 
     private def parse_sub_message(d)

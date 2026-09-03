@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Generate array parameters and accessors for `multi-attr` attributes.
+- Apply attribute property overrides declared by attribute-set subsets.
+
 ## v0.3.0 (2026-09-01)
 
 - Generate notification and event message classes, multicast group metadata,

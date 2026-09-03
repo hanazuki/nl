@@ -288,6 +288,25 @@ RSpec.describe do
       end
     end
 
+    example 'do_strset_get encodes and decodes multiple string sets' do
+      attribute_sets = Nl::Linux::Ethtool::AttributeSets
+      header = attribute_sets::Header.build_attributes(dev_index: 1)
+      stringsets = attribute_sets::Stringsets.build_attributes(
+        stringset: [
+          attribute_sets::Stringset.build_attributes(id: 4), # ETH_SS_FEATURES
+          attribute_sets::Stringset.build_attributes(id: 9), # ETH_SS_LINK_MODES
+        ],
+      )
+
+      Nl::Linux::Ethtool.open do |ethtool|
+        reply = ethtool.do_strset_get(header:, stringsets:, counts_only: true)
+        result = reply.stringsets[:stringset].map(&:value)
+
+        expect(result.map { it[:id].value }).to eq [4, 9]
+        expect(result.map { it[:count].value }).to all be_positive
+      end
+    end
+
     example 'dump_features_get returns device features' do
       Nl::Genl::Client.open(resolver:) do |client|
         ethtool = client.family(Nl::Linux::Ethtool)

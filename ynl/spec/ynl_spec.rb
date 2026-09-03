@@ -39,6 +39,23 @@ RSpec.describe Ynl do
       end.to raise_error(ArgumentError, 'Value "12345" is longer than maximum length 4')
     end
 
+    it 'generates array APIs for multi-attributes' do
+      path = Pathname(__dir__) + 'fixtures/multi_attr.yaml'
+      generated = StringIO.new
+      path.open { |source| Ynl::Family.generate(source, generated) }
+      cls = Ynl::Family.build(path)
+      message_class = cls::Messages::DoUpdateRequest
+
+      message = message_class.from_params(ids: [10, 20])
+
+      expect(message.ids).to eq [10, 20]
+      expect(message.attributes[:ids].map(&:value)).to eq [10, 20]
+      expect(message_class.from_params({}).ids).to eq []
+      expect(cls::AttributeSets::Subset::Ids::MULTI).to be true
+      expect(generated.string).to include('?ids: ::Array[::Integer]')
+      expect(generated.string).to include('# @rbs return: ::Array[::Integer]')
+    end
+
     example do
       cls = Ynl::Family.build(yaml)
 
