@@ -65,6 +65,15 @@ module Ynl
 
         emit_mcast_groups
 
+        unless @ynl.consts.empty?
+          emit_module('Constants') do
+            @ynl.consts.each_value do |const|
+              emit_comment(const.doc)
+              emit_const(const.name.as_const_name, const_value_literal(const.value))
+            end
+          end
+        end
+
         emit_module('Structs') do
           @ynl.structs.each do |name, struct|
             emit_comment(struct.doc)
@@ -440,7 +449,7 @@ module Ynl
 
       entries = groups.map do |group|
         key = group.name.as_variable_name.as_symbol_literal
-        value = "::Nl::McastGroup.new(#{group.name.as_string_literal}, #{group.value.inspect})"
+        value = "::Nl::McastGroup.new(#{group.name.as_string_literal}, #{mcast_group_value_literal(group.value)})"
         "#{key} => #{value}"
       end
       emit_const(
@@ -500,7 +509,67 @@ module Ynl
 
     private def to_checks(checks)
       return 'nil' if !checks || checks.empty?
-      %Q{-> { #{checks.join('; ')} }}
+      %Q{-> { #{checks.map { to_check(it) }.join('; ')} }}
+    end
+
+    private def to_check(check)
+      value = case check.value
+      when Models::Const
+        "Constants::#{check.value.name.as_const_name}"
+      else
+        integer_literal(check.value)
+      end
+
+      comparison, description = case check.operation
+      when 'max'
+        ["it <= #{value}", "greater than maximum #{check_message_value(check, value)}"]
+      when 'min'
+        ["it >= #{value}", "less than minimum #{check_message_value(check, value)}"]
+      when 'min-len'
+        ["it.bytesize >= #{value}", "shorter than minimum length #{check_message_value(check, value)}"]
+      when 'max-len'
+        ["it.bytesize <= #{value}", "longer than maximum length #{check_message_value(check, value)}"]
+      when 'exact-len'
+        ["it.bytesize == #{value}", "not equal to length #{check_message_value(check, value)}"]
+      else
+        raise "Unknown check: #{check.operation}"
+      end
+
+      %Q{raise ArgumentError, "Value \#{it.inspect} is #{description}" unless #{comparison}}
+    end
+
+    private def check_message_value(check, value)
+      check.value.is_a?(Models::Const) ? "\#{#{value}}" : value
+    end
+
+    private def const_value_literal(value)
+      case value
+      when Integer
+        value.to_s
+      when String
+        value.as_string_literal
+      else
+        raise ParseError, "YNL constant value must be a string or an integer, got #{value.class}"
+      end
+    end
+
+    private def integer_literal(value)
+      unless value.is_a?(Integer)
+        raise ParseError, "YNL check value must be an integer, got #{value.class}"
+      end
+
+      value.to_s
+    end
+
+    private def mcast_group_value_literal(value)
+      case value
+      when Integer
+        value.to_s
+      when nil
+        'nil'
+      else
+        raise ParseError, "YNL multicast group value must be an integer, got #{value.class}"
+      end
     end
   end
 end

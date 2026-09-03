@@ -29,6 +29,7 @@ module Ynl
     end
 
     Const = ::Struct.new(:name, :value, :doc)
+    Check = ::Struct.new(:operation, :value)
 
     class SubMessage
       Format = ::Struct.new(:value, :attribute_set)

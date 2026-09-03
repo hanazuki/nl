@@ -120,7 +120,12 @@ module Ynl
 
     private def parse_const(d)
       name = "#{d['name-prefix']}#{d.fetch('name')}"
-      Models::Const.new(name, d.fetch('value'), translate_doc(d['doc']))
+      value = d.fetch('value')
+      unless value.is_a?(Integer) || value.is_a?(String)
+        raise ParseError, "Constant value must be a string or an integer: #{name}"
+      end
+
+      Models::Const.new(name, value, translate_doc(d['doc']))
     end
 
     private def parse_enum_flags(d, type:)
@@ -288,21 +293,8 @@ module Ynl
 
     private def parse_check(op, value_literal)
       case op
-      when 'max'
-        value = parse_value(value_literal)
-        return %{raise ArgumentError, "Value \#{it.inspect} is greater than maximum #{value}" unless it <= #{value}}
-      when 'min'
-        value = parse_value(value_literal)
-        return %{raise ArgumentError, "Value \#{it.inspect} is less than minimum #{value}" unless it >= #{value}}
-      when 'min-len'
-        value = parse_value(value_literal)
-        return %{raise ArgumentError, "Value \#{it.inspect} is shorter than minimum length #{value}" unless it.bytesize >= #{value}}
-      when 'max-len'
-        value = parse_value(value_literal)
-        return %{raise ArgumentError, "Value \#{it.inspect} is longer than maximum length #{value}" unless it.bytesize <= #{value}}
-      when 'exact-len'
-        value = parse_value(value_literal)
-        return %{raise ArgumentError, "Value \#{it.inspect} is not equal to length #{value}" unless it.bytesize == #{value}}
+      when 'max', 'min', 'min-len', 'max-len', 'exact-len'
+        Models::Check.new(operation: op, value: parse_value(value_literal))
       when 'unterminated-ok'
         return nil
       else
@@ -322,7 +314,7 @@ module Ynl
         (2 ** 31) - 1
       when String
         const = @consts[v] or raise ParseError, "Unknown value: #{v}"
-        const.value
+        const
       else
         raise ParseError, "Unknown value: #{v}"
       end

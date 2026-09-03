@@ -19,6 +19,31 @@ RSpec.describe Ynl::Parser do
     end
   end
 
+  describe 'constants' do
+    subject(:family) { parse('constants.yaml') }
+
+    it 'preserves constant references in checks' do
+      constant = family.consts.fetch('test-maximum-length')
+      check = family.attribute_sets.fetch('attrs').attributes.first.checks.first
+
+      expect(constant).to eq(Ynl::Models::Const.new('test-maximum-length', 4, 'Maximum payload length.'))
+      expect(check).to eq(Ynl::Models::Check.new('max-len', constant))
+    end
+
+    it 'rejects values outside the YNL string-or-integer type' do
+      source = StringIO.new(<<~YAML)
+        name: invalid-constant
+        protocol: genetlink
+        definitions:
+          - { name: invalid, type: const, value: true }
+        attribute-sets: []
+      YAML
+
+      expect { described_class.new(source).parse }
+        .to raise_error(Ynl::ParseError, /must be a string or an integer/)
+    end
+  end
+
   describe 'nest-type-value attributes' do
     subject(:type) { parse('nest_type_value.yaml').attribute_sets.fetch('outer').attributes.first.type }
 

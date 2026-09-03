@@ -10,52 +10,60 @@ module Nl
 
   module DataTypes
     class Base
+      def initialize(check: nil)
+        @check = check
+      end
+
       def nlattr_type_flags
         0
+      end
+
+      private def checked(value)
+        @check&.call(value)
+        value
       end
     end
 
     class Scalar < Base
-      def initialize(type, check)
+      def initialize(type, check:)
+        super(check:)
         @type = type
-        @check = check
       end
 
       def encode(encoder, value)
-        value ||= 0
-        encoder.put_value(@type, value.tap(&@check))
+        encoder.put_value(@type, checked(value || 0))
       end
 
       def decode(decoder)
-        value = decoder.get_value(@type).tap(&@check)
+        checked(decoder.get_value(@type))
       end
     end
 
     class String < Base
-      def initialize(check)
-        @check = check
+      def initialize(check:)
+        super(check:)
       end
 
       def encode(encoder, value)
-        encoder.put_zstring(value)
+        encoder.put_zstring(checked(value))
       end
 
       def decode(decoder)
-        decoder.get_zstring
+        checked(decoder.get_zstring)
       end
     end
 
     class Binary < Base
-      def initialize(check)
-        @check = check
+      def initialize(check:)
+        super(check:)
       end
 
       def encode(encoder, value)
-        encoder.put_string(value)
+        encoder.put_string(checked(value))
       end
 
       def decode(decoder)
-        decoder.get_string
+        checked(decoder.get_string)
       end
     end
 
