@@ -261,11 +261,9 @@ RSpec.describe do
 
   describe Nl::Linux::Ethtool do
     example 'do_linkstate_get returns link state for loopback' do
-      header = Nl::Linux::Ethtool::AttributeSets::Header.build_attributes(dev_index: 1)
-
       Nl::Genl::Client.open(resolver:) do |client|
         ethtool = client.family(Nl::Linux::Ethtool)
-        reply = ethtool.do_linkstate_get(header:)
+        reply = ethtool.do_linkstate_get(header: { dev_index: 1 })
         expect(reply).to be_a Nl::Linux::Ethtool::Messages::DoLinkstateGetReply
 
         dev_name = reply.header[:dev_name]
@@ -278,8 +276,7 @@ RSpec.describe do
       Nl::Genl::Client.open(resolver:) do |client|
         ethtool = client.family(Nl::Linux::Ethtool)
         # The kernel only parses counts-only when stringsets is present.
-        stringsets = Nl::Linux::Ethtool::AttributeSets::Stringsets.build_attributes
-        r = ethtool.dump_strset_get(stringsets:, counts_only: true)
+        r = ethtool.dump_strset_get(stringsets: {}, counts_only: true)
         expect(r).to be_an Array
         expect(r).not_to be_empty
         r.each do |entry|
@@ -289,14 +286,13 @@ RSpec.describe do
     end
 
     example 'do_strset_get encodes and decodes multiple string sets' do
-      attribute_sets = Nl::Linux::Ethtool::AttributeSets
-      header = attribute_sets::Header.build_attributes(dev_index: 1)
-      stringsets = attribute_sets::Stringsets.build_attributes(
+      header = { dev_index: 1 }
+      stringsets = {
         stringset: [
-          attribute_sets::Stringset.build_attributes(id: 4), # ETH_SS_FEATURES
-          attribute_sets::Stringset.build_attributes(id: 9), # ETH_SS_LINK_MODES
+          { id: 4 }, # ETH_SS_FEATURES
+          { id: 9 }, # ETH_SS_LINK_MODES
         ],
-      )
+      }
 
       Nl::Linux::Ethtool.open do |ethtool|
         reply = ethtool.do_strset_get(header:, stringsets:, counts_only: true)
@@ -310,9 +306,9 @@ RSpec.describe do
     example 'dump_features_get returns device features' do
       Nl::Genl::Client.open(resolver:) do |client|
         ethtool = client.family(Nl::Linux::Ethtool)
-        header = Nl::Linux::Ethtool::AttributeSets::Header.build_attributes(
+        header = {
           flags: 1, # ETHTOOL_FLAG_COMPACT_BITSETS
-        )
+        }
         r = ethtool.dump_features_get(header:)
         expect(r).to be_an Array
         expect(r).not_to be_empty

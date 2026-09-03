@@ -103,9 +103,9 @@ module Nl
             unless value.is_a?(Array)
               raise TypeError, "value for multi-attribute #{name} must be an Array"
             end
-            value.map { attr_class.new(it) }
+            value.map { attr_class.new(attr_class::DATATYPE.coerce(it)) }
           else
-            attr_class.new(value)
+            attr_class.new(attr_class::DATATYPE.coerce(value))
           end
         end
         new(attrs)

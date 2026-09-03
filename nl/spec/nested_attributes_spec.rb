@@ -43,8 +43,20 @@ RSpec.describe Nl::DataTypes::NestedAttributes do
     )
   end
 
-  it 'rejects values that are not instances of the nested attribute set' do
+  it 'builds nested attributes from a hash' do
     outer = outer_attribute_set.build_attributes(nested: { value: 0x12345678 })
+    encoder = Nl::Encoder.new
+
+    outer.encode(encoder)
+
+    nested = Nl::Raw::NLA_F_NESTED
+    expect(encoder.buffer.get_string).to eq(
+      [12, nested | 1, 8, 2, 0x12345678].pack('S<S<S<S<L<'),
+    )
+  end
+
+  it 'rejects values that are neither hashes nor nested attribute sets' do
+    outer = outer_attribute_set.build_attributes(nested: 123)
 
     expect { outer.encode(Nl::Encoder.new) }
       .to raise_error(TypeError, /value must be an instance of/)
