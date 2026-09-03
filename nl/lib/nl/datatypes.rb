@@ -1,6 +1,13 @@
 require_relative 'raw/wire'
 
 module Nl
+  # @rbs!
+  #   interface _DataType
+  #     def encode: (Encoder, untyped) -> void
+  #     def decode: (Decoder) -> untyped
+  #     def nlattr_type_flags: () -> Integer
+  #   end
+
   module DataTypes
     class Base
       def nlattr_type_flags

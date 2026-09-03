@@ -42,6 +42,7 @@ module Nl
         )
       end
 
+      # @rbs [F < Family] (_FamilyClass[F] family_class) -> F
       def family(family_class)
         unless family_class <= Family
           raise TypeError, "family class must inherit from #{Family}"

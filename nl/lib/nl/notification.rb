@@ -93,7 +93,7 @@ module Nl
 
   # An unbounded-in-time, single-family view of unsolicited messages.
   class NotificationStream
-    include Enumerable
+    include Enumerable #[untyped]
 
     def initialize(&receive)
       @receive = receive
@@ -103,6 +103,8 @@ module Nl
       @receive.call(timeout)
     end
 
+    # @rbs () -> Enumerator[untyped, void]
+    #  | () { (untyped) -> void } -> void
     def each
       return enum_for(__method__) unless block_given?
 

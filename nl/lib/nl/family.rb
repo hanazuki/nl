@@ -30,6 +30,10 @@ module Nl
   #     def receive_notification: (Raw::Endpoint, ?timeout: Numeric?) -> untyped
   #     def close: () -> nil
   #   end
+  #
+  #   interface _FamilyClass[out F]
+  #     def new: (_Connection, endpoint: Raw::Endpoint) -> F
+  #   end
 
   class Family
     DEFAULT_NOTIFICATION_CAPACITY = Connection::DEFAULT_NOTIFICATION_CAPACITY
