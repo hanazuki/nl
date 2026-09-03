@@ -10,8 +10,8 @@ RSpec.describe Nl::Genl::Protocol do
     def encode(_encoder) = nil
   end
 
-  GenlNotificationAttributes = Class.new(Nl::Genl::AttributeSet)
-  GenlNotificationAttributes.const_set(:Attribute, Class.new(Nl::Genl::AttributeSet::Attribute))
+  GenlNotificationAttributes = Class.new(Nl::AttributeSet)
+  GenlNotificationAttributes.const_set(:Attribute, Class.new(Nl::AttributeSet::Attribute))
   GenlNotificationAttributes.const_set(:BY_TYPE, {}.freeze)
   GenlNotificationAttributes.const_set(:BY_NAME, {}.freeze)
 

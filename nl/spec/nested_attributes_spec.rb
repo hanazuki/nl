@@ -2,7 +2,7 @@ require 'nl'
 
 RSpec.describe Nl::DataTypes::NestedAttributes do
   let(:inner_attribute_set) do
-    Class.new(Nl::Raw::AttributeSet).tap do |attribute_set|
+    Class.new(Nl::AttributeSet).tap do |attribute_set|
       attribute = Class.new(attribute_set::Attribute)
       attribute.const_set(:TYPE, 2)
       attribute.const_set(:NAME, :value)
@@ -19,7 +19,7 @@ RSpec.describe Nl::DataTypes::NestedAttributes do
   let(:outer_attribute_set) do
     nested_datatype = described_class.new(inner_attribute_set)
 
-    Class.new(Nl::Raw::AttributeSet).tap do |attribute_set|
+    Class.new(Nl::AttributeSet).tap do |attribute_set|
       attribute = Class.new(attribute_set::Attribute)
       attribute.const_set(:TYPE, 1)
       attribute.const_set(:NAME, :nested)

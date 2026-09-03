@@ -61,7 +61,5 @@ module Nl
         super(decoder, type: genlhdr.cmd)
       end
     end
-
-    AttributeSet = Raw::AttributeSet
   end
 end
