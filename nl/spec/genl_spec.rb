@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Nl::Genl::Connection do
+RSpec.describe Nl::Genl::Client do
   GenlFakeSocket = Struct.new(:bound_address, :closed) do
     def bind(address) = self.bound_address = address
     def close = self.closed = true

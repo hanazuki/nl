@@ -12,6 +12,7 @@ module Nl
       @capacity = capacity
       @mutex = Mutex.new
       @entries = {}
+      @routes = {}
       @closed = false
     end
 
@@ -19,20 +20,27 @@ module Nl
       @mutex.synchronize do
         raise ClosedError, 'notification router is closed' if @closed
 
-        key = @protocol.family_key(endpoint)
-        if entry = @entries[key]
-          entry.classes.merge!(classes)
-        else
-          entry = Entry.new(endpoint, classes.dup, NotificationChannel.new(capacity: @capacity))
-          @entries[key] = entry
+        channel_key = @protocol.notification_channel_key(endpoint)
+        entry = @entries[channel_key]
+        merged_classes = entry ? entry.classes.merge(classes) : classes.dup
+        route_keys = @protocol.notification_route_keys(endpoint, merged_classes)
+        if route_key = route_keys.find { @routes[it] && !@routes[it].equal?(entry) }
+          raise ArgumentError, "notification route #{route_key.inspect} is already registered"
         end
+
+        unless entry
+          entry = Entry.new(endpoint, merged_classes, NotificationChannel.new(capacity: @capacity))
+          @entries[channel_key] = entry
+        end
+        entry.classes.replace(merged_classes)
+        route_keys.each { @routes[it] = entry }
         entry.channel
       end
     end
 
     def channel(endpoint)
       @mutex.synchronize do
-        @entries.fetch(@protocol.family_key(endpoint)).channel
+        @entries.fetch(@protocol.notification_channel_key(endpoint)).channel
       end
     end
 
@@ -45,20 +53,18 @@ module Nl
       end
 
       entry = @mutex.synchronize do
-        @entries[@protocol.frame_key(header)]
+        @routes[@protocol.notification_frame_key(header)]
       end
       return false unless entry
       return false unless @protocol.notification_frame?(entry.endpoint, header, payload)
 
       message_class = @protocol.notification_class(entry.endpoint, header, payload, entry.classes)
-      notification = if message_class
-        @protocol.decode_notification(entry.endpoint, header, payload, message_class)
-      else
-        UnknownNotification.new(header:, payload: payload.get_string)
-      end
+      return true unless message_class
+
+      notification = @protocol.decode_notification(entry.endpoint, header, payload, message_class)
       entry.channel.push(notification)
       true
-    rescue Exception => error
+    rescue => error
       entry&.channel&.fail(error)
       true
     end
@@ -70,6 +76,7 @@ module Nl
         @closed = true
         old = @entries.values
         @entries.clear
+        @routes.clear
         old
       end
       entries.each { it.channel.close }

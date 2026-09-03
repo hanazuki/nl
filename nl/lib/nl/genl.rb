@@ -10,11 +10,11 @@ module Nl
   module Genl
     class Family < Nl::Family
       #--
-      # @rbs (resolver: ^(Connection, ::String) -> FamilyInfo, ?executor: executor?, ?notification_capacity: Integer?) -> (Nl::Family::Session & instance)
-      #  | [R] (resolver: ^(Connection, ::String) -> FamilyInfo, ?executor: executor?, ?notification_capacity: Integer?) { (instance) -> R } -> R
+      # @rbs (resolver: ^(Client, ::String) -> FamilyInfo, ?executor: executor?, ?notification_capacity: Integer?) -> (Nl::Family::Session & instance)
+      #  | [R] (resolver: ^(Client, ::String) -> FamilyInfo, ?executor: executor?, ?notification_capacity: Integer?) { (instance) -> R } -> R
       def self.open(resolver:, executor: nil, notification_capacity: DEFAULT_NOTIFICATION_CAPACITY)
         begin
-          owner = Connection.new(resolver:, executor:, notification_capacity:)
+          owner = Client.new(resolver:, executor:, notification_capacity:)
           session = owner.family(self).extend(Nl::Family::Session)
         rescue Exception
           owner&.close
@@ -32,4 +32,4 @@ module Nl
   end
 end
 
-require_relative 'genl/connection'
+require_relative 'genl/client'

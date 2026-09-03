@@ -92,9 +92,9 @@ module Nl
         Request.new(type: endpoint.frame_type(request_class), flags:, message:)
       end
 
-      # Classic Netlink support currently allows one generated family per socket.
-      def family_key(_endpoint) = nil
-      def frame_key(_header) = nil
+      def notification_channel_key(endpoint) = endpoint.definition
+      def notification_route_keys(_endpoint, classes) = classes.keys
+      def notification_frame_key(header) = header.type
 
       def notification_frame?(_endpoint, header, _payload)
         header.type >= Raw::NLMSG_MIN_TYPE

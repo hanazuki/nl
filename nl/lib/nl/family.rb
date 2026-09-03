@@ -147,12 +147,10 @@ module Nl
         #--
         # @rbs (executor: executor?, notification_capacity: Integer) -> (Nl::Family::Session & instance)
         private def build_session(executor:, notification_capacity:)
-          protocol = Protocol.new(self::PROTONUM)
-          connection = Connection.new(protocol:, executor:, notification_capacity:)
-          endpoint = Endpoint.new(self)
-          new(connection, endpoint:).extend(Nl::Family::Session)
+          owner = Client.new(protonum: self::PROTONUM, executor:, notification_capacity:)
+          owner.family(self).extend(Nl::Family::Session)
         rescue Exception
-          connection&.close
+          owner&.close
           raise
         end
       end
