@@ -39,8 +39,9 @@ module Nl
         end
       end
 
-      def family_key(endpoint) = endpoint.family_id
-      def frame_key(header) = header.type
+      def notification_channel_key(endpoint) = endpoint.family_id
+      def notification_route_keys(endpoint, _classes) = [endpoint.family_id]
+      def notification_frame_key(header) = header.type
 
       def notification_frame?(endpoint, header, _payload)
         header.type == endpoint.family_id

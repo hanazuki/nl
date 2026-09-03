@@ -342,8 +342,8 @@ module Ynl
 
     private def emit_default_resolver(default_resolver)
       emit_rbs_comment(
-        '(?resolver: ^(::Nl::Genl::Connection, ::String) -> ::Nl::Genl::FamilyInfo, ?executor: executor?, ?notification_capacity: ::Integer?) -> (::Nl::Family::Session & instance)',
-        '| [R] (?resolver: ^(::Nl::Genl::Connection, ::String) -> ::Nl::Genl::FamilyInfo, ?executor: executor?, ?notification_capacity: ::Integer?) { (instance) -> R } -> R',
+        '(?resolver: ^(::Nl::Genl::Client, ::String) -> ::Nl::Genl::FamilyInfo, ?executor: executor?, ?notification_capacity: ::Integer?) -> (::Nl::Family::Session & instance)',
+        '| [R] (?resolver: ^(::Nl::Genl::Client, ::String) -> ::Nl::Genl::FamilyInfo, ?executor: executor?, ?notification_capacity: ::Integer?) { (instance) -> R } -> R',
       )
       write("def self.open(resolver: #{default_resolver}, executor: nil, notification_capacity: DEFAULT_NOTIFICATION_CAPACITY)")
       indent { write('super') }

@@ -1,4 +1,4 @@
-# Generic Netlink connection handling
+# Generic Netlink client handling
 #--
 # rbs_inline: enabled
 
@@ -12,20 +12,18 @@ module Nl
       :multicast_groups, #: Hash[String, Integer]
     )
 
-    class Connection
+    class Client
       #--
       # @rbs (resolver: ^(instance, ::String) -> FamilyInfo, ?executor: executor?, ?notification_capacity: Integer?) -> instance
       #  | [R] (resolver: ^(instance, ::String) -> FamilyInfo, ?executor: executor?, ?notification_capacity: Integer?) { (instance) -> R } -> R
       def self.open(resolver:, executor: nil, notification_capacity: Nl::Connection::DEFAULT_NOTIFICATION_CAPACITY)
-        conn = new(resolver:, executor:, notification_capacity:)
-        if block_given?
-          begin
-            yield conn
-          ensure
-            conn.close
-          end
-        else
-          conn
+        client = new(resolver:, executor:, notification_capacity:)
+        return client unless block_given?
+
+        begin
+          yield client
+        ensure
+          client.close
         end
       end
 

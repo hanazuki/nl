@@ -39,8 +39,9 @@ RSpec.describe Nl::NotificationRouter do
   NotificationHeader = Data.define(:type)
 
   NotificationProtocol = Class.new do
-    def family_key(endpoint) = endpoint
-    def frame_key(header) = header.type
+    def notification_channel_key(endpoint) = endpoint
+    def notification_route_keys(endpoint, _classes) = [endpoint]
+    def notification_frame_key(header) = header.type
     def notification_frame?(_endpoint, _header, _payload) = true
     def notification_class(_endpoint, _header, _payload, _classes) = nil
     def decode_notification(*) = raise 'must not decode an unknown notification'

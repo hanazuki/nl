@@ -7,9 +7,9 @@ require 'nl/linux'
 RSpec.describe Nl::Linux::NlctrlResolver do
   describe '#call' do
     it 'bootstraps the nlctrl family ID without querying nlctrl' do
-      connection = instance_double(Nl::Genl::Connection)
+      client = instance_double(Nl::Genl::Client)
 
-      expect(described_class.new.call(connection, 'nlctrl')).to eq(
+      expect(described_class.new.call(client, 'nlctrl')).to eq(
         Nl::Genl::FamilyInfo.new(
           id: Nl::Genl::GENL_ID_CTRL,
           multicast_groups: {}.freeze,
@@ -28,12 +28,12 @@ RSpec.describe Nl::Linux::NlctrlResolver do
         mcast_groups: [group],
       )
       nlctrl = instance_double(Nl::Linux::Nlctrl)
-      connection = instance_double(Nl::Genl::Connection)
+      client = instance_double(Nl::Genl::Client)
 
-      expect(connection).to receive(:family).with(Nl::Linux::Nlctrl).and_return(nlctrl)
+      expect(client).to receive(:family).with(Nl::Linux::Nlctrl).and_return(nlctrl)
       expect(nlctrl).to receive(:do_getfamily).with(family_name: 'ethtool').and_return(reply)
 
-      expect(described_class.new.call(connection, 'ethtool')).to eq(
+      expect(described_class.new.call(client, 'ethtool')).to eq(
         Nl::Genl::FamilyInfo.new(id: 42, multicast_groups: {'monitor' => 7}.freeze),
       )
     end

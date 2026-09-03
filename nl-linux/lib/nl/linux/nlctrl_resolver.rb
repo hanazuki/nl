@@ -8,10 +8,10 @@ module Nl
     # Resolves Generic Netlink family metadata through nlctrl.
     class NlctrlResolver
       #--
-      # @rbs connection: ::Nl::Genl::Connection
+      # @rbs client: ::Nl::Genl::Client
       # @rbs name: String
       # @rbs return: ::Nl::Genl::FamilyInfo
-      def call(connection, name)
+      def call(client, name)
         if name == Nlctrl::NAME
           return Nl::Genl::FamilyInfo.new(
             id: Nl::Genl::GENL_ID_CTRL,
@@ -19,7 +19,7 @@ module Nl
           )
         end
 
-        reply = connection.family(Nlctrl).do_getfamily(family_name: name)
+        reply = client.family(Nlctrl).do_getfamily(family_name: name)
         groups = (reply.mcast_groups || []).to_h do |attributes|
           [attributes[:name].value, attributes[:id].value]
         end

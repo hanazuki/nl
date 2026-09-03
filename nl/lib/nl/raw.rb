@@ -1,4 +1,5 @@
 require_relative 'raw/protocol'
+require_relative 'raw/client'
 require_relative 'datatypes'
 
 module Nl

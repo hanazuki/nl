@@ -6,28 +6,29 @@ require 'nl/linux'
 RSpec.describe do
   let(:resolver) { Nl::Linux::DEFAULT_RESOLVER }
 
+  describe 'shared raw client' do
+    example 'shares a blocking raw client with the address family' do
+      Nl::Raw::Client.open(protonum: Nl::Linux::RtLink::PROTONUM) do |client|
+        links = client.family(Nl::Linux::RtLink).dump_getlink
+        addrs = client.family(Nl::Linux::RtAddr).dump_getaddr
+
+        expect(links.map(&:ifname)).to include('lo')
+        expect(addrs.map(&:label)).to include('lo')
+      end
+    end
+
+    example 'multiplexes a do operation and dump across raw families' do
+      Nl::Raw::Client.open(protonum: Nl::Linux::RtLink::PROTONUM, executor: :thread) do |client|
+        addrs = client.family(Nl::Linux::RtAddr).async.dump_getaddr
+        link = client.family(Nl::Linux::RtLink).async.do_getlink(ifi_index: 1)
+
+        expect(link.await).to have_attributes(ifname: 'lo')
+        expect(addrs.to_a.map(&:label)).to include('lo')
+      end
+    end
+  end
+
   describe Nl::Linux::RtLink do
-    example 'multiplexes asynchronous do and dump operations on one socket' do
-      Nl::Linux::RtLink.open(executor: :thread) do |rtlink|
-        link_future = rtlink.async.do_getlink(ifi_index: 1)
-        links_stream = rtlink.async.dump_getlink
-
-        expect(link_future.await).to have_attributes(ifname: 'lo')
-        expect(links_stream.to_a.map(&:ifname)).to include('lo')
-      end
-    end
-
-    example 'do_getlink returns link info for loopback' do
-      Nl::Linux::RtLink.open do |rtlink|
-        reply = rtlink.do_getlink(ifi_index: 1)
-        expect(reply).to be_a Nl::Linux::RtLink::Messages::DoGetlinkReply
-
-        expect(reply.fixed_header.ifi_index).to eq 1
-        expect(reply.ifname).to eq 'lo'
-        expect(reply.fixed_header.ifi_type).to eq 772  # ARPHRD_LOOPBACK
-      end
-    end
-
     example 'dump_getlink returns link list including loopback' do
       Nl::Linux::RtLink.open do |rtlink|
         r = rtlink.dump_getlink
@@ -63,6 +64,27 @@ RSpec.describe do
         expect(reply.link_64).not_to be_nil
       end
     end
+
+    example 'multiplexes asynchronous do and dump operations on one socket' do
+      Nl::Linux::RtLink.open(executor: :thread) do |rtlink|
+        links_stream = rtlink.async.dump_getlink
+        link_future = rtlink.async.do_getlink(ifi_index: 1)
+
+        expect(link_future.await).to have_attributes(ifname: 'lo')
+        expect(links_stream.to_a.map(&:ifname)).to include('lo')
+      end
+    end
+
+    example 'do_getlink returns link info for loopback' do
+      Nl::Linux::RtLink.open do |rtlink|
+        reply = rtlink.do_getlink(ifi_index: 1)
+        expect(reply).to be_a Nl::Linux::RtLink::Messages::DoGetlinkReply
+
+        expect(reply.fixed_header.ifi_index).to eq 1
+        expect(reply.ifname).to eq 'lo'
+        expect(reply.fixed_header.ifi_type).to eq 772  # ARPHRD_LOOPBACK
+      end
+    end
   end
 
   describe Nl::Linux::RtAddr do
@@ -93,8 +115,8 @@ RSpec.describe do
 
   describe Nl::Linux::Nlctrl do
     example 'do_getfamily returns family info for nlctrl' do
-      Nl::Genl::Connection.open(resolver:) do |connection|
-        nlctrl = connection.family(Nl::Linux::Nlctrl)
+      Nl::Genl::Client.open(resolver:) do |client|
+        nlctrl = client.family(Nl::Linux::Nlctrl)
         reply = nlctrl.do_getfamily(family_name: 'nlctrl')
         expect(reply).to be_a Nl::Linux::Nlctrl::Messages::DoGetfamilyReply
 
@@ -103,8 +125,8 @@ RSpec.describe do
     end
 
     example 'dump_getfamily returns family list including nlctrl' do
-      Nl::Genl::Connection.open(resolver:) do |connection|
-        nlctrl = connection.family(Nl::Linux::Nlctrl)
+      Nl::Genl::Client.open(resolver:) do |client|
+        nlctrl = client.family(Nl::Linux::Nlctrl)
         replies = nlctrl.dump_getfamily
         expect(replies).to be_an Array
 
@@ -115,8 +137,8 @@ RSpec.describe do
     end
 
     example 'dump_getpolicy returns policies for nlctrl' do
-      Nl::Genl::Connection.open(resolver:) do |connection|
-        nlctrl = connection.family(Nl::Linux::Nlctrl)
+      Nl::Genl::Client.open(resolver:) do |client|
+        nlctrl = client.family(Nl::Linux::Nlctrl)
         replies = nlctrl.dump_getpolicy(family_name: 'nlctrl')
         expect(replies).not_to be_empty
         expect(replies).to all be_a Nl::Linux::Nlctrl::Messages::DumpGetpolicyReply
@@ -241,8 +263,8 @@ RSpec.describe do
     example 'do_linkstate_get returns link state for loopback' do
       header = Nl::Linux::Ethtool::AttributeSets::Header.build_attributes(dev_index: 1)
 
-      Nl::Genl::Connection.open(resolver:) do |conn|
-        ethtool = conn.family(Nl::Linux::Ethtool)
+      Nl::Genl::Client.open(resolver:) do |client|
+        ethtool = client.family(Nl::Linux::Ethtool)
         reply = ethtool.do_linkstate_get(header:)
         expect(reply).to be_a Nl::Linux::Ethtool::Messages::DoLinkstateGetReply
 
@@ -253,8 +275,8 @@ RSpec.describe do
     end
 
     example 'dump_strset_get returns string set counts' do
-      Nl::Genl::Connection.open(resolver:) do |conn|
-        ethtool = conn.family(Nl::Linux::Ethtool)
+      Nl::Genl::Client.open(resolver:) do |client|
+        ethtool = client.family(Nl::Linux::Ethtool)
         # The kernel only parses counts-only when stringsets is present.
         stringsets = Nl::Linux::Ethtool::AttributeSets::Stringsets.build_attributes
         r = ethtool.dump_strset_get(stringsets:, counts_only: true)
@@ -267,8 +289,8 @@ RSpec.describe do
     end
 
     example 'dump_features_get returns device features' do
-      Nl::Genl::Connection.open(resolver:) do |conn|
-        ethtool = conn.family(Nl::Linux::Ethtool)
+      Nl::Genl::Client.open(resolver:) do |client|
+        ethtool = client.family(Nl::Linux::Ethtool)
         header = Nl::Linux::Ethtool::AttributeSets::Header.build_attributes(
           flags: 1, # ETHTOOL_FLAG_COMPACT_BITSETS
         )
@@ -282,8 +304,8 @@ RSpec.describe do
     end
 
     example 'dump_linkstate_get returns entry for loopback' do
-      Nl::Genl::Connection.open(resolver:) do |conn|
-        ethtool = conn.family(Nl::Linux::Ethtool)
+      Nl::Genl::Client.open(resolver:) do |client|
+        ethtool = client.family(Nl::Linux::Ethtool)
         r = ethtool.dump_linkstate_get
         expect(r).to be_an Array
 

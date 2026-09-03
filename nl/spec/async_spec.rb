@@ -347,8 +347,9 @@ RSpec.describe Nl::Async do
         end
       end
 
-      def family_key(_endpoint) = nil
-      def frame_key(_header) = nil
+      def notification_channel_key(_endpoint) = nil
+      def notification_route_keys(_endpoint, _classes) = [nil]
+      def notification_frame_key(_header) = nil
       def frame_type(message_class) = message_class::TYPE
       def notification_frame?(_endpoint, header, _payload) = header.type == 43
       def notification_class(_endpoint, header, _payload, classes) = classes[header.type]
