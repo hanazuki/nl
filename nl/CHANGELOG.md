@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Support building and reading attributes declared as repeatable.
 - Add `Raw::Client` for using raw families with the same protocol number over one connection.
 - Rename `Genl::Connection` to `Genl::Client`.
 - Remove `UnknownNotification`; unsolicited messages without a registered decoder are now ignored.

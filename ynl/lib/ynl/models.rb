@@ -101,10 +101,14 @@ module Ynl
     end
 
     class AttributeSet
-      Attribute = ::Struct.new(:name, :type, :value, :checks, :doc) do
+      Attribute = ::Struct.new(:name, :type, :value, :checks, :doc, :multi_attr) do
         def resolve(f)
           self.type = type.resolve(f)
           self
+        end
+
+        def multi?
+          multi_attr
         end
       end
 
@@ -136,17 +140,14 @@ module Ynl
       end
 
       def attributes
-        # WORKAROUND: Some upstream specs (e.g. devlink) contain duplicate attribute
-        # entries in subset-of attribute sets. Deduplicate by name here until the
-        # upstream specs are fixed.
-        @attributes.uniq {|attr| attr.fetch('name') }.map do |attr|
-          name = attr.fetch('name')
-          superset.attributes.find { it.name == name } or raise ParseError "No attribute with name #{name}"
-        end
+        @attributes
       end
 
       def resolve(f)
+        attributes.map! { it.resolve(f) }
         self
+      rescue
+        raise ParseError, "Failed to resolve attribute subset: #{name}"
       end
     end
 

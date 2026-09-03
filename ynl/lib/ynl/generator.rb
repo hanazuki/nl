@@ -130,6 +130,7 @@ module Ynl
                 emit_class(attr.name.as_class_name, 'Attribute') do
                   emit_const('TYPE', attr.value)
                   emit_const('NAME', attr.name.as_variable_name.as_symbol_literal)
+                  emit_const('MULTI', 'true') if attr.multi?
                   if attr.type.is_a?(Types::NestedAttributes) ||
                     attr.type.is_a?(Types::NestTypeValue) ||
                     (attr.type.is_a?(Types::IndexedArray) && attr.type.sub_type.is_a?(Types::NestedAttributes))
@@ -226,7 +227,7 @@ module Ynl
               params = header_params + attribute_params
               params.reject! { it.type.is_a? Types::Pad }
 
-              rbs_params = params.map { |it| "?#{it.name.as_variable_name}: #{it.type.rbs_type}" }.join(', ')
+              rbs_params = params.map { |it| "?#{it.name.as_variable_name}: #{parameter_rbs_type(it)}" }.join(', ')
               rbs_result = request_reply.reply ? reply_class : 'void'
 
               emit_comment(operation_doc(oper))
@@ -270,7 +271,7 @@ module Ynl
               attribute_params = oper.attribute_set.attributes.filter { request_reply.request.attributes.include?(it.name) }
               attribute_params.reject! {|a| header_params.any? {|h| h.name == a.name } }
               params = (header_params + attribute_params).reject { it.type.is_a? Types::Pad }
-              rbs_params = params.map { |it| "?#{it.name.as_variable_name}: #{it.type.rbs_type}" }.join(', ')
+              rbs_params = params.map { |it| "?#{it.name.as_variable_name}: #{parameter_rbs_type(it)}" }.join(', ')
               result = request_reply.reply ? reply_class : 'void'
               operation = method == 'dump' ? "::Nl::Async::Stream[#{result}]" : "::Nl::Async::Future[#{result}]"
 
@@ -419,16 +420,25 @@ module Ynl
           emit_getter(param.as_method_name, "fixed_header.#{param.as_method_name}")
         end
         attribute_params.each do |param|
-          datatype = attribute_set.attributes.find { it.name == param }.type
+          attribute = attribute_set.attributes.find { it.name == param }
+          datatype = attribute.type
           next if datatype.is_a? Types::Pad
           extending = fixed_header&.members&.any? { it.name == param }
+
+          if extending && attribute.multi?
+            raise ParseError, "Multi-attribute #{param.inspect} conflicts with a fixed-header member"
+          end
 
           if extending
             emit_comment("Gets the value of `#{param}` attribute or fixed header in the message.")
           else
             emit_comment("Gets the value of `#{param}` attribute in the message.")
           end
-          emit_rbs_comment('return: ' + datatype.rbs_type)
+          emit_rbs_comment('return: ' + attribute_rbs_type(attribute))
+          if attribute.multi?
+            emit_getter(param.as_method_name, "attributes[#{param.as_variable_name.as_symbol_literal}].map(&:value)")
+            next
+          end
           if extending
             emit_getter(param.as_method_name, "attributes[#{param.as_variable_name.as_symbol_literal}]&.value || fixed_header.#{param.as_method_name}")
           else
@@ -436,6 +446,19 @@ module Ynl
           end
         end
       end
+    end
+
+    private def parameter_rbs_type(param)
+      if param.is_a?(Models::AttributeSet::Attribute)
+        attribute_rbs_type(param)
+      else
+        param.type.rbs_type
+      end
+    end
+
+    private def attribute_rbs_type(attribute)
+      type = attribute.type.rbs_type
+      attribute.multi? ? "::Array[#{type}]" : type
     end
 
     private def emit_mcast_groups

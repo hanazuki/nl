@@ -76,6 +76,25 @@ RSpec.describe Ynl::Parser do
     end
   end
 
+  describe 'attribute subsets' do
+    subject(:attributes) do
+      parse('multi_attr.yaml').attribute_sets.fetch('subset').attributes.to_h { [it.name, it] }
+    end
+
+    it 'shallowly overlays definitions while retaining parent values' do
+      expect(attributes.fetch('count').type).to have_attributes(type: 'u32')
+      expect(attributes.fetch('count').value).to eq 1
+      expect(attributes.fetch('address').type).to have_attributes(display_hint: 'ipv6')
+      expect(attributes.fetch('child').type.attribute_set.name).to eq 'inner-b'
+      expect(attributes.fetch('constrained').checks.map(&:operation)).to eq ['max']
+    end
+
+    it 'preserves multi-attribute cardinality overrides' do
+      expect(attributes.fetch('ids')).to be_multi
+      expect(attributes.fetch('ids').value).to eq 4
+    end
+  end
+
   describe 'unified enum model' do
     subject(:family) { parse('ops_unified.yaml') }
 

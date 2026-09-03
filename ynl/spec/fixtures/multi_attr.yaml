@@ -1,0 +1,53 @@
+name: multi-attr
+protocol: genetlink
+
+attribute-sets:
+  - name: inner-a
+    attributes:
+      - name: number
+        type: u32
+  - name: inner-b
+    attributes:
+      - name: text
+        type: string
+  - name: base
+    attributes:
+      - name: count
+        type: u16
+      - name: address
+        type: binary
+        display-hint: ipv4-or-v6
+      - name: child
+        type: nest
+        nested-attributes: inner-a
+      - name: ids
+        type: u32
+      - name: constrained
+        type: u32
+        checks:
+          min: 1
+          max: 10
+  - name: subset
+    subset-of: base
+    attributes:
+      - name: count
+        type: u32
+      - name: address
+        display-hint: ipv6
+      - name: child
+        nested-attributes: inner-b
+      - name: ids
+        multi-attr: true
+      - name: constrained
+        checks:
+          max: 5
+
+operations:
+  list:
+    - name: update
+      attribute-set: subset
+      do:
+        request:
+          attributes: [count, address, child, ids, constrained]
+        reply:
+          attributes: [count, address, child, ids, constrained]

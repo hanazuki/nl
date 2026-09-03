@@ -4,6 +4,12 @@ module Nl
   class AttributeSet
     Attribute = Struct.new(:value)
     class Attribute
+      MULTI = false
+
+      def self.multi?
+        self::MULTI
+      end
+
       def self.decode(decoder)
         value = self::DATATYPE.decode(decoder)
         new(value)
@@ -36,8 +42,8 @@ module Nl
         raise TypeError, "attribute type must be a Symbol or an Integer"
       end
 
-      # TODO: multi-attr
-      @attributes.find { it.kind_of?(attr_class) } rescue binding.irb
+      attributes = @attributes.select { it.kind_of?(attr_class) }
+      attr_class.multi? ? attributes : attributes.first
     end
 
     def <<(attr)
@@ -91,9 +97,16 @@ module Nl
       end
 
       def build_attributes(**params)
-        attrs = params.map do |name, value|
+        attrs = params.flat_map do |name, value|
           attr_class = self::BY_NAME[name] or raise "Unknown attribute #{name}"
-          attr_class.new(value)
+          if attr_class.multi?
+            unless value.is_a?(Array)
+              raise TypeError, "value for multi-attribute #{name} must be an Array"
+            end
+            value.map { attr_class.new(it) }
+          else
+            attr_class.new(value)
+          end
         end
         new(attrs)
       end
