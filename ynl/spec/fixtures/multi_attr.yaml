@@ -51,3 +51,8 @@ operations:
           attributes: [count, address, child, ids, constrained]
         reply:
           attributes: [count, address, child, ids, constrained]
+      dump:
+        request:
+          attributes: [count, address, child, ids, constrained]
+        reply:
+          attributes: [count, address, child, ids, constrained]

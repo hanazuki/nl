@@ -6,6 +6,7 @@ module Nl
   #     def encode: (Encoder, untyped) -> void
   #     def decode: (Decoder) -> untyped
   #     def nlattr_type_flags: () -> Integer
+  #     def coerce: (untyped) -> untyped
   #   end
 
   module DataTypes
@@ -16,6 +17,10 @@ module Nl
 
       def nlattr_type_flags
         0
+      end
+
+      def coerce(value)
+        value
       end
 
       private def checked(value)
@@ -116,6 +121,10 @@ module Nl
         Raw::NLA_F_NESTED
       end
 
+      def coerce(value)
+        value.is_a?(Hash) ? @attribute_set.build_attributes(**value) : value
+      end
+
       def encode(encoder, value)
         unless value.is_a?(@attribute_set)
           raise TypeError, "value must be an instance of #{@attribute_set}"
@@ -144,6 +153,10 @@ module Nl
         encode_level(encoder, value, @levels)
       end
 
+      def coerce(value)
+        coerce_level(value, @levels)
+      end
+
       def decode(decoder)
         decode_level(decoder, @levels)
       end
@@ -160,6 +173,16 @@ module Nl
             end
           end
           encoder.align_to(Raw::NLA_ALIGNTO)
+        end
+      end
+
+      private def coerce_level(values, levels)
+        values.transform_values do |value|
+          if levels == 1
+            value.is_a?(Hash) ? @attribute_set.build_attributes(**value) : value
+          else
+            coerce_level(value, levels - 1)
+          end
         end
       end
 
@@ -196,6 +219,10 @@ module Nl
           end
           encoder.align_to(Raw::NLA_ALIGNTO)
         end
+      end
+
+      def coerce(values)
+        values.map { @sub_type.coerce(it) }
       end
 
       def decode(decoder)

@@ -56,6 +56,30 @@ RSpec.describe Ynl do
       expect(generated.string).to include('# @rbs return: ::Array[::Integer]')
     end
 
+    it 'accepts hashes for nested attributes in do and dump operations' do
+      path = Pathname(__dir__) + 'fixtures/multi_attr.yaml'
+      generated = StringIO.new
+      path.open { |source| Ynl::Family.generate(source, generated) }
+      cls = Ynl::Family.build(path)
+      connection = Object.new
+      allow(connection).to receive(:register_notifications)
+      allow(connection).to receive(:receive_notification)
+      allow(connection).to receive(:exchange) do |_endpoint, _kind, request_class, _reply_class, args|
+        request_class.from_params(args)
+      end
+      info = Nl::Genl::FamilyInfo.new(id: 42, multicast_groups: {})
+      family = cls.new(connection, endpoint: Nl::Genl::Endpoint.new(cls, info))
+
+      do_request = family.do_update(child: { text: 'do' })
+      dump_request = family.dump_update(child: { text: 'dump' })
+
+      expect(do_request.child[:text].value).to eq 'do'
+      expect(dump_request.child[:text].value).to eq 'dump'
+      expect(generated.string).to include(
+        '?child: (AttributeSets::InnerB | ::Hash[::Symbol, untyped])',
+      )
+    end
+
     example do
       cls = Ynl::Family.build(yaml)
 

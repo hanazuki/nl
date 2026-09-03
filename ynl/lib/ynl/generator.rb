@@ -450,9 +450,25 @@ module Ynl
 
     private def parameter_rbs_type(param)
       if param.is_a?(Models::AttributeSet::Attribute)
-        attribute_rbs_type(param)
+        type = input_rbs_type(param.type)
+        param.multi? ? "::Array[#{type}]" : type
       else
         param.type.rbs_type
+      end
+    end
+
+    private def input_rbs_type(type)
+      case type
+      when Types::NestedAttributes
+        "(#{type.rbs_type} | ::Hash[::Symbol, untyped])"
+      when Types::NestTypeValue
+        value_type = "(AttributeSets::#{type.attribute_set.name.as_class_name} | ::Hash[::Symbol, untyped])"
+        type.type_values.length.times { value_type = "::Hash[::Integer, #{value_type}]" }
+        value_type
+      when Types::IndexedArray
+        "::Array[#{input_rbs_type(type.sub_type)}]"
+      else
+        type.rbs_type
       end
     end
 
