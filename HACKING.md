@@ -8,9 +8,9 @@ Basic Netlink protocol handling.
   - nl.rb - Library entrypoint.
   - nl/
     - connection.rb - Socket, transport, membership, and notification ownership.
-    - family.rb - Shared high-level family API and the raw-family base class.
+    - family.rb - Shared high-level family API.
     - datatypes.rb - Datatype codecs shared by raw and Generic Netlink schemas.
-    - raw.rb - Raw family message and attribute schema classes.
+    - raw.rb - Raw family base, message, and attribute schema classes.
     - raw/
       - wire.rb - Netlink wire constants and structures.
       - protocol.rb - Raw Netlink endpoints and protocol behavior.

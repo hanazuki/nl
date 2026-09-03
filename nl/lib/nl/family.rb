@@ -2,7 +2,6 @@
 # rbs_inline: enabled
 require_relative 'connection'
 require_relative 'notification'
-require_relative 'raw'
 
 module Nl
   # @rbs!
@@ -127,33 +126,4 @@ module Nl
     end
   end
 
-  module Raw
-    class Family < Nl::Family
-      #--
-      # @rbs (?executor: executor?, ?notification_capacity: Integer?) -> (Nl::Family::Session & instance)
-      #  | [R] (?executor: executor?, ?notification_capacity: Integer?) { (instance) -> R } -> R
-      def self.open(executor: nil, notification_capacity: DEFAULT_NOTIFICATION_CAPACITY)
-        session = build_session(executor:, notification_capacity:)
-        return session unless block_given?
-
-        begin
-          yield session
-        ensure
-          session.close
-        end
-      end
-
-      class << self
-        #--
-        # @rbs (executor: executor?, notification_capacity: Integer) -> (Nl::Family::Session & instance)
-        private def build_session(executor:, notification_capacity:)
-          owner = Client.new(protonum: self::PROTONUM, executor:, notification_capacity:)
-          owner.family(self).extend(Nl::Family::Session)
-        rescue Exception
-          owner&.close
-          raise
-        end
-      end
-    end
-  end
 end

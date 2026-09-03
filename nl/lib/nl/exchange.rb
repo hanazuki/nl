@@ -1,7 +1,7 @@
 # rbs_inline: enabled
 
 require_relative 'error'
-require_relative 'raw'
+require_relative 'raw/protocol'
 
 module Nl
   # State machine for one Netlink request/reply exchange.
