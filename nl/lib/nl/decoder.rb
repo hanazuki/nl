@@ -18,6 +18,10 @@ module Nl
       @position + size <= @limit
     end
 
+    def remaining
+      @limit - @position
+    end
+
     def limit(size)
       orig_limit = @limit
       @limit = @position + size

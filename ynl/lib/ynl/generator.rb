@@ -525,7 +525,12 @@ module Ynl
       when Types::Bitfield32
         "::Nl::DataTypes::Bitfield32.new"
       when Types::Scalar
-        "::Nl::DataTypes::Scalar.new(::Nl::Endian::#{type.byte_order.name.as_class_name}::#{type.type.as_const_name}, check: #{to_checks(checks)})"
+        byte_order = "::Nl::Endian::#{type.byte_order.name.as_class_name}"
+        if ['sint', 'uint'].include?(type.type)
+          "::Nl::DataTypes::VariableInteger.new(#{byte_order}, signed: #{type.type == 'sint'}, check: #{to_checks(checks)})"
+        else
+          "::Nl::DataTypes::Scalar.new(#{byte_order}::#{type.type.as_const_name}, check: #{to_checks(checks)})"
+        end
       when Types::String
         "::Nl::DataTypes::String.new(check: #{to_checks(checks)})"
       when Types::Binary

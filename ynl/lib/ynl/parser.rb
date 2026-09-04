@@ -263,7 +263,7 @@ module Ynl
         :host
       when 'big-endian'
         :big
-      when 'litten-endian'
+      when 'little-endian'
         :little
       else
         raise ParseError, "Unknown endian: #{v}"
