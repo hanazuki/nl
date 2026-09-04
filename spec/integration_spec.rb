@@ -61,7 +61,7 @@ RSpec.describe do
 
         expect(reply.ifindex).to eq 1
         expect(reply.filter_mask).to eq link_64_filter
-        expect(reply.link_64).not_to be_nil
+        expect(reply.link_64).to be_a Nl::Linux::RtLink::Structs::RtnlLinkStats64
       end
     end
 

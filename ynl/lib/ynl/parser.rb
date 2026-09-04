@@ -172,6 +172,7 @@ module Ynl
       when 'binary'
         Types::Binary.new(
           struct: d['struct'] ? Models::Thunk.new {|f| f.structs.fetch(d['struct']) } : nil,
+          length: d['len'],
           display_hint: d['display-hint'],
         )
       when 'pad'
@@ -194,6 +195,7 @@ module Ynl
       when 'binary'
         Types::Binary.new(
           struct: d['struct'] ? Models::Thunk.new {|f| f.structs.fetch(d.fetch('struct')) } : nil,
+          length: nil,
           display_hint: d['display-hint'],
         )
       when 'string'
@@ -213,7 +215,7 @@ module Ynl
             type_values: d.fetch('type-value'),
           )
         else
-          Types::Binary.new(struct: nil, display_hint: nil)
+          Types::Binary.new(struct: nil, length: nil, display_hint: nil)
         end
       when 'sub-message'
         Types::SubMessage.new(
@@ -246,6 +248,7 @@ module Ynl
       when 'binary'
         Types::Binary.new(
           struct: nil,
+          length: nil,
           display_hint: d['display-hint'],
         )
       when 'nest'

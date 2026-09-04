@@ -75,23 +75,28 @@ module Ynl
           end
         end
 
+        deferred_struct_consts = []
         emit_module('Structs') do
           @ynl.structs.each do |name, struct|
             emit_comment(struct.doc)
             write(name.as_class_name, " = Struct.new(")
             indent do
               struct.members.each do |member|
-                write(member.name.as_variable_name.as_symbol_literal, ', #: ', member.type.rbs_type)
+                write(member.name.as_variable_name.as_symbol_literal, ', #: ', struct_member_rbs_type(member.type))
               end
             end
             write(')')
             emit_class(name.as_class_name) do
               emit_nodoc
-              emit_const(
-                'MEMBERS',
-                "Ractor.make_shareable({#{struct.members.map { "#{it.name.as_variable_name}: #{to_datatype(it.type, nil)}" }.join(', ') }})",
-                rbs: 'Hash[::Symbol, ::Nl::_DataType]',
-              )
+              members = struct.members.map do |member|
+                "#{member.name.as_variable_name}: #{to_struct_member_datatype(member.type)}"
+              end
+              members = "Ractor.make_shareable({#{members.join(', ')}})"
+              if struct.members.any? { it.type.is_a?(Types::Binary) && it.type.struct }
+                deferred_struct_consts << ["Structs::#{name.as_class_name}::MEMBERS", members]
+              else
+                emit_const('MEMBERS', members, rbs: 'Hash[::Symbol, ::Nl::_DataType]')
+              end
 
               emit_comment('Decodes the struct.')
               emit_rbs_comment(
@@ -116,6 +121,9 @@ module Ynl
               write('end')
             end
           end
+        end
+        deferred_struct_consts.each do |name, members|
+          emit_const(name, members, rbs: 'Hash[::Symbol, ::Nl::_DataType]')
         end
 
         emit_module('AttributeSets') do
@@ -417,7 +425,7 @@ module Ynl
           next if datatype.is_a? Types::Pad
           next if attribute_params.include?(param)
           emit_comment("Gets the value of `#{param}` field in the message's fixed header.")
-          emit_rbs_comment('return: ' + datatype.rbs_type)
+          emit_rbs_comment('return: ' + struct_member_rbs_type(datatype))
           emit_getter(param.as_method_name, "fixed_header.#{param.as_method_name}")
         end
         attribute_params.each do |param|
@@ -454,7 +462,15 @@ module Ynl
         type = input_rbs_type(param.type)
         param.multi? ? "::Array[#{type}]" : type
       else
-        param.type.rbs_type
+        struct_member_rbs_type(param.type)
+      end
+    end
+
+    private def struct_member_rbs_type(type)
+      if type.is_a?(Types::Binary) && type.struct
+        'Structs::' + type.struct.name.as_class_name
+      else
+        type.rbs_type
       end
     end
 
@@ -462,6 +478,8 @@ module Ynl
       case type
       when Types::NestedAttributes
         "(#{type.rbs_type} | ::Hash[::Symbol, untyped])"
+      when Types::Binary
+        type.struct ? "(#{type.rbs_type} | ::Hash[::Symbol, untyped])" : type.rbs_type
       when Types::NestTypeValue
         value_type = "(AttributeSets::#{type.attribute_set.name.as_class_name} | ::Hash[::Symbol, untyped])"
         type.type_values.length.times { value_type = "::Hash[::Integer, #{value_type}]" }
@@ -534,11 +552,11 @@ module Ynl
       when Types::String
         "::Nl::DataTypes::String.new(check: #{to_checks(checks)})"
       when Types::Binary
-        # if type.struct
-        #   "Structs::" + type.struct.name.as_class_name
-        # else
-        "::Nl::DataTypes::Binary.new(check: #{to_checks(checks)})"
-        # end
+        if type.struct
+          "::Nl::DataTypes::Struct.new(Structs::#{type.struct.name.as_class_name}, check: #{to_checks(checks)}, consume_remaining: true)"
+        else
+          "::Nl::DataTypes::Binary.new(check: #{to_checks(checks)})"
+        end
       when Types::NestedAttributes
         "::Nl::DataTypes::NestedAttributes.new(#{type.attribute_set.name.as_class_name})"
       when Types::NestTypeValue
@@ -549,6 +567,16 @@ module Ynl
         "::Nl::DataTypes::Binary.new(check: nil)"
       else
         raise "Unknown type: #{type.class}"
+      end
+    end
+
+    private def to_struct_member_datatype(type)
+      if type.is_a?(Types::Binary) && type.struct
+        "::Nl::DataTypes::Struct.new(Structs::#{type.struct.name.as_class_name}, check: nil)"
+      elsif type.is_a?(Types::Binary)
+        "::Nl::DataTypes::Binary.new(length: #{type.length}, check: nil)"
+      else
+        to_datatype(type, nil)
       end
     end
 

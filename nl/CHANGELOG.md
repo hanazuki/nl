@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Support fixed-length binary values and structured binary values.
 - Encode Generic Netlink requests with the protocol version.
 - Support building and reading attributes declared as repeatable.
 - Add `Raw::Client` for using raw families with the same protocol number over one connection.

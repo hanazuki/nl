@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Generate binary struct members and attributes as structured values.
 - Parse Generic Netlink family versions and emit them as generated metadata.
 - Generate array parameters and accessors for `multi-attr` attributes.
 - Apply attribute property overrides declared by attribute-set subsets.

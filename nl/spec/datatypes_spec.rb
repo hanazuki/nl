@@ -90,3 +90,27 @@ RSpec.describe Nl::DataTypes::VariableInteger do
     end
   end
 end
+
+RSpec.describe Nl::DataTypes::Binary do
+  subject(:datatype) { described_class.new(length: 3, check: nil) }
+
+  it 'decodes exactly its configured length' do
+    decoder = Nl::Decoder.new(IO::Buffer.for("abcdef".b))
+
+    expect(datatype.decode(decoder)).to eq('abc')
+    expect(decoder.get_string).to eq('def')
+  end
+
+  it 'rejects truncated input' do
+    decoder = Nl::Decoder.new(IO::Buffer.for("ab".b))
+
+    expect { datatype.decode(decoder) }.to raise_error(Nl::Decoder::OutOfBounds)
+  end
+
+  it 'rejects values whose encoded length does not match' do
+    expect { datatype.encode(Nl::Encoder.new, 'ab') }.to raise_error(
+      ArgumentError,
+      'binary value must be exactly 3 bytes, got 2',
+    )
+  end
+end
