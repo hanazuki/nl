@@ -1,0 +1,40 @@
+name: fixed-struct-members
+protocol: genetlink
+definitions:
+  -
+    name: outer
+    type: struct
+    members:
+      - { name: prefix, type: u8 }
+      - { name: bytes, type: binary, len: 3 }
+      - { name: inner, type: binary, struct: inner }
+      - { name: suffix, type: u8 }
+  -
+    name: inner
+    type: struct
+    members:
+      - { name: value, type: u16 }
+attribute-sets:
+  -
+    name: attrs
+    attributes:
+      -
+        name: record
+        type: binary
+        struct: outer
+        checks:
+          exact-len: 7
+      -
+        name: extensible-record
+        type: binary
+        struct: outer
+operations:
+  list:
+    -
+      name: echo
+      attribute-set: attrs
+      do:
+        request:
+          attributes: [record]
+        reply:
+          attributes: [record]

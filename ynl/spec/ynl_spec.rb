@@ -22,6 +22,85 @@ RSpec.describe Ynl do
   end
 
   describe Ynl::Family do
+    it 'encodes and decodes fixed-size binary and nested struct members' do
+      path = Pathname(__dir__) + 'fixtures/fixed_struct_members.yaml'
+      generated = StringIO.new
+      path.open { |source| Ynl::Family.generate(source, generated) }
+      cls = Ynl::Family.build(path)
+      inner = cls::Structs::Inner.new(0x0504)
+      outer = cls::Structs::Outer.new(1, "\x02\x03\x04".b, inner, 6)
+      encoder = Nl::Encoder.new
+
+      outer.encode(encoder)
+      decoded = cls::Structs::Outer.decode(Nl::Decoder.new(encoder.buffer))
+
+      expect(encoder.buffer.get_string).to eq("\x01\x02\x03\x04\x04\x05\x06".b)
+      expect(decoded).to eq(outer)
+      expect(generated.string).to include(':"inner", #: Structs::Inner')
+      expect(generated.string).to include('bytes: ::Nl::DataTypes::Binary.new(length: 3, check: nil)')
+      expect(generated.string).to include('inner: ::Nl::DataTypes::Struct.new(Structs::Inner, check: nil)')
+    end
+
+    it 'encodes and decodes structured binary attributes' do
+      path = Pathname(__dir__) + 'fixtures/fixed_struct_members.yaml'
+      generated = StringIO.new
+      path.open { |source| Ynl::Family.generate(source, generated) }
+      cls = Ynl::Family.build(path)
+      values = {
+        prefix: 1,
+        bytes: "\x02\x03\x04".b,
+        inner: {value: 0x0504},
+        suffix: 6,
+      }
+      attributes = cls::AttributeSets::Attrs.build_attributes(record: values)
+      encoder = Nl::Encoder.new
+
+      attributes.encode(encoder)
+      decoded = cls::AttributeSets::Attrs.decode(Nl::Decoder.new(encoder.buffer))[:record].value
+
+      expect(decoded).to be_a(cls::Structs::Outer)
+      expect(decoded).to have_attributes(prefix: 1, bytes: "\x02\x03\x04".b, suffix: 6)
+      expect(decoded.inner).to eq(cls::Structs::Inner.new(0x0504))
+      expect(generated.string).to include(
+        '::Nl::DataTypes::Struct.new(Structs::Outer, check:',
+      )
+      expect(generated.string).to include(
+        '?record: (Structs::Outer | ::Hash[::Symbol, untyped])',
+      )
+      expect(generated.string).to include('# @rbs return: Structs::Outer')
+    end
+
+    it 'ignores extension bytes after a structured binary attribute' do
+      cls = Ynl::Family.build(Pathname(__dir__) + 'fixtures/fixed_struct_members.yaml')
+      outer = cls::Structs::Outer.new(
+        1,
+        "\x02\x03\x04".b,
+        cls::Structs::Inner.new(0x0504),
+        6,
+      )
+      encoder = Nl::Encoder.new
+      encoder.measure(Nl::Endian::Host::U16) do
+        Nl::Raw::NlAttr.new(0, 2).encode(encoder)
+        outer.encode(encoder)
+        encoder.put_string("\xaa\xbb".b)
+      end
+      encoder.align_to(Nl::Raw::NLA_ALIGNTO)
+
+      attributes = cls::AttributeSets::Attrs.decode(Nl::Decoder.new(encoder.buffer))
+
+      expect(attributes[:extensible_record].value).to eq(outer)
+    end
+
+    it 'rejects incorrectly sized fixed binary struct members' do
+      cls = Ynl::Family.build(Pathname(__dir__) + 'fixtures/fixed_struct_members.yaml')
+      outer = cls::Structs::Outer.new(1, "\x02\x03".b, cls::Structs::Inner.new(4), 5)
+
+      expect { outer.encode(Nl::Encoder.new) }.to raise_error(
+        ArgumentError,
+        'binary value must be exactly 3 bytes, got 2',
+      )
+    end
+
     it 'generates variable-width integer datatypes for uint and sint attributes' do
       source = StringIO.new(<<~YAML)
         name: variable-integers

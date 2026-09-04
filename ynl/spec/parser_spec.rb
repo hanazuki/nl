@@ -93,6 +93,18 @@ RSpec.describe Ynl::Parser do
     end
   end
 
+  describe 'fixed-size binary struct members' do
+    subject(:members) { parse('fixed_struct_members.yaml').structs.fetch('outer').members }
+
+    it 'retains binary lengths' do
+      expect(members.fetch(1).type).to have_attributes(length: 3, struct: nil)
+    end
+
+    it 'resolves nested struct references' do
+      expect(members.fetch(2).type.struct.name).to eq('inner')
+    end
+  end
+
   describe 'attribute subsets' do
     subject(:attributes) do
       parse('multi_attr.yaml').attribute_sets.fetch('subset').attributes.to_h { [it.name, it] }

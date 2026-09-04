@@ -27,13 +27,15 @@ module Ynl
       end
     end
     Binary = Struct.new(:struct, :length, :display_hint) do
+      using Generator::Refinements
+
       def resolve(f)
         self.struct = struct.resolve(f) if self.struct
         self
       end
 
       def rbs_type
-        '::String'
+        struct ? 'Structs::' + struct.name.as_class_name : '::String'
       end
     end
     NestedAttributes = Struct.new(:attribute_set) do

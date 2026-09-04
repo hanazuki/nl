@@ -95,16 +95,68 @@ module Nl
     end
 
     class Binary < Base
-      def initialize(check:)
+      def initialize(length: nil, check:)
         super(check:)
+        @length = length
       end
 
       def encode(encoder, value)
-        encoder.put_string(checked(value))
+        value = checked(value)
+        if @length && value.bytesize != @length
+          raise ArgumentError, "binary value must be exactly #{@length} bytes, got #{value.bytesize}"
+        end
+        encoder.put_string(value)
       end
 
       def decode(decoder)
-        checked(decoder.get_string)
+        checked(decoder.get_string(@length || decoder.remaining))
+      end
+    end
+
+    class Struct < Base
+      def initialize(type, check: nil, consume_remaining: false)
+        super(check:)
+        @type = type
+        @consume_remaining = consume_remaining
+      end
+
+      def coerce(value)
+        return value unless value.is_a?(Hash)
+
+        unknown = value.keys - @type::MEMBERS.keys
+        raise ArgumentError, "unknown struct members: #{unknown.join(', ')}" unless unknown.empty?
+
+        @type.new(*@type::MEMBERS.map { |name, datatype| datatype.coerce(value[name]) })
+      end
+
+      def encode(encoder, value)
+        unless value.is_a?(@type)
+          raise TypeError, "value must be an instance of #{@type}"
+        end
+
+        if @check
+          temporary = Encoder.new
+          value.encode(temporary)
+          encoder.put_string(checked(temporary.buffer.get_string))
+        else
+          value.encode(encoder)
+        end
+      end
+
+      def decode(decoder)
+        unless @check
+          value = @type.decode(decoder)
+          decoder.skip if @consume_remaining
+          return value
+        end
+
+        payload = checked(decoder.get_string)
+        nested = Decoder.new(IO::Buffer.for(payload))
+        nested.limit(payload.bytesize) do
+          value = @type.decode(it)
+          it.skip if @consume_remaining
+          value
+        end
       end
     end
 
