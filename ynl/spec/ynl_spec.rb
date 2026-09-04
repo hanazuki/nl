@@ -22,6 +22,32 @@ RSpec.describe Ynl do
   end
 
   describe Ynl::Family do
+    it 'generates variable-width integer datatypes for uint and sint attributes' do
+      source = StringIO.new(<<~YAML)
+        name: variable-integers
+        protocol: genetlink
+        doc: Variable-width integer test family.
+        attribute-sets:
+          -
+            name: attrs
+            attributes:
+              - { name: unsigned, type: uint }
+              - { name: signed, type: sint }
+        operations:
+          list: []
+      YAML
+      generated = StringIO.new
+
+      Ynl::Family.generate(source, generated)
+
+      expect(generated.string).to include(
+        '::Nl::DataTypes::VariableInteger.new(::Nl::Endian::Host, signed: false, check: nil)',
+      )
+      expect(generated.string).to include(
+        '::Nl::DataTypes::VariableInteger.new(::Nl::Endian::Host, signed: true, check: nil)',
+      )
+    end
+
     it 'exposes definitions and uses them in attribute checks' do
       path = Pathname(__dir__) + 'fixtures/constants.yaml'
       generated = StringIO.new

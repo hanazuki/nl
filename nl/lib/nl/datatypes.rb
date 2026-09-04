@@ -44,6 +44,42 @@ module Nl
       end
     end
 
+    class VariableInteger < Base
+      UINT32_RANGE = (0...2**32)
+      UINT64_RANGE = (0...2**64)
+      SINT32_RANGE = (-(2**31)...2**31)
+      SINT64_RANGE = (-(2**63)...2**63)
+
+      def initialize(byte_order, signed:, check:)
+        super(check:)
+        prefix = signed ? 'S' : 'U'
+        @type32 = byte_order.const_get("#{prefix}32")
+        @type64 = byte_order.const_get("#{prefix}64")
+        @range32 = signed ? SINT32_RANGE : UINT32_RANGE
+        @range64 = signed ? SINT64_RANGE : UINT64_RANGE
+      end
+
+      def encode(encoder, value)
+        value = checked(value || 0)
+        unless @range64.cover?(value)
+          raise RangeError, "integer #{value.inspect} is outside the #{@range64.begin}...#{@range64.end} range"
+        end
+
+        type = @range32.cover?(value) ? @type32 : @type64
+        encoder.put_value(type, value)
+      end
+
+      def decode(decoder)
+        type = case decoder.remaining
+        when 4 then @type32
+        when 8 then @type64
+        else
+          raise Decoder::Error, "variable integer payload must be 4 or 8 bytes, got #{decoder.remaining}"
+        end
+        checked(decoder.get_value(type))
+      end
+    end
+
     class String < Base
       def initialize(check:)
         super(check:)
