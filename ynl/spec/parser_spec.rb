@@ -7,6 +7,23 @@ RSpec.describe Ynl::Parser do
     path.open {|f| Ynl::Parser.new(f) }.parse
   end
 
+  describe 'Generic Netlink family version' do
+    it 'parses an explicit version' do
+      source = StringIO.new(<<~YAML)
+        name: versioned
+        protocol: genetlink
+        version: 2
+        attribute-sets: []
+      YAML
+
+      expect(described_class.new(source).parse.version).to eq 2
+    end
+
+    it 'defaults to version 1' do
+      expect(parse('ops_unified.yaml').version).to eq 1
+    end
+  end
+
   describe 'attribute values' do
     subject(:attributes) { parse('attribute_values.yaml').attribute_sets.fetch('attrs').attributes }
 

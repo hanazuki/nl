@@ -102,6 +102,29 @@ RSpec.describe Ynl do
       expect(cls::Messages::DumpOpARequest::ATTRIBUTES).to be_empty
     end
 
+    it 'generates Generic Netlink family version metadata' do
+      source = StringIO.new(<<~YAML)
+        name: versioned
+        protocol: genetlink
+        version: 2
+        attribute-sets: []
+      YAML
+      generated = StringIO.new
+
+      Ynl::Family.generate(source, generated)
+
+      expect(generated.string).to include('VERSION = 2')
+    end
+
+    it 'generates the default Generic Netlink family version metadata' do
+      generated = StringIO.new
+      path = Pathname(__dir__) + 'fixtures/ops_unified.yaml'
+
+      path.open { |source| Ynl::Family.generate(source, generated) }
+
+      expect(generated.string).to include('VERSION = 1')
+    end
+
     it 'injects a default resolver into Generic Netlink family open methods' do
       generated = StringIO.new
       path = Pathname(__dir__) + 'fixtures/ops_unified.yaml'

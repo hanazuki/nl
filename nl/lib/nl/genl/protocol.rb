@@ -13,6 +13,7 @@ module Nl
       end
 
       def family_id = @info.id
+      def version = @definition.version
       def frame_type(_message_class) = family_id
 
       def multicast_group_id(name, _value)
@@ -29,12 +30,12 @@ module Nl
         super(Raw::NETLINK_GENERIC)
       end
 
-      def encode_message(encoder, _endpoint, request, seq:, pid:)
+      def encode_message(encoder, endpoint, request, seq:, pid:)
         message = request.message
         header = Raw::NlMsgHdr.new(0, request.type, request.flags, seq, pid)
         encoder.measure(Endian::Host::U16) do
           header.encode(encoder)
-          Nl::Genl::GenlMsgHdr.new(message.class::TYPE, 1, 0).encode(encoder)
+          Nl::Genl::GenlMsgHdr.new(message.class::TYPE, endpoint.version, 0).encode(encoder)
           message.encode(encoder)
         end
       end

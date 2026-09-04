@@ -1,6 +1,6 @@
 module Ynl
   module Models
-    Family = ::Struct.new(:name, :protocol, :protonum, :doc,
+    Family = ::Struct.new(:name, :protocol, :version, :protonum, :doc,
       :consts, :enums, :flags, :structs,
       :attribute_sets, :sub_messages, :operations, :mcast_groups)
     class Family

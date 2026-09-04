@@ -25,6 +25,7 @@ module Ynl
 
     def parse
       protocol = @yaml['protocol'] || 'genetlink'
+      version = @yaml.fetch('version', 1)
       protonum = @yaml['protonum']
       name = @yaml['name']
       doc = translate_doc(@yaml['doc'])
@@ -87,6 +88,7 @@ module Ynl
       Models::Family.new(
         name:,
         protocol:,
+        version:,
         protonum:,
         doc:,
         consts: @consts,
