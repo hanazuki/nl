@@ -61,6 +61,7 @@ module Ynl
         emit_const('NAME', @ynl.name.as_string_literal)
 
         emit_const('PROTONUM', @ynl.protonum) if raw
+        emit_const('VERSION', @ynl.version) unless raw
         emit_default_resolver(default_resolver) if default_resolver && !raw
 
         emit_mcast_groups

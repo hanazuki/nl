@@ -9,6 +9,8 @@ require_relative 'genl/protocol'
 module Nl
   module Genl
     class Family < Nl::Family
+      def self.version = self::VERSION
+
       #--
       # @rbs (resolver: ^(Client, ::String) -> FamilyInfo, ?executor: executor?, ?notification_capacity: Integer?) -> (Nl::Family::Session & instance)
       #  | [R] (resolver: ^(Client, ::String) -> FamilyInfo, ?executor: executor?, ?notification_capacity: Integer?) { (instance) -> R } -> R

@@ -20,7 +20,12 @@ RSpec.describe Nl::Genl::Protocol do
   GenlNotification.const_set(:FIXED_HEADER, nil)
   GenlNotification.const_set(:ATTRIBUTE_SET, GenlNotificationAttributes)
 
-  let(:family) { Class.new { const_set(:NAME, 'fake') } }
+  let(:family) do
+    Class.new(Nl::Genl::Family) do
+      const_set(:NAME, 'fake')
+      const_set(:VERSION, 2)
+    end
+  end
   let(:info) { Nl::Genl::FamilyInfo.new(id: 42, multicast_groups: {}) }
   let(:endpoint) { Nl::Genl::Endpoint.new(family, info) }
   subject(:protocol) { described_class.new }
@@ -31,8 +36,8 @@ RSpec.describe Nl::Genl::Protocol do
     protocol.encode_message(encoder, endpoint, request, seq: 1, pid: 77)
 
     length, type, = encoder.buffer.get_string.unpack('L<S<S<')
-    command, = encoder.buffer.get_string(16, 4).unpack('C')
-    expect([length, type, command]).to eq([20, 42, 7])
+    command, version, = encoder.buffer.get_string(16, 4).unpack('CC')
+    expect([length, type, command, version]).to eq([20, 42, 7, 2])
   end
 
   it 'selects and decodes notifications by family ID and command ID' do
