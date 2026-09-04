@@ -113,6 +113,41 @@ module Nl
       end
     end
 
+    # An array whose elements are packed consecutively without per-element
+    # headers or alignment padding.
+    class PackedArray < Base
+      def initialize(sub_type, check: nil)
+        super(check:)
+        @sub_type = sub_type
+      end
+
+      def encode(encoder, values)
+        values = coerce(values)
+        if @check
+          temporary = Encoder.new
+          values.each { @sub_type.encode(temporary, it) }
+          encoder.put_string(checked(temporary.buffer.get_string))
+        else
+          values.each { @sub_type.encode(encoder, it) }
+        end
+      end
+
+      def coerce(values)
+        values.map { @sub_type.coerce(it) }
+      end
+
+      def decode(decoder)
+        if @check
+          payload = checked(decoder.get_string)
+          decoder = Decoder.new(IO::Buffer.for(payload))
+        end
+
+        result = []
+        result << @sub_type.decode(decoder) while decoder.available?
+        result
+      end
+    end
+
     class Struct < Base
       def initialize(type, check: nil, consume_remaining: false)
         super(check:)

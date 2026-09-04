@@ -127,6 +127,34 @@ RSpec.describe Ynl do
       )
     end
 
+    it 'generates packed-array datatypes for binary attributes with sub-types' do
+      source = StringIO.new(<<~YAML)
+        name: packed-arrays
+        protocol: genetlink
+        attribute-sets:
+          -
+            name: attrs
+            attributes:
+              - { name: values, type: binary, sub-type: u32, byte-order: big-endian }
+        operations:
+          list:
+            -
+              name: set
+              attribute-set: attrs
+              do:
+                request:
+                  attributes: [values]
+      YAML
+      generated = StringIO.new
+
+      Ynl::Family.generate(source, generated)
+
+      expect(generated.string).to include(
+        '::Nl::DataTypes::PackedArray.new(::Nl::DataTypes::Scalar.new(::Nl::Endian::Big::U32, check: nil), check: nil)',
+      )
+      expect(generated.string).to include('values: ::Array[::Integer]')
+    end
+
     it 'exposes definitions and uses them in attribute checks' do
       path = Pathname(__dir__) + 'fixtures/constants.yaml'
       generated = StringIO.new

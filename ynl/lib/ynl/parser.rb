@@ -193,11 +193,15 @@ module Ynl
           byte_order: parse_byte_order(d['byte-order']),
         )
       when 'binary'
-        Types::Binary.new(
-          struct: d['struct'] ? Models::Thunk.new {|f| f.structs.fetch(d.fetch('struct')) } : nil,
-          length: nil,
-          display_hint: d['display-hint'],
-        )
+        if d.key?('sub-type')
+          Types::PackedArray.new(sub_type: parse_packed_array_sub_type(d))
+        else
+          Types::Binary.new(
+            struct: d['struct'] ? Models::Thunk.new {|f| f.structs.fetch(d.fetch('struct')) } : nil,
+            length: nil,
+            display_hint: d['display-hint'],
+          )
+        end
       when 'string'
         Types::String.new
       when 'nest'
@@ -257,6 +261,19 @@ module Ynl
         )
       else
         raise ParseError, "Unknown indexed-array sub-type: #{sub_type}"
+      end
+    end
+
+    private def parse_packed_array_sub_type(d)
+      sub_type = d.fetch('sub-type')
+      case sub_type
+      when 'u8', 'u16', 'u32', 'u64', 's8', 's16', 's32', 's64', 'int'
+        Types::Scalar.new(
+          type: sub_type,
+          byte_order: parse_byte_order(d['byte-order']),
+        )
+      else
+        raise ParseError, "Unknown packed-array sub-type: #{sub_type}"
       end
     end
 
