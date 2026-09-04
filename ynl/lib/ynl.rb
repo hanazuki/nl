@@ -38,6 +38,16 @@ module Ynl
         struct ? 'Structs::' + struct.name.as_class_name : '::String'
       end
     end
+    PackedArray = Struct.new(:sub_type) do
+      def resolve(f)
+        self.sub_type = sub_type.resolve(f)
+        self
+      end
+
+      def rbs_type
+        "::Array[#{sub_type.rbs_type}]"
+      end
+    end
     NestedAttributes = Struct.new(:attribute_set) do
       using Generator::Refinements  # FIXME:
 

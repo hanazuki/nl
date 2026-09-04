@@ -85,6 +85,17 @@ RSpec.describe do
         expect(reply.fixed_header.ifi_type).to eq 772  # ARPHRD_LOOPBACK
       end
     end
+
+    example 'do_getlink decodes packed arrays' do
+      Nl::Linux::RtLink.open do |rtlink|
+        reply = rtlink.do_getlink(ifi_index: 1)
+        inet = reply.af_spec[:inet].value
+        conf = inet[:conf].value
+
+        expect(conf).not_to be_empty
+        expect(conf).to all be_a Integer
+      end
+    end
   end
 
   describe Nl::Linux::RtAddr do

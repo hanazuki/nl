@@ -480,6 +480,8 @@ module Ynl
         "(#{type.rbs_type} | ::Hash[::Symbol, untyped])"
       when Types::Binary
         type.struct ? "(#{type.rbs_type} | ::Hash[::Symbol, untyped])" : type.rbs_type
+      when Types::PackedArray
+        "::Array[#{input_rbs_type(type.sub_type)}]"
       when Types::NestTypeValue
         value_type = "(AttributeSets::#{type.attribute_set.name.as_class_name} | ::Hash[::Symbol, untyped])"
         type.type_values.length.times { value_type = "::Hash[::Integer, #{value_type}]" }
@@ -557,6 +559,8 @@ module Ynl
         else
           "::Nl::DataTypes::Binary.new(check: #{to_checks(checks)})"
         end
+      when Types::PackedArray
+        "::Nl::DataTypes::PackedArray.new(#{to_datatype(type.sub_type, nil)}, check: #{to_checks(checks)})"
       when Types::NestedAttributes
         "::Nl::DataTypes::NestedAttributes.new(#{type.attribute_set.name.as_class_name})"
       when Types::NestTypeValue

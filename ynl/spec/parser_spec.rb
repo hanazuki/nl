@@ -82,6 +82,24 @@ RSpec.describe Ynl::Parser do
       expect(Ynl::Types::Binary.new.rbs_type).to eq('::String')
     end
 
+    it 'parses binary attributes with scalar sub-types as packed arrays' do
+      source = StringIO.new(<<~YAML)
+        name: packed-arrays
+        protocol: genetlink
+        attribute-sets:
+          -
+            name: attrs
+            attributes:
+              - { name: values, type: binary, sub-type: u32, byte-order: big-endian }
+      YAML
+
+      type = described_class.new(source).parse.attribute_sets.fetch('attrs').attributes.first.type
+
+      expect(type).to be_a(Ynl::Types::PackedArray)
+      expect(type.sub_type).to eq(Ynl::Types::Scalar.new(type: 'u32', byte_order: :big))
+      expect(type.rbs_type).to eq('::Array[::Integer]')
+    end
+
     it 'types opaque sub-message payloads as strings' do
       expect(Ynl::Types::SubMessage.new.rbs_type).to eq('::String')
     end
