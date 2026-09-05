@@ -69,4 +69,11 @@ task 'generated/nl/linux.rb' => [*specs.values.map { it[:target] }, 'Rakefile'] 
 end
 task :generate => 'generated/nl/linux.rb'
 
+desc 'Generate RBS signatures from inline annotations'
+task :rbs => :generate do
+  sh '../bin/rbs-inline', '--output=sig/generated', '--base=lib:generated', 'lib', 'generated'
+end
+
+task :build => :rbs
+
 task :default => :generate

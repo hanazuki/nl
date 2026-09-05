@@ -1,3 +1,5 @@
+# rbs_inline: enabled
+
 require_relative 'raw/wire'
 
 module Nl

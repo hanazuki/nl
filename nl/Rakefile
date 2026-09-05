@@ -2,4 +2,11 @@ require 'rspec/core/rake_task'
 
 RSpec::Core::RakeTask.new(:spec)
 
+desc 'Generate RBS signatures from inline annotations'
+task :rbs do
+  sh '../bin/rbs-inline', '--output=sig/generated', 'lib'
+end
+
+task :build => :rbs
+
 task default: :spec
