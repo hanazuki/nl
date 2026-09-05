@@ -303,14 +303,23 @@ module Ynl
 
               emit_comment(operation_doc(oper))
               if method == 'dump'
+                method_name = "#{method.as_method_name}_#{oper.name.as_method_name}"
                 emit_rbs_comment(
-                  "(#{rbs_params}) -> Enumerable[#{rbs_result}]\n  | (#{rbs_params}) { (#{rbs_result}) -> void } -> void",
+                  "(#{rbs_params}) -> Array[#{rbs_result}]\n  | (#{rbs_params}) { (#{rbs_result}) -> void } -> void",
                 )
-                emit_yard_options(params)
-                emit_yard_return("Enumerable<#{rbs_result}>, void")
-                emit_yard_yieldparam('reply', rbs_result)
+                emit_yard_overload("#{method_name}(**args)") do |indentation|
+                  emit_comment("#{indentation}Returns an array when no block is given.")
+                  emit_yard_options(params, indentation:)
+                  emit_yard_return("Array<#{rbs_result}>", indentation:)
+                end
+                emit_yard_overload("#{method_name}(**args, &block)") do |indentation|
+                  emit_comment("#{indentation}Yields each reply when a block is given.")
+                  emit_yard_options(params, indentation:)
+                  emit_yard_yieldparam('reply', rbs_result, indentation:)
+                  emit_yard_return('void', indentation:)
+                end
                 emit_yard_see(request_class)
-                write("def #{method.as_method_name}_#{oper.name.as_method_name}(**args, &block)")
+                write("def #{method_name}(**args, &block)")
                 indent do
                   write("exchange_message(#{method.as_symbol_literal}, #{request_class}, #{reply_class}, args, &block)")
                 end
@@ -790,18 +799,29 @@ module Ynl
       end
     end
 
-    private def emit_yard_options(params)
-      emit_yard_param('args', 'Hash')
+    private def emit_yard_overload(signature)
+      emit_comment("@overload #{signature}")
+      yield '  '
+    end
+
+    private def emit_yard_options(params, indentation: '')
+      emit_yard_param('args', 'Hash', indentation:)
       params.each do |param|
-        emit_yard_option('args', param.name.as_variable_name, parameter_yard_type(param), param.doc)
+        emit_yard_option(
+          'args',
+          param.name.as_variable_name,
+          parameter_yard_type(param),
+          param.doc,
+          indentation:,
+        )
       end
     end
 
-    private def emit_yard_option(parameter, name, type, description)
+    private def emit_yard_option(parameter, name, type, description, indentation: '')
       lines = description&.each_line(chomp: true)&.to_a || []
-      emit_comment(["@option #{parameter} [#{type}] #{name}", lines.shift].compact.join(' '))
+      emit_comment(["#{indentation}@option #{parameter} [#{type}] #{name}", lines.shift].compact.join(' '))
       lines.each do |line|
-        emit_comment("  #{line}")
+        emit_comment("#{indentation}  #{line}")
       end
     end
 
@@ -813,20 +833,20 @@ module Ynl
       emit_comment("  @return [#{type}]")
     end
 
-    private def emit_yard_param(name, type)
-      emit_comment("@param [#{type}] #{name}")
+    private def emit_yard_param(name, type, indentation: '')
+      emit_comment("#{indentation}@param [#{type}] #{name}")
     end
 
-    private def emit_yard_return(type)
-      emit_comment("@return [#{type}]")
+    private def emit_yard_return(type, indentation: '')
+      emit_comment("#{indentation}@return [#{type}]")
     end
 
     private def emit_yard_see(object)
       emit_comment("@see #{object}")
     end
 
-    private def emit_yard_yieldparam(name, type)
-      emit_comment("@yieldparam [#{type}] #{name}")
+    private def emit_yard_yieldparam(name, type, indentation: '')
+      emit_comment("#{indentation}@yieldparam [#{type}] #{name}")
     end
 
     private def build_selector_plan
