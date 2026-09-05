@@ -309,6 +309,7 @@ module Ynl
                 emit_yard_options(params)
                 emit_yard_return("Enumerable<#{rbs_result}>, void")
                 emit_yard_yieldparam('reply', rbs_result)
+                emit_yard_see(request_class)
                 write("def #{method.as_method_name}_#{oper.name.as_method_name}(**args, &block)")
                 indent do
                   write("exchange_message(#{method.as_symbol_literal}, #{request_class}, #{reply_class}, args, &block)")
@@ -319,6 +320,7 @@ module Ynl
                 )
                 emit_yard_options(params)
                 emit_yard_return(rbs_result)
+                emit_yard_see(request_class)
                 write("def #{method.as_method_name}_#{oper.name.as_method_name}(**args)")
                 indent do
                   write("exchange_message(#{method.as_symbol_literal}, #{request_class}, #{reply_class}, args)")
@@ -356,6 +358,7 @@ module Ynl
               emit_rbs_comment("(#{rbs_params}) -> #{operation}")
               emit_yard_options(params)
               emit_yard_return(yard_operation)
+              emit_yard_see(request_class)
               write("def #{method.as_method_name}_#{oper.name.as_method_name}(**args)")
               indent do
                 write("@exchange.call(#{method.as_symbol_literal}, #{request_class}, #{reply_class}, args)")
