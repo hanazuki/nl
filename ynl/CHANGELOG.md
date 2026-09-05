@@ -6,6 +6,7 @@
 - Generate binary struct members and attributes as structured values.
 - Parse Generic Netlink family versions and emit them as generated metadata.
 - Generate array parameters and accessors for `multi-attr` attributes.
+- Generate typed value readers for nested attribute sets.
 - Apply attribute property overrides declared by attribute-set subsets.
 - Generate typed polymorphic sub-messages with statically resolved selectors.
 - Correct enum and flags numbering from `value-start` and explicit entry values.

@@ -187,6 +187,19 @@ module Ynl
                 rbs: 'Hash[::Integer, Attribute]',
               )
 
+              attr_set.attributes.each do |attribute|
+                next if attribute.type.is_a?(Types::Pad)
+
+                emit_comment("Gets the value of `#{attribute.name}` attribute.")
+                emit_rbs_comment('return: ' + attribute_rbs_type(attribute))
+                expression = if attribute.multi?
+                  "self[#{attribute.name.as_variable_name.as_symbol_literal}].map(&:value)"
+                else
+                  "self[#{attribute.name.as_variable_name.as_symbol_literal}]&.value"
+                end
+                emit_getter(attribute.name.as_method_name, expression)
+              end
+
               emit_singleton_class do
                 emit_comment('Looks up Attribute class by name.')
                 emit_rbs_comment(

@@ -86,11 +86,10 @@ RSpec.describe do
       end
     end
 
-    example 'do_getlink decodes packed arrays' do
+    example 'do_getlink reads packed arrays through nested attributes' do
       Nl::Linux::RtLink.open do |rtlink|
         reply = rtlink.do_getlink(ifi_index: 1)
-        inet = reply.af_spec[:inet].value
-        conf = inet[:conf].value
+        conf = reply.af_spec.inet.conf
 
         expect(conf).not_to be_empty
         expect(conf).to all be_a Integer

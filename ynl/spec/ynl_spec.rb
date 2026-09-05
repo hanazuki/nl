@@ -35,7 +35,7 @@ RSpec.describe Ynl do
       encoder = Nl::Encoder.new
       attributes.encode(encoder)
       decoded = cls::AttributeSets::OuterAttrs.decode(Nl::Decoder.new(encoder.buffer))
-      data = decoded[:child].value[:leaf].value[:data].value
+      data = decoded.child.leaf.data
 
       expect(data).to be_a(cls::SubMessages::PayloadMessage::Foo)
       expect(data).to have_attributes(header_value: 7, payload_value: 11)
@@ -45,6 +45,12 @@ RSpec.describe Ynl do
       expect(generated.string).to include('selector_bindings: Ractor.make_shareable([::Nl::Selector::External.new(0)])')
       expect(generated.string).to include('SELECTOR_SLOT = 0')
       expect(generated.string).not_to include('SELECTOR_SLOTS_BY_')
+      expect(generated.string).to include('# @rbs return: AttributeSets::ChildAttrs')
+      expect(generated.string).to include('def child; self[:"child"]&.value; end')
+      expect(generated.string).to include(
+        '# @rbs return: SubMessages::PayloadMessage::Foo | SubMessages::PayloadMessage::Bar | ::Nl::RawSubMessage',
+      )
+      expect(generated.string).to include('def data; self[:"data"]&.value; end')
     end
 
     it 'compiles enum selector names to their integer values' do
