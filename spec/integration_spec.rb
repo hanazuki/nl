@@ -268,6 +268,17 @@ RSpec.describe do
         expect(lo_qdisc.kind).to be_a String
       end
     end
+
+    example 'dump_gettfilter encodes bitfield32 dump flags' do
+      dump_flags = Nl::Bitfield32.new(0, 0)
+      dump_flags[0] = 1 # TCA_DUMP_FLAGS_TERSE
+
+      Nl::Linux::Tc.open do |tc|
+        replies = tc.dump_gettfilter(ifindex: 1, dump_flags:)
+
+        expect(replies).to be_an Array
+      end
+    end
   end
 
   describe Nl::Linux::Ethtool do

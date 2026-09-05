@@ -242,6 +242,33 @@ RSpec.describe Ynl do
       )
     end
 
+    it 'generates Bitfield32 APIs for bitfield32 attributes' do
+      source = StringIO.new(<<~YAML)
+        name: bitfields
+        protocol: genetlink
+        attribute-sets:
+          -
+            name: attrs
+            attributes:
+              - { name: flags, type: bitfield32 }
+        operations:
+          list:
+            -
+              name: set
+              attribute-set: attrs
+              do:
+                request:
+                  attributes: [flags]
+      YAML
+      generated = StringIO.new
+
+      Ynl::Family.generate(source, generated)
+
+      expect(generated.string).to include('DATATYPE = ::Nl::DataTypes::Bitfield32.new')
+      expect(generated.string).to include('?flags: ::Nl::Bitfield32')
+      expect(generated.string).to include('# @rbs return: ::Nl::Bitfield32')
+    end
+
     it 'generates packed-array datatypes for binary attributes with sub-types' do
       source = StringIO.new(<<~YAML)
         name: packed-arrays

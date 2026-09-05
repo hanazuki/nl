@@ -111,7 +111,7 @@ module Ynl
       end
 
       def rbs_type
-        '::Integer'
+        '::Nl::Bitfield32'
       end
     end
 

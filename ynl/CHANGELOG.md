@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Generate `Nl::Bitfield32` types for `bitfield32` attributes.
 - Generate binary struct members and attributes as structured values.
 - Parse Generic Netlink family versions and emit them as generated metadata.
 - Generate array parameters and accessors for `multi-attr` attributes.

@@ -78,6 +78,10 @@ RSpec.describe Ynl::Parser do
   end
 
   describe 'RBS types' do
+    it 'types bitfield32 payloads as Bitfield32 values' do
+      expect(Ynl::Types::Bitfield32.new.rbs_type).to eq('::Nl::Bitfield32')
+    end
+
     it 'types binary payloads as strings' do
       expect(Ynl::Types::Binary.new.rbs_type).to eq('::String')
     end

@@ -2,6 +2,36 @@
 
 require 'spec_helper'
 
+RSpec.describe Nl::DataTypes::Bitfield32 do
+  subject(:datatype) { described_class.new }
+
+  it 'encodes the value followed by the selector' do
+    encoder = Nl::Encoder.new
+
+    datatype.encode(encoder, Nl::Bitfield32.new(0x14, 0x34))
+
+    expect(encoder.buffer.get_values([Nl::Endian::Host::U32] * 2, 0)).to eq([0x14, 0x34])
+  end
+
+  it 'decodes to a Bitfield32' do
+    encoder = Nl::Encoder.new
+    encoder.put_values([Nl::Endian::Host::U32] * 2, [0x14, 0x34])
+
+    value = datatype.decode(Nl::Decoder.new(encoder.buffer))
+
+    expect(value).to be_a(Nl::Bitfield32)
+    expect(value.value).to eq(0x14)
+    expect(value.selector).to eq(0x34)
+  end
+
+  it 'rejects values of other types' do
+    expect { datatype.encode(Nl::Encoder.new, [0x14, 0x34]) }.to raise_error(
+      TypeError,
+      'bitfield32 value must be an Nl::Bitfield32',
+    )
+  end
+end
+
 RSpec.describe Nl::DataTypes::VariableInteger do
   def encode(datatype, value)
     encoder = Nl::Encoder.new

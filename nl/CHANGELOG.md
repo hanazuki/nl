@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Represent `bitfield32` values with mutable `Bitfield32` objects.
 - Support fixed-length binary values and structured binary values.
 - Encode Generic Netlink requests with the protocol version.
 - Support building and reading attributes declared as repeatable.

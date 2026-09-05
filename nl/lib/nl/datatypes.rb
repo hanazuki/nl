@@ -1,6 +1,7 @@
 # rbs_inline: enabled
 
 require_relative 'raw/wire'
+require_relative 'bitfield32'
 
 module Nl
   # @rbs!
@@ -207,18 +208,20 @@ module Nl
       end
     end
 
-    # A 32-bit value paired with a selector mask (8 bytes total: value u32 + selector u32)
     class Bitfield32 < Base
       def encode(encoder, value, context: nil)
-        v, selector = value.is_a?(Array) ? value : [value, 0xFFFFFFFF]
-        encoder.put_value(Endian::Host::U32, v)
-        encoder.put_value(Endian::Host::U32, selector)
+        unless value.is_a?(Nl::Bitfield32)
+          raise TypeError, 'bitfield32 value must be an Nl::Bitfield32'
+        end
+
+        encoder.put_value(Endian::Host::U32, value.value)
+        encoder.put_value(Endian::Host::U32, value.selector)
       end
 
       def decode(decoder, context: nil, nlattr_type_flags: 0)
         value = decoder.get_value(Endian::Host::U32)
         selector = decoder.get_value(Endian::Host::U32)
-        [value, selector]
+        Nl::Bitfield32.new(value, selector)
       end
     end
 
