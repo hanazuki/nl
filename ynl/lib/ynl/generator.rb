@@ -109,6 +109,8 @@ module Ynl
                 'decoder: ::Nl::Decoder',
                 'return: instance',
               )
+              emit_yard_param('decoder', 'Nl::Decoder')
+              emit_yard_return('self')
               write('def self.decode(decoder)')
               indent do
                 write('self.new(*MEMBERS.map {|name, datatype| datatype.decode(decoder) })')
@@ -120,6 +122,8 @@ module Ynl
                 'encoder: ::Nl::Encoder',
                 'return: void',
               )
+              emit_yard_param('encoder', 'Nl::Encoder')
+              emit_yard_return('void')
               write('def encode(encoder)')
               indent do
                 write('MEMBERS.each {|name, datatype| datatype.encode(encoder, self.public_send(name)) }')
@@ -197,6 +201,7 @@ module Ynl
 
                 emit_comment("Gets the value of `#{attribute.name}` attribute.")
                 emit_rbs_comment('return: ' + attribute_rbs_type(attribute))
+                emit_yard_return(attribute_yard_type(attribute))
                 expression = if attribute.multi?
                   "self[#{attribute.name.as_variable_name.as_symbol_literal}].map(&:value)"
                 else
@@ -211,6 +216,8 @@ module Ynl
                   'name: Symbol',
                   'return: Attribute',
                 )
+                emit_yard_param('name', 'Symbol')
+                emit_yard_return('Attribute')
                 emit_getter('by_name(name)', 'BY_NAME.fetch(name)')
 
                 emit_comment('Looks up Attribute class by type value.')
@@ -218,6 +225,8 @@ module Ynl
                   'type: Integer',
                   'return: Attribute',
                 )
+                emit_yard_param('type', 'Integer')
+                emit_yard_return('Attribute')
                 emit_getter('by_type(type)', 'BY_TYPE.fetch(type)')
               end
             end
@@ -289,6 +298,9 @@ module Ynl
                 emit_rbs_comment(
                   "(#{rbs_params}) -> Enumerable[#{rbs_result}]\n  | (#{rbs_params}) { (#{rbs_result}) -> void } -> void",
                 )
+                emit_yard_options(params)
+                emit_yard_return("Enumerable<#{rbs_result}>, void")
+                emit_yard_yieldparam('reply', rbs_result)
                 write("def #{method.as_method_name}_#{oper.name.as_method_name}(**args, &block)")
                 indent do
                   write("exchange_message(#{method.as_symbol_literal}, #{request_class}, #{reply_class}, args, &block)")
@@ -297,6 +309,8 @@ module Ynl
                 emit_rbs_comment(
                   "(#{rbs_params}) -> #{rbs_result}",
                 )
+                emit_yard_options(params)
+                emit_yard_return(rbs_result)
                 write("def #{method.as_method_name}_#{oper.name.as_method_name}(**args)")
                 indent do
                   write("exchange_message(#{method.as_symbol_literal}, #{request_class}, #{reply_class}, args)")
@@ -328,9 +342,12 @@ module Ynl
               rbs_params = params.map { |it| "?#{it.name.as_variable_name}: #{parameter_rbs_type(it)}" }.join(', ')
               result = request_reply.reply ? reply_class : 'void'
               operation = method == 'dump' ? "::Nl::Async::Stream[#{result}]" : "::Nl::Async::Future[#{result}]"
+              yard_operation = method == 'dump' ? "Nl::Async::Stream<#{result}>" : "Nl::Async::Future<#{result}>"
 
               emit_comment(operation_doc(oper))
               emit_rbs_comment("(#{rbs_params}) -> #{operation}")
+              emit_yard_options(params)
+              emit_yard_return(yard_operation)
               write("def #{method.as_method_name}_#{oper.name.as_method_name}(**args)")
               indent do
                 write("@exchange.call(#{method.as_symbol_literal}, #{request_class}, #{reply_class}, args)")
@@ -342,6 +359,8 @@ module Ynl
 
         emit_comment('Returns the asynchronous operation facade for this family.')
         emit_rbs_comment('(?stream_capacity: ::Integer?) -> AsyncOperations')
+        emit_yard_param('stream_capacity', '::Integer, nil')
+        emit_yard_return('AsyncOperations')
         write('def async(stream_capacity: nil)')
         indent do
           write('return @async_operations ||= build_async_facade(AsyncOperations) if stream_capacity.nil?')
@@ -433,6 +452,10 @@ module Ynl
         '(?resolver: ^(::Nl::Genl::Client, ::String) -> ::Nl::Genl::FamilyInfo, ?executor: executor?, ?notification_capacity: ::Integer?) -> (::Nl::Family::Session & instance)',
         '| [R] (?resolver: ^(::Nl::Genl::Client, ::String) -> ::Nl::Genl::FamilyInfo, ?executor: executor?, ?notification_capacity: ::Integer?) { (instance) -> R } -> R',
       )
+      emit_yard_param('resolver', '#call')
+      emit_yard_param('executor', 'Symbol, nil')
+      emit_yard_param('notification_capacity', 'Integer, nil')
+      emit_yard_return('::Nl::Family::Session, Object')
       write("def self.open(resolver: #{default_resolver}, executor: nil, notification_capacity: DEFAULT_NOTIFICATION_CAPACITY)")
       indent { write('super') }
       write('end')
@@ -495,6 +518,7 @@ module Ynl
           next if attribute_params.include?(param)
           emit_comment("Gets the value of `#{param}` field in the message's fixed header.")
           emit_rbs_comment('return: ' + struct_member_rbs_type(datatype))
+          emit_yard_return(struct_member_yard_type(datatype))
           emit_getter(param.as_method_name, "fixed_header.#{param.as_method_name}")
         end
         attribute_params.each do |param|
@@ -513,6 +537,7 @@ module Ynl
             emit_comment("Gets the value of `#{param}` attribute in the message.")
           end
           emit_rbs_comment('return: ' + attribute_rbs_type(attribute))
+          emit_yard_return(attribute_yard_type(attribute))
           if attribute.multi?
             emit_getter(param.as_method_name, "attributes[#{param.as_variable_name.as_symbol_literal}].map(&:value)")
             next
@@ -557,6 +582,7 @@ module Ynl
           next if extending
           emit_comment("Gets the value of `#{member.name}` field in the sub-message's fixed header.")
           emit_rbs_comment('return: ' + struct_member_rbs_type(member.type))
+          emit_yard_return(struct_member_yard_type(member.type))
           emit_getter(member.name.as_method_name, "fixed_header.#{member.name.as_method_name}")
         end
 
@@ -565,6 +591,7 @@ module Ynl
           extending = format.fixed_header&.members&.any? { it.name == attribute.name }
           emit_comment("Gets the value of `#{attribute.name}` in the sub-message.")
           emit_rbs_comment('return: ' + attribute_rbs_type(attribute))
+          emit_yard_return(attribute_yard_type(attribute))
           expression = if attribute.multi?
             "attributes[#{attribute.name.as_variable_name.as_symbol_literal}].map(&:value)"
           elsif extending
@@ -586,11 +613,28 @@ module Ynl
       end
     end
 
+    private def parameter_yard_type(param)
+      if param.is_a?(Models::AttributeSet::Attribute)
+        type = input_yard_type(param.type)
+        param.multi? ? "Array<#{type}>" : type
+      else
+        struct_member_yard_type(param.type)
+      end
+    end
+
     private def struct_member_rbs_type(type)
       if type.is_a?(Types::Binary) && type.struct
         'Structs::' + type.struct.name.as_class_name
       else
         type.rbs_type
+      end
+    end
+
+    private def struct_member_yard_type(type)
+      if type.is_a?(Types::Binary) && type.struct
+        'Structs::' + type.struct.name.as_class_name
+      else
+        yard_type(type)
       end
     end
 
@@ -615,6 +659,25 @@ module Ynl
       end
     end
 
+    private def input_yard_type(type)
+      case type
+      when Types::NestedAttributes
+        "#{yard_type(type)}, Hash<Symbol, Object>"
+      when Types::Binary
+        type.struct ? "#{yard_type(type)}, Hash<Symbol, Object>" : yard_type(type)
+      when Types::PackedArray, Types::IndexedArray
+        "Array<#{input_yard_type(type.sub_type)}>"
+      when Types::NestTypeValue
+        value_type = "AttributeSets::#{type.attribute_set.name.as_class_name}, Hash<Symbol, Object>"
+        type.type_values.length.times { value_type = "Hash<Integer, #{value_type}>" }
+        value_type
+      when Types::SubMessage
+        "#{sub_message_yard_type(type)}, Hash<Symbol, Object>"
+      else
+        yard_type(type)
+      end
+    end
+
     private def attribute_rbs_type(attribute)
       type = if attribute.type.is_a?(Types::SubMessage)
         sub_message_rbs_type(attribute.type)
@@ -624,11 +687,54 @@ module Ynl
       attribute.multi? ? "::Array[#{type}]" : type
     end
 
+    private def attribute_yard_type(attribute)
+      type = if attribute.type.is_a?(Types::SubMessage)
+        sub_message_yard_type(attribute.type)
+      else
+        yard_type(attribute.type)
+      end
+      attribute.multi? ? "Array<#{type}>" : type
+    end
+
     private def sub_message_rbs_type(type)
       formats = type.sub_message.formats.map do |format|
         "SubMessages::#{type.sub_message.name.as_class_name}::#{format.value.as_class_name}"
       end
       (formats << '::Nl::RawSubMessage').join(' | ')
+    end
+
+    private def sub_message_yard_type(type)
+      formats = type.sub_message.formats.map do |format|
+        "SubMessages::#{type.sub_message.name.as_class_name}::#{format.value.as_class_name}"
+      end
+      (formats << 'Nl::RawSubMessage').join(', ')
+    end
+
+    private def yard_type(type)
+      case type
+      when Types::Scalar, Types::Flag
+        'Integer'
+      when Types::String
+        'String'
+      when Types::Binary
+        type.struct ? 'Structs::' + type.struct.name.as_class_name : 'String'
+      when Types::PackedArray, Types::IndexedArray
+        "Array<#{yard_type(type.sub_type)}>"
+      when Types::NestedAttributes
+        'AttributeSets::' + type.attribute_set.name.as_class_name
+      when Types::NestTypeValue
+        value_type = 'AttributeSets::' + type.attribute_set.name.as_class_name
+        type.type_values.length.times { value_type = "Hash<Integer, #{value_type}>" }
+        value_type
+      when Types::SubMessage
+        'Nl::SubMessage'
+      when Types::Pad
+        'nil'
+      when Types::Bitfield32
+        'Nl::Bitfield32'
+      else
+        raise "Unknown YARD type: #{type.class}"
+      end
     end
 
     private def emit_mcast_groups
@@ -653,12 +759,15 @@ module Ynl
     end
 
     private def emit_subscription_methods
-      group_type = @ynl.mcast_groups.values
+      groups = @ynl.mcast_groups.values
         .map { ":#{it.name.as_variable_name}" }
-        .join(' | ')
-      emit_rbs_comment("(*(#{group_type}) groups) -> self")
+      emit_rbs_comment("(*(#{groups.join(' | ')}) groups) -> self")
+      emit_yard_param('groups', "Array<#{groups.join(', ')}>")
+      emit_yard_return('self')
       write('def subscribe(*groups) = super')
-      emit_rbs_comment("(*(#{group_type}) groups) -> self")
+      emit_rbs_comment("(*(#{groups.join(' | ')}) groups) -> self")
+      emit_yard_param('groups', "Array<#{groups.join(', ')}>")
+      emit_yard_return('self')
       write('def unsubscribe(*groups) = super')
     end
 
@@ -666,6 +775,29 @@ module Ynl
       args.each do |arg|
         emit_comment('@rbs ' + arg)
       end
+    end
+
+    private def emit_yard_options(params)
+      emit_yard_param('args', 'Hash')
+      params.each do |param|
+        emit_yard_option('args', param.name.as_variable_name, parameter_yard_type(param))
+      end
+    end
+
+    private def emit_yard_option(parameter, name, type)
+      emit_comment("@option #{parameter} [#{type}] #{name}")
+    end
+
+    private def emit_yard_param(name, type)
+      emit_comment("@param [#{type}] #{name}")
+    end
+
+    private def emit_yard_return(type)
+      emit_comment("@return [#{type}]")
+    end
+
+    private def emit_yard_yieldparam(name, type)
+      emit_comment("@yieldparam [#{type}] #{name}")
     end
 
     private def build_selector_plan
