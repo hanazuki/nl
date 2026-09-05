@@ -38,7 +38,8 @@ module Nl
       pid = @socket.local_port_id
       key = [seq, pid]
       @protocol.send_message(@socket, endpoint, request, seq:, pid:)
-      exchange = Exchange.new(kind:, expects_reply: !reply_class.nil?)
+      mode = kind == :dump ? :dump : (reply_class ? :reply : :no_reply)
+      exchange = Exchange.new(mode:)
       result = [] unless block_given?
 
       until exchange.complete?

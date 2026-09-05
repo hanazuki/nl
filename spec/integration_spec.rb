@@ -113,6 +113,16 @@ RSpec.describe do
   end
 
   describe Nl::Linux::Netdev do
+    example 'dump_dev_get returns device list including loopback' do
+      Nl::Linux::Netdev.open do |netdev|
+        devices = netdev.dump_dev_get
+        expect(devices).to be_an Array
+
+        loopback = devices.find { it.ifindex == 1 }
+        expect(loopback).to be_a Nl::Linux::Netdev::Messages::DumpDevGetReply
+      end
+    end
+
     example 'do_dev_get returns device info for loopback' do
       Nl::Linux::Netdev.open(executor: :thread) do |netdev|
         dev = netdev.do_dev_get(ifindex: 1)
