@@ -209,6 +209,7 @@ module Ynl
                 emit_comment("Gets the value of `#{attribute.name}` attribute.")
                 emit_rbs_comment('return: ' + attribute_rbs_type(attribute))
                 emit_yard_return(attribute_yard_type(attribute))
+                emit_yard_see(attribute.name.as_class_name)
                 expression = if attribute.multi?
                   "self[#{attribute.name.as_variable_name.as_symbol_literal}].map(&:value)"
                 else
@@ -545,6 +546,7 @@ module Ynl
           end
           emit_rbs_comment('return: ' + attribute_rbs_type(attribute))
           emit_yard_return(attribute_yard_type(attribute))
+          emit_yard_see("AttributeSets::#{attribute_set.name.as_class_name}::#{attribute.name.as_class_name}")
           if attribute.multi?
             emit_getter(param.as_method_name, "attributes[#{param.as_variable_name.as_symbol_literal}].map(&:value)")
             next
@@ -599,6 +601,7 @@ module Ynl
           emit_comment("Gets the value of `#{attribute.name}` in the sub-message.")
           emit_rbs_comment('return: ' + attribute_rbs_type(attribute))
           emit_yard_return(attribute_yard_type(attribute))
+          emit_yard_see("AttributeSets::#{format.attribute_set.name.as_class_name}::#{attribute.name.as_class_name}")
           expression = if attribute.multi?
             "attributes[#{attribute.name.as_variable_name.as_symbol_literal}].map(&:value)"
           elsif extending
@@ -809,6 +812,10 @@ module Ynl
 
     private def emit_yard_return(type)
       emit_comment("@return [#{type}]")
+    end
+
+    private def emit_yard_see(object)
+      emit_comment("@see #{object}")
     end
 
     private def emit_yard_yieldparam(name, type)
