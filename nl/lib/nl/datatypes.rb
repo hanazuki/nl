@@ -3,10 +3,10 @@ require_relative 'raw/wire'
 module Nl
   # @rbs!
   #   interface _DataType
-  #     def encode: (Encoder, untyped) -> void
-  #     def decode: (Decoder) -> untyped
-  #     def nlattr_type_flags: () -> Integer
-  #     def coerce: (untyped) -> untyped
+  #     def encode: (Encoder, untyped, ?context: untyped) -> void
+  #     def decode: (Decoder, ?context: untyped, ?nlattr_type_flags: Integer) -> untyped
+  #     def nlattr_type_flags: (?untyped, ?context: untyped) -> Integer
+  #     def coerce: (untyped, ?context: untyped) -> untyped
   #   end
 
   module DataTypes
@@ -15,11 +15,11 @@ module Nl
         @check = check
       end
 
-      def nlattr_type_flags
+      def nlattr_type_flags(_value = nil, context: nil)
         0
       end
 
-      def coerce(value)
+      def coerce(value, context: nil)
         value
       end
 
@@ -35,11 +35,11 @@ module Nl
         @type = type
       end
 
-      def encode(encoder, value)
+      def encode(encoder, value, context: nil)
         encoder.put_value(@type, checked(value || 0))
       end
 
-      def decode(decoder)
+      def decode(decoder, context: nil, nlattr_type_flags: 0)
         checked(decoder.get_value(@type))
       end
     end
@@ -59,7 +59,7 @@ module Nl
         @range64 = signed ? SINT64_RANGE : UINT64_RANGE
       end
 
-      def encode(encoder, value)
+      def encode(encoder, value, context: nil)
         value = checked(value || 0)
         unless @range64.cover?(value)
           raise RangeError, "integer #{value.inspect} is outside the #{@range64.begin}...#{@range64.end} range"
@@ -69,7 +69,7 @@ module Nl
         encoder.put_value(type, value)
       end
 
-      def decode(decoder)
+      def decode(decoder, context: nil, nlattr_type_flags: 0)
         type = case decoder.remaining
         when 4 then @type32
         when 8 then @type64
@@ -85,11 +85,11 @@ module Nl
         super(check:)
       end
 
-      def encode(encoder, value)
+      def encode(encoder, value, context: nil)
         encoder.put_zstring(checked(value))
       end
 
-      def decode(decoder)
+      def decode(decoder, context: nil, nlattr_type_flags: 0)
         checked(decoder.get_zstring)
       end
     end
@@ -100,7 +100,7 @@ module Nl
         @length = length
       end
 
-      def encode(encoder, value)
+      def encode(encoder, value, context: nil)
         value = checked(value)
         if @length && value.bytesize != @length
           raise ArgumentError, "binary value must be exactly #{@length} bytes, got #{value.bytesize}"
@@ -108,7 +108,7 @@ module Nl
         encoder.put_string(value)
       end
 
-      def decode(decoder)
+      def decode(decoder, context: nil, nlattr_type_flags: 0)
         checked(decoder.get_string(@length || decoder.remaining))
       end
     end
@@ -121,29 +121,29 @@ module Nl
         @sub_type = sub_type
       end
 
-      def encode(encoder, values)
-        values = coerce(values)
+      def encode(encoder, values, context: nil)
+        values = coerce(values, context:)
         if @check
           temporary = Encoder.new
-          values.each { @sub_type.encode(temporary, it) }
+          values.each { @sub_type.encode(temporary, it, context:) }
           encoder.put_string(checked(temporary.buffer.get_string))
         else
-          values.each { @sub_type.encode(encoder, it) }
+          values.each { @sub_type.encode(encoder, it, context:) }
         end
       end
 
-      def coerce(values)
-        values.map { @sub_type.coerce(it) }
+      def coerce(values, context: nil)
+        values.map { @sub_type.coerce(it, context:) }
       end
 
-      def decode(decoder)
+      def decode(decoder, context: nil, nlattr_type_flags: 0)
         if @check
           payload = checked(decoder.get_string)
           decoder = Decoder.new(IO::Buffer.for(payload))
         end
 
         result = []
-        result << @sub_type.decode(decoder) while decoder.available?
+        result << @sub_type.decode(decoder, context:, nlattr_type_flags: 0) while decoder.available?
         result
       end
     end
@@ -155,16 +155,16 @@ module Nl
         @consume_remaining = consume_remaining
       end
 
-      def coerce(value)
+      def coerce(value, context: nil)
         return value unless value.is_a?(Hash)
 
         unknown = value.keys - @type::MEMBERS.keys
         raise ArgumentError, "unknown struct members: #{unknown.join(', ')}" unless unknown.empty?
 
-        @type.new(*@type::MEMBERS.map { |name, datatype| datatype.coerce(value[name]) })
+        @type.new(*@type::MEMBERS.map { |name, datatype| datatype.coerce(value[name], context:) })
       end
 
-      def encode(encoder, value)
+      def encode(encoder, value, context: nil)
         unless value.is_a?(@type)
           raise TypeError, "value must be an instance of #{@type}"
         end
@@ -178,7 +178,7 @@ module Nl
         end
       end
 
-      def decode(decoder)
+      def decode(decoder, context: nil, nlattr_type_flags: 0)
         unless @check
           value = @type.decode(decoder)
           decoder.skip if @consume_remaining
@@ -196,24 +196,24 @@ module Nl
     end
 
     class Flag < Base
-      def encode(encoder, value)
+      def encode(encoder, value, context: nil)
         # flag attribute has no payload; presence encodes true
       end
 
-      def decode(decoder)
+      def decode(decoder, context: nil, nlattr_type_flags: 0)
         true
       end
     end
 
     # A 32-bit value paired with a selector mask (8 bytes total: value u32 + selector u32)
     class Bitfield32 < Base
-      def encode(encoder, value)
+      def encode(encoder, value, context: nil)
         v, selector = value.is_a?(Array) ? value : [value, 0xFFFFFFFF]
         encoder.put_value(Endian::Host::U32, v)
         encoder.put_value(Endian::Host::U32, selector)
       end
 
-      def decode(decoder)
+      def decode(decoder, context: nil, nlattr_type_flags: 0)
         value = decoder.get_value(Endian::Host::U32)
         selector = decoder.get_value(Endian::Host::U32)
         [value, selector]
@@ -225,39 +225,108 @@ module Nl
         @length = length
       end
 
-      def encode(encoder, _value)
+      def encode(encoder, _value, context: nil)
         encoder.put_string(?\0.b * @length) if @length
       end
 
-      def decode(decoder)
+      def decode(decoder, context: nil, nlattr_type_flags: 0)
         @length ? decoder.skip(@length) : decoder.skip
         nil
       end
     end
 
     class NestedAttributes < Base
-      def initialize(attribute_set)
+      def initialize(attribute_set, selector_bindings: [])
         @attribute_set = attribute_set
+        @selector_bindings = selector_bindings
       end
 
-      def nlattr_type_flags
+      def nlattr_type_flags(_value = nil, context: nil)
         Raw::NLA_F_NESTED
       end
 
-      def coerce(value)
-        value.is_a?(Hash) ? @attribute_set.build_attributes(**value) : value
+      def coerce(value, context: nil)
+        value.is_a?(Hash) ? @attribute_set.build_attributes(value, external_selectors: selectors(context)) : value
       end
 
-      def encode(encoder, value)
+      def encode(encoder, value, context: nil)
         unless value.is_a?(@attribute_set)
           raise TypeError, "value must be an instance of #{@attribute_set}"
         end
 
-        value.encode(encoder)
+        value.encode(encoder, external_selectors: selectors(context))
       end
 
-      def decode(decoder)
-        @attribute_set.decode(decoder)
+      def decode(decoder, context: nil, nlattr_type_flags: 0)
+        @attribute_set.decode(decoder, external_selectors: selectors(context))
+      end
+
+      private def selectors(context)
+        @selector_bindings.map { it.read(context) }
+      end
+    end
+
+    class SubMessage < Base
+      Format = Data.define(:type, :selector_bindings, :nested)
+
+      def initialize(selector, formats)
+        @selector = selector
+        @formats = formats.transform_values do |format|
+          format.is_a?(Format) ? format : Format.new(*format)
+        end.freeze
+      end
+
+      def nlattr_type_flags(value = nil, context:)
+        if value.is_a?(RawSubMessage)
+          @selector.read(context)
+          return value.nlattr_type_flags
+        end
+
+        format = @selector.select(context, @formats)
+        unless value.is_a?(format.type)
+          raise TypeError, "value must be an instance of #{format.type}"
+        end
+        format.nested ? Raw::NLA_F_NESTED : 0
+      end
+
+      def coerce(value, context:)
+        if value.is_a?(RawSubMessage)
+          @selector.read(context)  # ensure selector value is present
+          return value
+        end
+
+        format = @selector.select(context, @formats)
+        return value if value.is_a?(format.type)
+        return format.type.from_params(value, external_selectors: selectors(format, context)) if value.is_a?(Hash)
+
+        raise TypeError, "value must be a Hash or an instance of #{format.type}"
+      end
+
+      def encode(encoder, value, context: nil)
+        if value.is_a?(RawSubMessage)
+          @selector.read(context)
+          return value.encode(encoder)
+        end
+
+        format = @selector.select(context, @formats)
+        unless value.is_a?(format.type)
+          raise TypeError, "value must be an instance of #{format.type}"
+        end
+        value.encode(encoder, external_selectors: selectors(format, context))
+      end
+
+      def decode(decoder, context:, nlattr_type_flags: 0)
+        format = @selector.select(context, @formats) do
+          return RawSubMessage.new(
+            decoder.get_string,
+            nlattr_type_flags:,
+          )
+        end
+        format.type.decode(decoder, external_selectors: selectors(format, context))
+      end
+
+      private def selectors(format, context)
+        format.selector_bindings.map { it.read(context) }
       end
     end
 
@@ -265,66 +334,82 @@ module Nl
     # an attribute set. Each level is returned as an Integer-keyed Hash;
     # values at the innermost level are decoded as @attribute_set.
     class NestTypeValue < Base
-      def initialize(attribute_set, levels)
+      def initialize(attribute_set, levels, selector_bindings: [])
         raise ArgumentError, 'levels must be positive' unless levels.positive?
 
         @attribute_set = attribute_set
         @levels = levels
+        @selector_bindings = selector_bindings
       end
 
-      def encode(encoder, value)
-        encode_level(encoder, value, @levels)
+      def encode(encoder, value, context: nil)
+        encode_level(encoder, value, @levels, selectors(context))
       end
 
-      def coerce(value)
-        coerce_level(value, @levels)
+      def coerce(value = nil, context: nil, **keywords)
+        value = keywords unless keywords.empty?
+        coerce_level(value, @levels, selectors(context))
       end
 
-      def decode(decoder)
-        decode_level(decoder, @levels)
+      def decode(decoder, context: nil, nlattr_type_flags: 0)
+        decode_level(decoder, @levels, selectors(context))
       end
 
-      private def encode_level(encoder, values, levels)
+      private def encode_level(encoder, values, levels, external_selectors)
         values.each do |type, value|
           nlattr = Raw::NlAttr.new(0, type | Raw::NLA_F_NESTED)
           encoder.measure(Endian::Host::U16) do
             nlattr.encode(encoder)
             if levels == 1
-              value.encode(encoder)
+              if external_selectors.empty?
+                value.encode(encoder)
+              else
+                value.encode(encoder, external_selectors:)
+              end
             else
-              encode_level(encoder, value, levels - 1)
+              encode_level(encoder, value, levels - 1, external_selectors)
             end
           end
           encoder.align_to(Raw::NLA_ALIGNTO)
         end
       end
 
-      private def coerce_level(values, levels)
+      private def coerce_level(values, levels, external_selectors)
         values.transform_values do |value|
           if levels == 1
-            value.is_a?(Hash) ? @attribute_set.build_attributes(**value) : value
+            if value.is_a?(Hash)
+              external_selectors.empty? ? @attribute_set.build_attributes(value) :
+                @attribute_set.build_attributes(value, external_selectors:)
+            else
+              value
+            end
           else
-            coerce_level(value, levels - 1)
+            coerce_level(value, levels - 1, external_selectors)
           end
         end
       end
 
-      private def decode_level(decoder, levels)
+      private def decode_level(decoder, levels, external_selectors)
         result = {}
         while decoder.available?(Raw::NLA_HDRLEN)
           nlattr = Raw::NlAttr.decode(decoder)
           type = nlattr.type & Raw::NLA_TYPE_MASK
           value = decoder.limit(nlattr.len - Raw::NLA_HDRLEN) do
             if levels == 1
-              @attribute_set.decode(decoder)
+              external_selectors.empty? ? @attribute_set.decode(decoder) :
+                @attribute_set.decode(decoder, external_selectors:)
             else
-              decode_level(decoder, levels - 1)
+              decode_level(decoder, levels - 1, external_selectors)
             end
           end
           decoder.align_to(Raw::NLA_ALIGNTO)
           result[type] = value
         end
         result
+      end
+
+      private def selectors(context)
+        @selector_bindings.map { it.read(context) }
       end
     end
 
@@ -333,27 +418,28 @@ module Nl
         @sub_type = sub_type
       end
 
-      def encode(encoder, values)
+      def encode(encoder, values, context: nil)
         values.each_with_index do |value, i|
           nlattr = Raw::NlAttr.new(0, i + 1)
           encoder.measure(Endian::Host::U16) do
             nlattr.encode(encoder)
-            @sub_type.encode(encoder, value)
+            @sub_type.encode(encoder, value, context:)
           end
           encoder.align_to(Raw::NLA_ALIGNTO)
         end
       end
 
-      def coerce(values)
-        values.map { @sub_type.coerce(it) }
+      def coerce(values, context: nil)
+        values.map { @sub_type.coerce(it, context:) }
       end
 
-      def decode(decoder)
+      def decode(decoder, context: nil, nlattr_type_flags: 0)
         result = []
         while decoder.available?
           nlattr = Raw::NlAttr.decode(decoder)
+          flags = nlattr.type & (Raw::NLA_F_NESTED | Raw::NLA_F_NET_BYTEORDER)
           element = decoder.limit(nlattr.len - Raw::NLA_HDRLEN) do
-            @sub_type.decode(decoder)
+            @sub_type.decode(decoder, context:, nlattr_type_flags: flags)
           end
           decoder.align_to(Raw::NLA_ALIGNTO)
           result << element

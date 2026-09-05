@@ -6,6 +6,7 @@ module Ynl
     class Family
       def resolve
         structs.transform_values! {|s| s.resolve(self) }
+        sub_messages.transform_values! {|s| s.resolve(self) }
         attribute_sets.transform_values! {|s| s.resolve(self) }
         operations.transform_values! {|operation| operation.resolve(self) }
         self
@@ -32,7 +33,13 @@ module Ynl
     Check = ::Struct.new(:operation, :value)
 
     class SubMessage
-      Format = ::Struct.new(:value, :attribute_set)
+      Format = ::Struct.new(:value, :fixed_header, :attribute_set) do
+        def resolve(f)
+          self.fixed_header = fixed_header.resolve(f) if fixed_header.is_a?(Thunk)
+          self.attribute_set = attribute_set.resolve(f) if attribute_set.is_a?(Thunk)
+          self
+        end
+      end
 
       attr_reader :name, :formats
 
@@ -42,6 +49,7 @@ module Ynl
       end
 
       def resolve(f)
+        formats.map! { it.resolve(f) }
         self
       end
     end
@@ -101,9 +109,10 @@ module Ynl
     end
 
     class AttributeSet
-      Attribute = ::Struct.new(:name, :type, :value, :checks, :doc, :multi_attr) do
+      Attribute = ::Struct.new(:name, :type, :value, :checks, :doc, :multi_attr, :enum) do
         def resolve(f)
           self.type = type.resolve(f)
+          self.enum = enum.resolve(f) if enum
           self
         end
 

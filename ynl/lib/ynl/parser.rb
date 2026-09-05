@@ -135,10 +135,13 @@ module Ynl
       cls = type == :enum ? Models::Enum : Models::Flags
       result = cls.new(name: d.fetch('name'), doc: translate_doc(d['doc']))
 
-      start_value = d['start-value'] || 0
-      value = type == :enum ? start_value : 1 << start_value
+      start_value = d['value-start'] || 0
+      raw_value = start_value
 
       d.fetch('entries').each do |v|
+        explicit_value = v.is_a?(Hash) ? v['value'] : nil
+        raw_value = explicit_value unless explicit_value.nil?
+        value = type == :enum ? raw_value : 1 << raw_value
         case v
         when String
           entry = cls::Entry.new(name: v, value:)
@@ -150,7 +153,7 @@ module Ynl
 
         result.entries << entry
 
-        value = type == :enum ? value + 1 : value << 1
+        raw_value += 1
 
       rescue
         raise ParseError, "Failed to parse enum/flags entry: #{v.fetch('name')}"
@@ -387,6 +390,7 @@ module Ynl
         checks: (parse_checks(d['checks']) if d['checks']),
         doc: translate_doc(d['doc']),
         multi_attr:,
+        enum: d['enum']&.then { |ref| Models::Thunk.new {|f| f.find_type(ref) } },
       )
     rescue
       raise ParseError, "Failed to parse attribute: #{d.fetch('name')}"
@@ -396,8 +400,13 @@ module Ynl
       name = d.fetch('name')
       result = Models::SubMessage.new(name:)
       d.fetch('formats', []).each do |fmt|
-        attr_set = fmt['attribute-set']&.then { @attribute_sets[it] }
-        result.formats << Models::SubMessage::Format.new(fmt['value'], attr_set)
+        fixed_header = fmt['fixed-header']&.then do |ref|
+          Models::Thunk.new {|f| f.structs.fetch(ref) }
+        end
+        attr_set = fmt['attribute-set']&.then do |ref|
+          Models::Thunk.new {|f| f.attribute_sets.fetch(ref) }
+        end
+        result.formats << Models::SubMessage::Format.new(fmt.fetch('value'), fixed_header, attr_set)
       end
       @sub_messages[name] = result
     end

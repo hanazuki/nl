@@ -10,6 +10,8 @@ Basic Netlink protocol handling.
     - connection.rb - Socket, transport, membership, and notification ownership.
     - family.rb - Shared high-level family API.
     - datatypes.rb - Datatype codecs shared by raw and Generic Netlink schemas.
+    - structured_payload.rb - Common implementation to Message and SubMessage.
+    - sub_message.rb - Polymorphic sub-message values and selector slots.
     - raw.rb - Raw family base, message, and attribute schema classes.
     - raw/
       - wire.rb - Netlink wire constants and structures.
