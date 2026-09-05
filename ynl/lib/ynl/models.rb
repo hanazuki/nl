@@ -109,7 +109,7 @@ module Ynl
     end
 
     class AttributeSet
-      Attribute = ::Struct.new(:name, :type, :value, :checks, :doc, :multi_attr, :enum) do
+      Attribute = ::Struct.new(:name, :type, :value, :checks, :doc, :multi_attr, :enum, :enum_as_flags) do
         def resolve(f)
           self.type = type.resolve(f)
           self.enum = enum.resolve(f) if enum

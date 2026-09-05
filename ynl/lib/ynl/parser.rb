@@ -109,9 +109,11 @@ module Ynl
         @consts[v.name] = v
       when 'enum'
         v = parse_enum_flags(d, type: :enum)
+        reject_enum_flags_name_collision(v.name, @flags)
         @enums[v.name] = v
       when 'flags'
         v = parse_enum_flags(d, type: :flags)
+        reject_enum_flags_name_collision(v.name, @enums)
         @flags[v.name] = v
       when 'struct'
         v = parse_struct(d)
@@ -119,6 +121,12 @@ module Ynl
       else
         raise ParseError, "Unknown definition type: #{type}"
       end
+    end
+
+    private def reject_enum_flags_name_collision(name, other_definitions)
+      return unless other_definitions.key?(name)
+
+      raise ParseError, "Definition #{name.inspect} cannot be both an enum and flags"
     end
 
     private def parse_const(d)
@@ -371,14 +379,22 @@ module Ynl
       @attribute_sets[name] = result
       @attribute_definitions[name] = definitions
 
-    rescue
-      raise ParseError, "Failed to parse attribute set: #{d.fetch('name')}"
+    rescue => error
+      raise ParseError, "Failed to parse attribute set #{d.fetch('name')}: #{error.message}"
     end
 
     private def parse_attribute(d)
       multi_attr = d.fetch('multi-attr', false)
       unless multi_attr == true || multi_attr == false
         raise ParseError, "multi-attr must be a boolean"
+      end
+
+      enum_as_flags = d.fetch('enum-as-flags', false)
+      unless enum_as_flags == true || enum_as_flags == false
+        raise ParseError, "enum-as-flags must be a boolean"
+      end
+      if enum_as_flags && !d['enum']
+        raise ParseError, "enum-as-flags requires enum"
       end
 
       return unless type = parse_attribute_type(d)
@@ -391,9 +407,10 @@ module Ynl
         doc: translate_doc(d['doc']),
         multi_attr:,
         enum: d['enum']&.then { |ref| Models::Thunk.new {|f| f.find_type(ref) } },
+        enum_as_flags:,
       )
-    rescue
-      raise ParseError, "Failed to parse attribute: #{d.fetch('name')}"
+    rescue => error
+      raise ParseError, "Failed to parse attribute #{d.fetch('name')}: #{error.message}"
     end
 
     private def parse_sub_message(d)

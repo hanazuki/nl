@@ -76,6 +76,11 @@ module Ynl
           end
         end
 
+        emit_value_definitions('Enums', @ynl.enums.values) { |_definition, entry| entry.value }
+        emit_value_definitions('Flags', @ynl.flags.values + enums_used_as_flags) do |definition, entry|
+          definition.is_a?(Models::Enum) ? 1 << entry.value : entry.value
+        end
+
         deferred_struct_consts = []
         emit_module('Structs') do
           @ynl.structs.each do |name, struct|
@@ -389,6 +394,30 @@ module Ynl
 
     private def emit_const(name, value, rbs: nil)
       write(name, ' = ', value, *([' #: ', rbs] if rbs))
+    end
+
+    private def emit_value_definitions(namespace, definitions)
+      return if definitions.empty?
+
+      emit_module(namespace) do
+        definitions.each do |definition|
+          emit_comment(definition.doc)
+          emit_module(definition.name.as_class_name) do
+            definition.entries.each do |entry|
+              emit_comment(entry.doc)
+              emit_const(entry.name.as_class_name, yield(definition, entry))
+            end
+          end
+        end
+      end
+    end
+
+    private def enums_used_as_flags
+      @ynl.attribute_sets.each_value.flat_map(&:attributes).filter_map do |attribute|
+        next unless attribute.enum_as_flags && attribute.enum.is_a?(Models::Enum)
+
+        attribute.enum
+      end.uniq
     end
 
     private def emit_getter(name, expr)

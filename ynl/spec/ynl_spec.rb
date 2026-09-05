@@ -320,6 +320,26 @@ RSpec.describe Ynl do
       end.to raise_error(ArgumentError, 'Value "12345" is longer than maximum length 4')
     end
 
+    it 'exposes enums and flags as namespaced constants' do
+      path = Pathname(__dir__) + 'fixtures/enums_flags.yaml'
+      generated = StringIO.new
+      path.open { |source| Ynl::Family.generate(source, generated) }
+      cls = Ynl::Family.build(path)
+
+      expect(cls.name).to match(/::FooFamily\z/)
+      expect(cls::Enums::EnumName::MemberName).to eq 3
+      expect(cls::Enums::EnumName::ExplicitMember).to eq 7
+      expect(cls::Flags::EnumName::MemberName).to eq 8
+      expect(cls::Flags::EnumName::ExplicitMember).to eq 128
+      expect(cls::Flags::FlagName::FirstFlag).to eq 1
+      expect(cls::Flags::FlagName::LaterFlag).to eq 16
+      expect(cls::Enums::PlainEnum::Only).to eq 0
+      expect(cls::Flags.const_defined?(:PlainEnum, false)).to be false
+      expect(generated.string.scan('module EnumName').length).to eq 2
+      expect(generated.string).to include('# An explicitly numbered member.')
+      expect(generated.string).to include('# A flag with an explicit bit position.')
+    end
+
     it 'generates array APIs for multi-attributes' do
       path = Pathname(__dir__) + 'fixtures/multi_attr.yaml'
       generated = StringIO.new
