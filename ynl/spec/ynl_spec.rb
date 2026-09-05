@@ -439,13 +439,16 @@ RSpec.describe Ynl do
       expect(generated.string).to include('super')
     end
 
-    it 'does not inject a resolver into raw Netlink families' do
+    it 'generates raw Netlink family open methods without a resolver' do
       generated = StringIO.new
       yaml.open do |source|
         Ynl::Family.generate(source, generated, default_resolver: 'DefaultResolver')
       end
 
-      expect(generated.string).not_to include('def self.open')
+      expect(generated.string).to include(
+        'def self.open(executor: nil, notification_capacity: DEFAULT_NOTIFICATION_CAPACITY)',
+      )
+      expect(generated.string).not_to include('resolver:')
       expect(generated.string).not_to include('DefaultResolver')
     end
 

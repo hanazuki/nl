@@ -63,7 +63,7 @@ module Ynl
 
         emit_const('PROTONUM', @ynl.protonum) if raw
         emit_const('VERSION', @ynl.version) unless raw
-        emit_default_resolver(default_resolver) if default_resolver && !raw
+        emit_open(raw:, default_resolver:, classname:)
 
         emit_mcast_groups
 
@@ -467,18 +467,47 @@ module Ynl
       write('# @private')
     end
 
-    private def emit_default_resolver(default_resolver)
+    private def emit_open(raw:, default_resolver:, classname:)
+      resolver_rbs = unless raw
+        type = '^(::Nl::Genl::Client, ::String) -> ::Nl::Genl::FamilyInfo'
+        default_resolver ? "?resolver: #{type}" : "resolver: #{type}"
+      end
+      rbs_params = [
+        resolver_rbs,
+        '?executor: executor?',
+        '?notification_capacity: ::Integer?',
+      ].compact.join(', ')
       emit_rbs_comment(
-        '(?resolver: ^(::Nl::Genl::Client, ::String) -> ::Nl::Genl::FamilyInfo, ?executor: executor?, ?notification_capacity: ::Integer?) -> (::Nl::Family::Session & instance)',
-        '| [R] (?resolver: ^(::Nl::Genl::Client, ::String) -> ::Nl::Genl::FamilyInfo, ?executor: executor?, ?notification_capacity: ::Integer?) { (instance) -> R } -> R',
+        "(#{rbs_params}) -> (::Nl::Family::Session & instance)",
+        "| [R] (#{rbs_params}) { (instance) -> R } -> R",
       )
-      emit_yard_param('resolver', '#call')
-      emit_yard_param('executor', 'Symbol, nil')
-      emit_yard_param('notification_capacity', 'Integer, nil')
-      emit_yard_return('::Nl::Family::Session, Object')
-      write("def self.open(resolver: #{default_resolver}, executor: nil, notification_capacity: DEFAULT_NOTIFICATION_CAPACITY)")
+
+      resolver_ruby = unless raw
+        default_resolver ? "resolver: #{default_resolver}" : 'resolver:'
+      end
+      ruby_params = [
+        resolver_ruby,
+        'executor: nil',
+        'notification_capacity: DEFAULT_NOTIFICATION_CAPACITY',
+      ].compact.join(', ')
+      emit_yard_overload("open(#{ruby_params})") do |indentation|
+        emit_yard_open_params(resolver: !raw, indentation:)
+        emit_yard_return(classname, indentation:)
+      end
+      emit_yard_overload("open(#{ruby_params}, &block)") do |indentation|
+        emit_yard_open_params(resolver: !raw, indentation:)
+        emit_yard_yieldparam('family', classname, indentation:)
+        emit_yard_return('Object', 'the result of the block', indentation:)
+      end
+      write("def self.open(#{ruby_params})")
       indent { write('super') }
       write('end')
+    end
+
+    private def emit_yard_open_params(resolver:, indentation: '')
+      emit_yard_param('resolver', '#call', indentation:) if resolver
+      emit_yard_param('executor', 'Symbol, nil', indentation:)
+      emit_yard_param('notification_capacity', 'Integer, nil', indentation:)
     end
 
     private def emit_comment(comment)
@@ -837,8 +866,8 @@ module Ynl
       emit_comment("#{indentation}@param [#{type}] #{name}")
     end
 
-    private def emit_yard_return(type, indentation: '')
-      emit_comment("#{indentation}@return [#{type}]")
+    private def emit_yard_return(type, description = nil, indentation: '')
+      emit_comment(["#{indentation}@return [#{type}]", description].compact.join(' '))
     end
 
     private def emit_yard_see(object)
