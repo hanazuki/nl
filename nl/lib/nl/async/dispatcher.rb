@@ -59,7 +59,8 @@ module Nl
             else
               Future.build(mailbox:, on_close: -> { discard(key) })
             end
-            exchange = Exchange.new(kind:, expects_reply: !reply_class.nil?)
+            mode = kind == :dump ? :dump : (reply_class ? :reply : :no_reply)
+            exchange = Exchange.new(mode:)
             @pending[key] = Pending.new(exchange:, endpoint:, reply_class:, sink:)
           end
 
@@ -165,9 +166,9 @@ module Nl
         return unless removed
         return if pending.exchange.cancelled?
 
-        if pending.exchange.kind == :dump
+        if pending.exchange.mode == :dump
           pending.sink.finish
-        elsif pending.exchange.expects_reply?
+        elsif pending.exchange.mode == :reply
           pending.sink.succeed(value)
         else
           pending.sink.finish
