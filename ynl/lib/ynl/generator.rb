@@ -93,7 +93,7 @@ module Ynl
             end
             write(')')
             emit_class(name.as_class_name) do
-              emit_nodoc
+              emit_internal
               members = struct.members.map do |member|
                 "#{member.name.as_variable_name}: #{to_struct_member_datatype(member.type)}"
               end
@@ -147,10 +147,10 @@ module Ynl
                   emit_const('TYPE', attr.value)
                   emit_const('NAME', attr.name.as_variable_name.as_symbol_literal)
                   emit_const('MULTI', 'true') if attr.multi?
-                  emit_nodoc
+                  emit_internal
                   emit_const('ORDER', @attribute_orders.fetch(attr_set).fetch(attr))
                   if slot = @local_selectors.fetch(attr_set).index(attr.name)
-                    emit_nodoc
+                    emit_internal
                     emit_const('SELECTOR_SLOT', slot)
                   end
                   if attr.type.is_a?(Types::SubMessage)
@@ -171,21 +171,21 @@ module Ynl
               selector_names = @local_selectors.fetch(attr_set)
               external_selector_names = @external_selectors.fetch(attr_set)
               unless selector_names.empty? && external_selector_names.empty?
-                emit_nodoc
+                emit_internal
                 emit_const(
                   'SELECTOR_NAMES',
                   "Ractor.make_shareable({local: [#{selector_names.map { it.as_variable_name.as_symbol_literal }.join(', ')}], external: [#{external_selector_names.map { it.as_variable_name.as_symbol_literal }.join(', ')}]})",
                 )
               end
 
-              emit_nodoc
+              emit_internal
               emit_const(
                 'BY_NAME',
                 "Ractor.make_shareable({#{attr_set.attributes.map { "#{it.name.as_variable_name.as_symbol_literal} => #{it.name.as_class_name}" }.join(', ') }})",
                 rbs: 'Hash[::Symbol, Attribute]',
               )
 
-              emit_nodoc
+              emit_internal
               emit_const(
                 'BY_TYPE',
                 "Ractor.make_shareable({#{attr_set.attributes.map { "#{it.value} => #{it.name.as_class_name}" }.join(', ') }})",
@@ -308,7 +308,7 @@ module Ynl
         end
 
         emit_class('AsyncOperations') do
-          emit_nodoc
+          emit_internal
           write('def initialize(&exchange)')
           indent do
             write('@exchange = exchange')
@@ -424,8 +424,8 @@ module Ynl
       write('def ', name, '; ', expr, '; end')
     end
 
-    private def emit_nodoc
-      write('# :nodoc:')
+    private def emit_internal
+      write('# @private')
     end
 
     private def emit_default_resolver(default_resolver)
@@ -663,7 +663,6 @@ module Ynl
     end
 
     private def emit_rbs_comment(*args)
-      write('#--')
       args.each do |arg|
         emit_comment('@rbs ' + arg)
       end
