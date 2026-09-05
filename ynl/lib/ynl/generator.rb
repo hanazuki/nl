@@ -206,7 +206,7 @@ module Ynl
               attr_set.attributes.each do |attribute|
                 next if attribute.type.is_a?(Types::Pad)
 
-                emit_comment("Gets the value of `#{attribute.name}` attribute.")
+                emit_comment(attribute.doc)
                 emit_rbs_comment('return: ' + attribute_rbs_type(attribute))
                 emit_yard_return(attribute_yard_type(attribute))
                 emit_yard_see(attribute.name.as_class_name)
@@ -565,7 +565,7 @@ module Ynl
           datatype = member.type
           next if datatype.is_a? Types::Pad
           next if attribute_params.include?(param)
-          emit_comment("Gets the value of `#{param}` field in the message's fixed header.")
+          emit_comment(member.doc)
           emit_rbs_comment('return: ' + struct_member_rbs_type(datatype))
           emit_yard_return(struct_member_yard_type(datatype))
           emit_getter(param.as_method_name, "fixed_header.#{param.as_method_name}")
@@ -580,11 +580,7 @@ module Ynl
             raise ParseError, "Multi-attribute #{param.inspect} conflicts with a fixed-header member"
           end
 
-          if extending
-            emit_comment("Gets the value of `#{param}` attribute or fixed header in the message.")
-          else
-            emit_comment("Gets the value of `#{param}` attribute in the message.")
-          end
+          emit_comment(attribute.doc)
           emit_rbs_comment('return: ' + attribute_rbs_type(attribute))
           emit_yard_return(attribute_yard_type(attribute))
           emit_yard_see("AttributeSets::#{attribute_set.name.as_class_name}::#{attribute.name.as_class_name}")
@@ -630,7 +626,7 @@ module Ynl
           next if member.type.is_a?(Types::Pad)
           extending = format.attribute_set&.attributes&.any? { it.name == member.name }
           next if extending
-          emit_comment("Gets the value of `#{member.name}` field in the sub-message's fixed header.")
+          emit_comment(member.doc)
           emit_rbs_comment('return: ' + struct_member_rbs_type(member.type))
           emit_yard_return(struct_member_yard_type(member.type))
           emit_getter(member.name.as_method_name, "fixed_header.#{member.name.as_method_name}")
@@ -639,7 +635,7 @@ module Ynl
         format.attribute_set&.attributes&.each do |attribute|
           next if attribute.type.is_a?(Types::Pad)
           extending = format.fixed_header&.members&.any? { it.name == attribute.name }
-          emit_comment("Gets the value of `#{attribute.name}` in the sub-message.")
+          emit_comment(attribute.doc)
           emit_rbs_comment('return: ' + attribute_rbs_type(attribute))
           emit_yard_return(attribute_yard_type(attribute))
           emit_yard_see("AttributeSets::#{format.attribute_set.name.as_class_name}::#{attribute.name.as_class_name}")
