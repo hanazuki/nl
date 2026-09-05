@@ -1,0 +1,29 @@
+name: foo-family
+protocol: genetlink
+
+definitions:
+  -
+    name: enum-name
+    type: enum
+    value-start: 3
+    entries:
+      - member-name
+      - { name: explicit-member, value: 7, doc: An explicitly numbered member. }
+  -
+    name: flag-name
+    type: flags
+    entries:
+      - first-flag
+      - { name: later-flag, value: 4, doc: A flag with an explicit bit position. }
+  -
+    name: plain-enum
+    type: enum
+    entries: [only]
+
+attribute-sets:
+  -
+    name: attrs
+    attributes:
+      - { name: enum-value, type: u32, enum: enum-name }
+      - { name: flag-values, type: u32, enum: enum-name, enum-as-flags: true }
+      - { name: more-flag-values, type: u32, enum: enum-name, enum-as-flags: true }

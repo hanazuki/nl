@@ -61,6 +61,66 @@ RSpec.describe Ynl::Parser do
     end
   end
 
+  describe 'enum-as-flags attributes' do
+    it 'retains whether each enum reference is interpreted as flags' do
+      attributes = parse('enums_flags.yaml').attribute_sets.fetch('attrs').attributes
+
+      expect(attributes.map { [_1.name, _1.enum_as_flags] }).to eq([
+        ['enum-value', false],
+        ['flag-values', true],
+        ['more-flag-values', true],
+      ])
+    end
+
+    it 'requires enum-as-flags to be a boolean' do
+      source = StringIO.new(<<~YAML)
+        name: invalid-enum-as-flags
+        protocol: genetlink
+        definitions:
+          - { name: modes, type: enum, entries: [first] }
+        attribute-sets:
+          -
+            name: attrs
+            attributes:
+              - { name: modes, type: u32, enum: modes, enum-as-flags: invalid }
+      YAML
+
+      expect { described_class.new(source).parse }
+        .to raise_error(Ynl::ParseError, /enum-as-flags must be a boolean/)
+    end
+
+    it 'requires enum-as-flags to reference an enum definition' do
+      source = StringIO.new(<<~YAML)
+        name: missing-enum
+        protocol: genetlink
+        attribute-sets:
+          -
+            name: attrs
+            attributes:
+              - { name: modes, type: u32, enum-as-flags: true }
+      YAML
+
+      expect { described_class.new(source).parse }
+        .to raise_error(Ynl::ParseError, /enum-as-flags requires enum/)
+    end
+  end
+
+  describe 'enum and flags definition names' do
+    it 'rejects a name used by both definition types' do
+      source = StringIO.new(<<~YAML)
+        name: colliding-definitions
+        protocol: genetlink
+        definitions:
+          - { name: modes, type: enum, entries: [first] }
+          - { name: modes, type: flags, entries: [first] }
+        attribute-sets: []
+      YAML
+
+      expect { described_class.new(source).parse }
+        .to raise_error(Ynl::ParseError, /cannot be both an enum and flags/)
+    end
+  end
+
   describe 'nest-type-value attributes' do
     subject(:type) { parse('nest_type_value.yaml').attribute_sets.fetch('outer').attributes.first.type }
 
