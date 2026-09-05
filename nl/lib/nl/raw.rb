@@ -2,6 +2,7 @@ require_relative 'family'
 require_relative 'raw/protocol'
 require_relative 'raw/client'
 require_relative 'attribute_set'
+require_relative 'structured_payload'
 
 module Nl
   module Raw
@@ -34,37 +35,14 @@ module Nl
     end
 
     class Message
-      attr_accessor :fixed_header, :attributes
+      include Nl::StructuredPayload
 
       def initialize(fixed_header = nil, attributes = self.class::ATTRIBUTE_SET.new)
-        @fixed_header = fixed_header
-        @attributes = attributes
-      end
-
-      def self.from_params(params)
-        if self::FIXED_HEADER
-          header_params = params.slice(*self::FIXED_HEADER.members)
-          fixed_header = self::FIXED_HEADER.new(**header_params)
-        end
-        attribute_params = params.slice(*self::ATTRIBUTES)
-        attributes = self::ATTRIBUTE_SET.build_attributes(**attribute_params)
-
-        unknown = params.keys - attribute_params.keys
-        unknown -= header_params.keys if header_params
-        unless unknown.empty?
-          raise ArgumentError, "unknown parameters: #{unknown.join(', ')}"
-        end
-
-        new(fixed_header, attributes)
+        super
       end
 
       def append_attribute(attribute)
         @attributes << attribute
-      end
-
-      def encode(encoder)
-        @fixed_header&.encode(encoder)
-        @attributes.encode(encoder)
       end
 
       def self.decode(decoder, type:)
@@ -72,13 +50,13 @@ module Nl
           raise "Expected message type #{self::TYPE}, got #{type}"
         end
 
-        if fixed_header_class = self::FIXED_HEADER
-          fixed_header = fixed_header_class.decode(decoder)
+        super(decoder)
+      end
+
+      class << self
+        private def attribute_names
+          self::ATTRIBUTES
         end
-
-        attributes = self::ATTRIBUTE_SET.decode(decoder)
-
-        new(fixed_header, attributes)
       end
     end
   end

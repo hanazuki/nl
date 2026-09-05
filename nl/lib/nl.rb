@@ -1,5 +1,7 @@
 require_relative 'nl/error'
 require_relative 'nl/raw/wire'
+require_relative 'nl/structured_payload'
+require_relative 'nl/sub_message'
 require_relative 'nl/notification'
 require_relative 'nl/connection'
 require_relative 'nl/family'

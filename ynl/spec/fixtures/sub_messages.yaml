@@ -1,0 +1,71 @@
+name: sub-messages
+protocol: netlink-raw
+protonum: 42
+
+definitions:
+  -
+    name: selector-kind
+    type: enum
+    value-start: 10
+    entries:
+      - foo
+      - { name: bar, value: 20 }
+  -
+    name: format-header
+    type: struct
+    members:
+      - { name: header-value, type: u16 }
+      - { name: reserved, type: pad, len: 2 }
+
+attribute-sets:
+  -
+    name: payload-attrs
+    attributes:
+      - { name: payload-value, type: u32 }
+  -
+    name: leaf-attrs
+    attributes:
+      - { name: data, type: sub-message, sub-message: payload-message, selector: kind }
+  -
+    name: child-attrs
+    attributes:
+      - { name: leaf, type: nest, nested-attributes: leaf-attrs }
+  -
+    name: outer-attrs
+    attributes:
+      - { name: kind, type: string }
+      - { name: child, type: nest, nested-attributes: child-attrs }
+  -
+    name: enum-attrs
+    attributes:
+      - { name: data, type: sub-message, sub-message: payload-message, selector: kind }
+      - { name: kind, type: u32, enum: selector-kind }
+
+sub-messages:
+  -
+    name: payload-message
+    formats:
+      -
+        value: foo
+        fixed-header: format-header
+        attribute-set: payload-attrs
+      -
+        value: bar
+
+operations:
+  enum-model: directional
+  list:
+    -
+      name: set-outer
+      attribute-set: outer-attrs
+      do:
+        request:
+          value: 1
+          attributes: [kind, child]
+    -
+      name: set-enum
+      attribute-set: enum-attrs
+      do:
+        request:
+          value: 2
+          attributes: [kind, data]

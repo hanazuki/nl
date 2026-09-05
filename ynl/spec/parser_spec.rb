@@ -100,14 +100,40 @@ RSpec.describe Ynl::Parser do
       expect(type.rbs_type).to eq('::Array[::Integer]')
     end
 
-    it 'types opaque sub-message payloads as strings' do
-      expect(Ynl::Types::SubMessage.new.rbs_type).to eq('::String')
+    it 'types sub-message payloads as sub-message values' do
+      expect(Ynl::Types::SubMessage.new.rbs_type).to eq('::Nl::SubMessage')
     end
 
     it 'preserves an indexed array element type' do
       type = Ynl::Types::IndexedArray.new(Ynl::Types::Scalar.new(type: 'u32', byte_order: :host))
 
       expect(type.rbs_type).to eq('::Array[::Integer]')
+    end
+  end
+
+
+  describe 'sub-messages' do
+    subject(:family) { parse('sub_messages.yaml') }
+
+    it 'resolves fixed headers and attribute sets for every format' do
+      formats = family.sub_messages.fetch('payload-message').formats
+
+      expect(formats.fetch(0)).to have_attributes(
+        value: 'foo',
+        fixed_header: family.structs.fetch('format-header'),
+        attribute_set: family.attribute_sets.fetch('payload-attrs'),
+      )
+      expect(formats.fetch(1)).to have_attributes(
+        value: 'bar', fixed_header: nil, attribute_set: nil,
+      )
+    end
+
+    it 'resolves selector enums with value-start and explicit entry values' do
+      enum = family.enums.fetch('selector-kind')
+      selector = family.attribute_sets.fetch('enum-attrs').attributes.find { it.name == 'kind' }
+
+      expect(enum.entries.map { [_1.name, _1.value] }).to eq([['foo', 10], ['bar', 20]])
+      expect(selector.enum).to equal(enum)
     end
   end
 

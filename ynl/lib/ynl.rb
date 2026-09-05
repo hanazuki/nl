@@ -81,7 +81,7 @@ module Ynl
       end
 
       def rbs_type
-        '::String'
+        '::Nl::SubMessage'
       end
     end
 

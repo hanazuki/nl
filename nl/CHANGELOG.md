@@ -8,6 +8,7 @@
 - Add `Raw::Client` for using raw families with the same protocol number over one connection.
 - Rename `Genl::Connection` to `Genl::Client`.
 - Remove `UnknownNotification`; unsolicited messages without a registered decoder are now ignored.
+- Add context-aware encoding and decoding support for polymorphic sub-messages.
 
 ## v0.3.0 (2026-09-01)
 

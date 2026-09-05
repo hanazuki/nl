@@ -53,6 +53,7 @@ module Ynl
       raw = @ynl.protocol == 'netlink-raw'
       @wire = raw ? '::Nl::Raw' : '::Nl::Genl'
       superclass ||= raw ? '::Nl::Raw::Family' : '::Nl::Genl::Family'
+      build_selector_plan
 
       emit_comment(@ynl.doc)
 
@@ -126,6 +127,7 @@ module Ynl
           emit_const(name, members, rbs: 'Hash[::Symbol, ::Nl::_DataType]')
         end
 
+        deferred_sub_message_datatypes = []
         emit_module('AttributeSets') do
           deferred_consts = []
           @ynl.attribute_sets.each do |name, attr_set|
@@ -140,14 +142,35 @@ module Ynl
                   emit_const('TYPE', attr.value)
                   emit_const('NAME', attr.name.as_variable_name.as_symbol_literal)
                   emit_const('MULTI', 'true') if attr.multi?
-                  if attr.type.is_a?(Types::NestedAttributes) ||
+                  emit_nodoc
+                  emit_const('ORDER', @attribute_orders.fetch(attr_set).fetch(attr))
+                  if slot = @local_selectors.fetch(attr_set).index(attr.name)
+                    emit_nodoc
+                    emit_const('SELECTOR_SLOT', slot)
+                  end
+                  if attr.type.is_a?(Types::SubMessage)
+                    deferred_sub_message_datatypes << [
+                      "AttributeSets::#{name.as_class_name}::#{attr.name.as_class_name}::DATATYPE",
+                      to_datatype(attr.type, attr.checks, owner: attr_set),
+                    ]
+                  elsif attr.type.is_a?(Types::NestedAttributes) ||
                     attr.type.is_a?(Types::NestTypeValue) ||
                     (attr.type.is_a?(Types::IndexedArray) && attr.type.sub_type.is_a?(Types::NestedAttributes))
-                    deferred_consts << ["#{name.as_class_name}::#{attr.name.as_class_name}::DATATYPE", to_datatype(attr.type, attr.checks)]
+                    deferred_consts << ["#{name.as_class_name}::#{attr.name.as_class_name}::DATATYPE", to_datatype(attr.type, attr.checks, owner: attr_set)]
                   else
-                    emit_const('DATATYPE', to_datatype(attr.type, attr.checks))
+                    emit_const('DATATYPE', to_datatype(attr.type, attr.checks, owner: attr_set))
                   end
                 end
+              end
+
+              selector_names = @local_selectors.fetch(attr_set)
+              external_selector_names = @external_selectors.fetch(attr_set)
+              unless selector_names.empty? && external_selector_names.empty?
+                emit_nodoc
+                emit_const(
+                  'SELECTOR_NAMES',
+                  "Ractor.make_shareable({local: [#{selector_names.map { it.as_variable_name.as_symbol_literal }.join(', ')}], external: [#{external_selector_names.map { it.as_variable_name.as_symbol_literal }.join(', ')}]})",
+                )
               end
 
               emit_nodoc
@@ -183,6 +206,10 @@ module Ynl
           end
           deferred_consts.each { emit_const(*it) }
         end
+
+
+        emit_sub_messages
+        deferred_sub_message_datatypes.each { emit_const(*it) }
 
         emit_module('Messages') do
           @ynl.operations.each do |name, oper|
@@ -457,6 +484,57 @@ module Ynl
       end
     end
 
+    private def emit_sub_messages
+      return if @ynl.sub_messages.empty?
+
+      emit_module('SubMessages') do
+        @ynl.sub_messages.each_value do |sub_message|
+          grouped = sub_message.formats.group_by { it.value.as_class_name }
+          if collision = grouped.find { |_name, formats| formats.length > 1 }
+            ruby_name, formats = collision
+            raise ParseError,
+              "Sub-message formats #{formats.map(&:value).map(&:inspect).join(' and ')} normalize to #{ruby_name.inspect}"
+          end
+          emit_module(sub_message.name.as_class_name) do
+            sub_message.formats.each do |format|
+              emit_sub_message_class(format.value.as_class_name, format)
+            end
+          end
+        end
+      end
+    end
+
+    private def emit_sub_message_class(name, format)
+      emit_class(name, '::Nl::SubMessage') do
+        emit_const('FIXED_HEADER', format.fixed_header&.then { 'Structs::' + it.name.as_class_name } || 'nil')
+        emit_const('ATTRIBUTE_SET', format.attribute_set&.then { 'AttributeSets::' + it.name.as_class_name } || 'nil')
+
+        format.fixed_header&.members&.each do |member|
+          next if member.type.is_a?(Types::Pad)
+          extending = format.attribute_set&.attributes&.any? { it.name == member.name }
+          next if extending
+          emit_comment("Gets the value of `#{member.name}` field in the sub-message's fixed header.")
+          emit_rbs_comment('return: ' + struct_member_rbs_type(member.type))
+          emit_getter(member.name.as_method_name, "fixed_header.#{member.name.as_method_name}")
+        end
+
+        format.attribute_set&.attributes&.each do |attribute|
+          next if attribute.type.is_a?(Types::Pad)
+          extending = format.fixed_header&.members&.any? { it.name == attribute.name }
+          emit_comment("Gets the value of `#{attribute.name}` in the sub-message.")
+          emit_rbs_comment('return: ' + attribute_rbs_type(attribute))
+          expression = if attribute.multi?
+            "attributes[#{attribute.name.as_variable_name.as_symbol_literal}].map(&:value)"
+          elsif extending
+            "attributes[#{attribute.name.as_variable_name.as_symbol_literal}]&.value || fixed_header.#{attribute.name.as_method_name}"
+          else
+            "attributes[#{attribute.name.as_variable_name.as_symbol_literal}]&.value"
+          end
+          emit_getter(attribute.name.as_method_name, expression)
+        end
+      end
+    end
+
     private def parameter_rbs_type(param)
       if param.is_a?(Models::AttributeSet::Attribute)
         type = input_rbs_type(param.type)
@@ -488,14 +566,27 @@ module Ynl
         value_type
       when Types::IndexedArray
         "::Array[#{input_rbs_type(type.sub_type)}]"
+      when Types::SubMessage
+        "(#{sub_message_rbs_type(type)} | ::Hash[::Symbol, untyped])"
       else
         type.rbs_type
       end
     end
 
     private def attribute_rbs_type(attribute)
-      type = attribute.type.rbs_type
+      type = if attribute.type.is_a?(Types::SubMessage)
+        sub_message_rbs_type(attribute.type)
+      else
+        attribute.type.rbs_type
+      end
       attribute.multi? ? "::Array[#{type}]" : type
+    end
+
+    private def sub_message_rbs_type(type)
+      formats = type.sub_message.formats.map do |format|
+        "SubMessages::#{type.sub_message.name.as_class_name}::#{format.value.as_class_name}"
+      end
+      (formats << '::Nl::RawSubMessage').join(' | ')
     end
 
     private def emit_mcast_groups
@@ -536,7 +627,219 @@ module Ynl
       end
     end
 
-    private def to_datatype(type, checks)
+    private def build_selector_plan
+      sets = @ynl.attribute_sets.values
+      @local_selectors = sets.to_h { [it, []] }
+      @external_selectors = sets.to_h { [it, []] }
+
+      @ynl.sub_messages.each_value do |sub_message|
+        duplicate = sub_message.formats.group_by(&:value).find { |_value, formats| formats.length > 1 }
+        if duplicate
+          raise ParseError,
+            "Duplicate format value #{duplicate.first.inspect} in sub-message #{sub_message.name.inspect}"
+        end
+      end
+
+      changed = true
+      while changed
+        changed = false
+        sets.each do |set|
+          set.attributes.each do |attribute|
+            if attribute.type.is_a?(Types::SubMessage)
+              changed |= require_selector(set, attribute.type.selector)
+            end
+
+            child_attribute_sets(attribute.type).each do |child|
+              @external_selectors.fetch(child).each do |selector|
+                changed |= require_selector(set, selector)
+              end
+            end
+          end
+        end
+      end
+
+      build_attribute_orders
+      roots = @ynl.operations.values.filter_map(&:attribute_set).uniq
+      roots.each do |root|
+        required = @external_selectors.fetch(root)
+        next if required.empty?
+        raise ParseError,
+          "Root attribute set #{root.name.inspect} requires external selectors: #{required.join(', ')}"
+      end
+      build_selector_sources(roots)
+      validate_selector_values
+    end
+
+    private def require_selector(set, selector)
+      local = attribute_by_name(set, selector)
+      if local&.multi?
+        raise ParseError,
+          "Multi-attribute #{selector.inspect} cannot be a selector in attribute set #{set.name.inspect}"
+      end
+      target = local ? @local_selectors : @external_selectors
+      selectors = target.fetch(set)
+      return false if selectors.include?(selector)
+      selectors << selector
+      true
+    end
+
+    private def build_attribute_orders
+      @attribute_orders = {}
+      @ynl.attribute_sets.each_value do |set|
+        dependencies = set.attributes.to_h { |attribute| [attribute, []] }
+        set.attributes.each do |attribute|
+          selectors = []
+          selectors << attribute.type.selector if attribute.type.is_a?(Types::SubMessage)
+          child_attribute_sets(attribute.type).each do |child|
+            selectors.concat(@external_selectors.fetch(child))
+          end
+
+          selectors.uniq.each do |selector|
+            selector_attribute = attribute_by_name(set, selector)
+            dependencies.fetch(attribute) << selector_attribute if selector_attribute
+          end
+        end
+
+        ordered = []
+        remaining = set.attributes.dup
+        until remaining.empty?
+          index = remaining.index do |attribute|
+            dependencies.fetch(attribute).all? { ordered.include?(it) }
+          end
+          unless index
+            raise ParseError,
+              "Selector dependency cycle in attribute set #{set.name.inspect}: #{remaining.map(&:name).join(', ')}"
+          end
+          ordered << remaining.delete_at(index)
+        end
+        @attribute_orders[set] = ordered.each_with_index.to_h
+      end
+    end
+
+    private def build_selector_sources(roots)
+      @selector_sources = @ynl.attribute_sets.values.to_h { [it, Hash.new { |h, k| h[k] = [] }] }
+      reached = roots.to_h { [it, true] }
+
+      changed = true
+      while changed
+        changed = false
+        reached.keys.each do |set|
+          set.attributes.each do |attribute|
+            child_attribute_sets(attribute.type).each do |child|
+              unless reached[child]
+                reached[child] = true
+                changed = true
+              end
+              @external_selectors.fetch(child).each do |selector|
+                sources = if source = attribute_by_name(set, selector)
+                  [source]
+                else
+                  @selector_sources.fetch(set)[selector]
+                end
+                target = @selector_sources.fetch(child)[selector]
+                sources.each do |candidate|
+                  unless target.include?(candidate)
+                    target << candidate
+                    changed = true
+                  end
+                end
+              end
+            end
+          end
+        end
+      end
+    end
+
+    private def validate_selector_values
+      @ynl.attribute_sets.each_value do |set|
+        set.attributes.each do |attribute|
+          next unless attribute.type.is_a?(Types::SubMessage)
+          keys = attribute.type.sub_message.formats.map do |format|
+            selector_value_literal(set, attribute.type.selector, format.value)
+          end
+          duplicate = keys.group_by(&:itself).find { |_key, matches| matches.length > 1 }
+          if duplicate
+            raise ParseError,
+              "Sub-message #{attribute.type.sub_message.name.inspect} has duplicate compiled selector value #{duplicate.first}"
+          end
+        end
+      end
+    end
+
+    private def child_attribute_sets(type)
+      case type
+      when Types::NestedAttributes, Types::NestTypeValue
+        [type.attribute_set]
+      when Types::IndexedArray
+        child_attribute_sets(type.sub_type)
+      when Types::SubMessage
+        type.sub_message.formats.filter_map(&:attribute_set)
+      else
+        []
+      end
+    end
+
+    private def attribute_by_name(set, name)
+      set.attributes.find { it.name == name }
+    end
+
+    private def selector_source_literal(set, selector)
+      if (index = @local_selectors.fetch(set).index(selector))
+        "::Nl::Selector::Local.new(#{index})"
+      elsif (index = @external_selectors.fetch(set).index(selector))
+        "::Nl::Selector::External.new(#{index})"
+      else
+        raise ParseError, "Unresolved selector #{selector.inspect} in attribute set #{set.name.inspect}"
+      end
+    end
+
+    private def selector_bindings_literal(parent, child)
+      return '[]' unless child
+      bindings = @external_selectors.fetch(child).map do |selector|
+        selector_source_literal(parent, selector)
+      end
+      "Ractor.make_shareable([#{bindings.join(', ')}])"
+    end
+
+    private def selector_value_literal(set, selector, format_value)
+      sources = if source = attribute_by_name(set, selector)
+        [source]
+      else
+        @selector_sources.fetch(set)[selector]
+      end
+      if sources.empty?
+        raise ParseError,
+          "Cannot determine the type of external selector #{selector.inspect} in attribute set #{set.name.inspect}"
+      end
+
+      values = sources.map do |source|
+        case source.type
+        when Types::String
+          format_value.as_string_literal
+        when Types::Scalar
+          unless source.enum.is_a?(Models::Enum)
+            raise ParseError,
+              "Integer selector #{source.name.inspect} must reference an enum"
+          end
+          entry = source.enum.entries.find { it.name == format_value }
+          unless entry
+            raise ParseError,
+              "Selector enum #{source.enum.name.inspect} has no entry #{format_value.inspect}"
+          end
+          entry.value.to_s
+        else
+          raise ParseError,
+            "Selector #{source.name.inspect} must be a string or an enum-backed integer"
+        end
+      end.uniq
+      if values.length != 1
+        raise ParseError,
+          "Selector #{selector.inspect} has incompatible definitions for format #{format_value.inspect}"
+      end
+      values.first
+    end
+
+    private def to_datatype(type, checks, owner: nil)
       case type
       when Types::Pad
         "::Nl::DataTypes::Pad.new(#{type.length})"
@@ -562,13 +865,23 @@ module Ynl
       when Types::PackedArray
         "::Nl::DataTypes::PackedArray.new(#{to_datatype(type.sub_type, nil)}, check: #{to_checks(checks)})"
       when Types::NestedAttributes
-        "::Nl::DataTypes::NestedAttributes.new(#{type.attribute_set.name.as_class_name})"
+        bindings = selector_bindings_literal(owner, type.attribute_set)
+        "::Nl::DataTypes::NestedAttributes.new(AttributeSets::#{type.attribute_set.name.as_class_name}, selector_bindings: #{bindings})"
       when Types::NestTypeValue
-        "::Nl::DataTypes::NestTypeValue.new(#{type.attribute_set.name.as_class_name}, #{type.type_values.length})"
+        bindings = selector_bindings_literal(owner, type.attribute_set)
+        "::Nl::DataTypes::NestTypeValue.new(AttributeSets::#{type.attribute_set.name.as_class_name}, #{type.type_values.length}, selector_bindings: #{bindings})"
       when Types::IndexedArray
-        "::Nl::DataTypes::IndexedArray.new(#{to_datatype(type.sub_type, nil)})"
+        "::Nl::DataTypes::IndexedArray.new(#{to_datatype(type.sub_type, nil, owner:)})"
       when Types::SubMessage
-        "::Nl::DataTypes::Binary.new(check: nil)"
+        selector = selector_source_literal(owner, type.selector)
+        formats = type.sub_message.formats.map do |format|
+          key = selector_value_literal(owner, type.selector, format.value)
+          klass = "SubMessages::#{type.sub_message.name.as_class_name}::#{format.value.as_class_name}"
+          bindings = selector_bindings_literal(owner, format.attribute_set)
+          nested = !format.attribute_set.nil?
+          "#{key} => ::Nl::DataTypes::SubMessage::Format.new(#{klass}, #{bindings}, #{nested})"
+        end
+        "::Nl::DataTypes::SubMessage.new(#{selector}, {#{formats.join(', ')}})"
       else
         raise "Unknown type: #{type.class}"
       end

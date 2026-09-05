@@ -22,6 +22,121 @@ RSpec.describe Ynl do
   end
 
   describe Ynl::Family do
+    it 'generates and round-trips statically selected sub-messages' do
+      path = Pathname(__dir__) + 'fixtures/sub_messages.yaml'
+      generated = StringIO.new
+      path.open { |source| Ynl::Family.generate(source, generated) }
+      cls = Ynl::Family.build(path)
+
+      attributes = cls::AttributeSets::OuterAttrs.build_attributes(
+        child: {leaf: {data: {header_value: 7, payload_value: 11}}},
+        kind: 'foo',
+      )
+      encoder = Nl::Encoder.new
+      attributes.encode(encoder)
+      decoded = cls::AttributeSets::OuterAttrs.decode(Nl::Decoder.new(encoder.buffer))
+      data = decoded[:child].value[:leaf].value[:data].value
+
+      expect(data).to be_a(cls::SubMessages::PayloadMessage::Foo)
+      expect(data).to have_attributes(header_value: 7, payload_value: 11)
+      expect(encoder.buffer.get_value(Nl::Endian::Host::U16, 2)).to eq(1)
+      expect(generated.string).to include('::Nl::Selector::External.new(0)')
+      expect(generated.string).to include('selector_bindings: Ractor.make_shareable([::Nl::Selector::Local.new(0)])')
+      expect(generated.string).to include('selector_bindings: Ractor.make_shareable([::Nl::Selector::External.new(0)])')
+      expect(generated.string).to include('SELECTOR_SLOT = 0')
+      expect(generated.string).not_to include('SELECTOR_SLOTS_BY_')
+    end
+
+    it 'compiles enum selector names to their integer values' do
+      path = Pathname(__dir__) + 'fixtures/sub_messages.yaml'
+      generated = StringIO.new
+      path.open { |source| Ynl::Family.generate(source, generated) }
+      cls = Ynl::Family.build(path)
+
+      attributes = cls::AttributeSets::EnumAttrs.build_attributes(
+        data: {header_value: 3, payload_value: 5},
+        kind: 10,
+      )
+      encoder = Nl::Encoder.new
+      attributes.encode(encoder)
+      decoded = cls::AttributeSets::EnumAttrs.decode(Nl::Decoder.new(encoder.buffer))
+
+      expect(decoded[:data].value).to have_attributes(header_value: 3, payload_value: 5)
+      expect(encoder.buffer.get_value(Nl::Endian::Host::U16, 2)).to eq(
+        cls::AttributeSets::EnumAttrs::Kind::TYPE,
+      )
+      expect(cls::AttributeSets::EnumAttrs::Kind::ORDER).to eq(0)
+      expect(cls::AttributeSets::EnumAttrs::Data::ORDER).to eq(1)
+      expect(generated.string).to include('10 => ::Nl::DataTypes::SubMessage::Format.new')
+      expect(generated.string).to include('20 => ::Nl::DataTypes::SubMessage::Format.new')
+    end
+
+    it 'rejects a sub-message whose selector has not appeared on the wire' do
+      cls = Ynl::Family.build(Pathname(__dir__) + 'fixtures/sub_messages.yaml')
+      encoded = Nl::Encoder.new
+      attrs = cls::AttributeSets::EnumAttrs.build_attributes(
+        kind: 10,
+        data: {header_value: 3, payload_value: 5},
+      )
+      attrs[:data].then do |data|
+        encoded.measure(Nl::Endian::Host::U16) do
+          Nl::Raw::NlAttr.new(0, data.class::TYPE | Nl::Raw::NLA_F_NESTED).encode(encoded)
+          data.value.encode(encoded)
+        end
+        encoded.align_to(Nl::Raw::NLA_ALIGNTO)
+      end
+
+      expect do
+        cls::AttributeSets::EnumAttrs.decode(Nl::Decoder.new(encoded.buffer))
+      end.to raise_error(
+        Nl::Decoder::Error,
+        'selector :kind must precede the dependent attribute',
+      )
+
+      expect do
+        cls::AttributeSets::LeafAttrs.build_attributes(
+          data: {header_value: 3, payload_value: 5},
+        )
+      end.to raise_error(
+        ArgumentError,
+        'selector :kind is required by a dependent attribute',
+      )
+    end
+
+    it 'preserves an unknown sub-message format as raw data' do
+      cls = Ynl::Family.build(Pathname(__dir__) + 'fixtures/sub_messages.yaml')
+      raw = Nl::RawSubMessage.new(
+        "\x01\x02\x03\x04".b,
+        nlattr_type_flags: Nl::Raw::NLA_F_NESTED,
+      )
+      attributes = cls::AttributeSets::EnumAttrs.build_attributes(kind: 99, data: raw)
+      encoded = Nl::Encoder.new
+      attributes.encode(encoded)
+
+      decoded = cls::AttributeSets::EnumAttrs.decode(Nl::Decoder.new(encoded.buffer))
+      value = decoded[:data].value
+      reencoded = Nl::Encoder.new
+      decoded.encode(reencoded)
+
+      expect(value).to be_a(Nl::RawSubMessage)
+      expect(value.payload).to eq("\x01\x02\x03\x04".b)
+      expect(value.nlattr_type_flags).to eq(Nl::Raw::NLA_F_NESTED)
+      expect(reencoded.buffer.get_string).to eq(encoded.buffer.get_string)
+    end
+
+    it 'allows raw data after its selector format becomes known' do
+      cls = Ynl::Family.build(Pathname(__dir__) + 'fixtures/sub_messages.yaml')
+      raw = Nl::RawSubMessage.new(
+        "\x01\x02\x03\x04".b,
+        nlattr_type_flags: Nl::Raw::NLA_F_NESTED,
+      )
+
+      attributes = cls::AttributeSets::EnumAttrs.build_attributes(kind: 10, data: raw)
+      encoder = Nl::Encoder.new
+
+      expect { attributes.encode(encoder) }.not_to raise_error
+    end
+
     it 'encodes and decodes fixed-size binary and nested struct members' do
       path = Pathname(__dir__) + 'fixtures/fixed_struct_members.yaml'
       generated = StringIO.new
