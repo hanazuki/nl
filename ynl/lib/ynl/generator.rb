@@ -793,12 +793,16 @@ module Ynl
     private def emit_yard_options(params)
       emit_yard_param('args', 'Hash')
       params.each do |param|
-        emit_yard_option('args', param.name.as_variable_name, parameter_yard_type(param))
+        emit_yard_option('args', param.name.as_variable_name, parameter_yard_type(param), param.doc)
       end
     end
 
-    private def emit_yard_option(parameter, name, type)
-      emit_comment("@option #{parameter} [#{type}] #{name}")
+    private def emit_yard_option(parameter, name, type, description)
+      lines = description&.each_line(chomp: true)&.to_a || []
+      emit_comment(["@option #{parameter} [#{type}] #{name}", lines.shift].compact.join(' '))
+      lines.each do |line|
+        emit_comment("  #{line}")
+      end
     end
 
     private def emit_yard_attribute(name, type, description)
