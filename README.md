@@ -6,6 +6,35 @@ This repository is the home to three gems:
 - `ynl` -- YNL (YAML Netlink Specification) parser and code generator.
 - `nl-linux` -- Client definitions for Linux Netlink subsystems.
 
+## Synopsis
+
+```ruby
+require 'nl/linux'
+require 'ipaddr'
+
+# List IP addresses by interface
+Nl::Raw::Client.open(protonum: Nl::Raw::NETLINK_ROUTE) do |client|
+  rtaddr = client.family(Nl::Linux::RtAddr)
+  rtlink = client.family(Nl::Linux::RtLink)
+
+  links = rtlink.dump_getlink.to_h { |link| [link.ifi_index, link] }
+
+  rtaddr.dump_getaddr.group_by(&:ifa_index).each do |ifindex, addrs|
+    ips = addrs.map { |addr| "#{IPAddr.new_ntoh(addr.address)}/#{addr.ifa_prefixlen}" }
+    link = links.fetch(ifindex)
+
+    puts "#{link.ifname}: #{ips.join(', ')}"
+  end
+end
+
+# List interface speeds
+Nl::Linux::Ethtool.open do |ethtool|
+  ethtool.dump_linkmodes_get.each do |dev|
+    puts "#{dev.header.dev_name}: #{dev.speed} Mbps"
+  end
+end
+```
+
 ## Contributing
 
 Bug reports and pull requests are welcome on GitHub at <https://github.com/hanazuki/nl>.
