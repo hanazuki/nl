@@ -93,6 +93,13 @@ module Ynl
             end
             write(')')
             emit_class(name.as_class_name) do
+              struct.members.each do |member|
+                emit_yard_attribute(
+                  member.name.as_method_name,
+                  struct_member_yard_type(member.type),
+                  member.doc,
+                )
+              end
               emit_internal
               members = struct.members.map do |member|
                 "#{member.name.as_variable_name}: #{to_struct_member_datatype(member.type)}"
@@ -786,6 +793,14 @@ module Ynl
 
     private def emit_yard_option(parameter, name, type)
       emit_comment("@option #{parameter} [#{type}] #{name}")
+    end
+
+    private def emit_yard_attribute(name, type, description)
+      emit_comment("@!attribute [rw] #{name}")
+      description&.each_line(chomp: true) do |line|
+        emit_comment("  #{line}")
+      end
+      emit_comment("  @return [#{type}]")
     end
 
     private def emit_yard_param(name, type)
