@@ -1,6 +1,10 @@
 gems:
   - directory: nl
+    hooks:
+      prebuild: bundle exec rake build
   - directory: ynl
+    hooks:
+      prebuild: bundle exec rake build
   - directory: nl-linux
     hooks:
-      prebuild: bundle exec rake generate
+      prebuild: bundle exec rake build

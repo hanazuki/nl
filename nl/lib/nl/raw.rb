@@ -1,3 +1,5 @@
+# rbs_inline: enabled
+
 require_relative 'family'
 require_relative 'raw/protocol'
 require_relative 'raw/client'
