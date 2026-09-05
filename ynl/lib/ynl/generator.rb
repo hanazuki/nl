@@ -100,7 +100,6 @@ module Ynl
                   member.doc,
                 )
               end
-              emit_internal
               members = struct.members.map do |member|
                 "#{member.name.as_variable_name}: #{to_struct_member_datatype(member.type)}"
               end
@@ -108,7 +107,7 @@ module Ynl
               if struct.members.any? { it.type.is_a?(Types::Binary) && it.type.struct }
                 deferred_struct_consts << ["Structs::#{name.as_class_name}::MEMBERS", members]
               else
-                emit_const('MEMBERS', members, rbs: 'Hash[::Symbol, ::Nl::_DataType]')
+                emit_const('MEMBERS', members, rbs: 'Hash[::Symbol, ::Nl::_DataType]', internal: true)
               end
 
               emit_comment('Decodes the struct.')
@@ -140,7 +139,7 @@ module Ynl
           end
         end
         deferred_struct_consts.each do |name, members|
-          emit_const(name, members, rbs: 'Hash[::Symbol, ::Nl::_DataType]')
+          emit_const(name, members, rbs: 'Hash[::Symbol, ::Nl::_DataType]', internal: true)
         end
 
         deferred_sub_message_datatypes = []
@@ -157,12 +156,10 @@ module Ynl
                 emit_class(attr.name.as_class_name, 'Attribute') do
                   emit_const('TYPE', attr.value)
                   emit_const('NAME', attr.name.as_variable_name.as_symbol_literal)
-                  emit_const('MULTI', 'true') if attr.multi?
-                  emit_internal
-                  emit_const('ORDER', @attribute_orders.fetch(attr_set).fetch(attr))
+                  emit_const('MULTI', 'true', internal: true) if attr.multi?
+                  emit_const('ORDER', @attribute_orders.fetch(attr_set).fetch(attr), internal: true)
                   if slot = @local_selectors.fetch(attr_set).index(attr.name)
-                    emit_internal
-                    emit_const('SELECTOR_SLOT', slot)
+                    emit_const('SELECTOR_SLOT', slot, internal: true)
                   end
                   if attr.type.is_a?(Types::SubMessage)
                     deferred_sub_message_datatypes << [
@@ -174,7 +171,7 @@ module Ynl
                     (attr.type.is_a?(Types::IndexedArray) && attr.type.sub_type.is_a?(Types::NestedAttributes))
                     deferred_consts << ["#{name.as_class_name}::#{attr.name.as_class_name}::DATATYPE", to_datatype(attr.type, attr.checks, owner: attr_set)]
                   else
-                    emit_const('DATATYPE', to_datatype(attr.type, attr.checks, owner: attr_set))
+                    emit_const('DATATYPE', to_datatype(attr.type, attr.checks, owner: attr_set), internal: true)
                   end
                 end
               end
@@ -182,25 +179,25 @@ module Ynl
               selector_names = @local_selectors.fetch(attr_set)
               external_selector_names = @external_selectors.fetch(attr_set)
               unless selector_names.empty? && external_selector_names.empty?
-                emit_internal
                 emit_const(
                   'SELECTOR_NAMES',
                   "Ractor.make_shareable({local: [#{selector_names.map { it.as_variable_name.as_symbol_literal }.join(', ')}], external: [#{external_selector_names.map { it.as_variable_name.as_symbol_literal }.join(', ')}]})",
+                  internal: true,
                 )
               end
 
-              emit_internal
               emit_const(
                 'BY_NAME',
                 "Ractor.make_shareable({#{attr_set.attributes.map { "#{it.name.as_variable_name.as_symbol_literal} => #{it.name.as_class_name}" }.join(', ') }})",
                 rbs: 'Hash[::Symbol, Attribute]',
+                internal: true,
               )
 
-              emit_internal
               emit_const(
                 'BY_TYPE',
                 "Ractor.make_shareable({#{attr_set.attributes.map { "#{it.value} => #{it.name.as_class_name}" }.join(', ') }})",
                 rbs: 'Hash[::Integer, Attribute]',
+                internal: true,
               )
 
               attr_set.attributes.each do |attribute|
@@ -239,12 +236,16 @@ module Ynl
               end
             end
           end
-          deferred_consts.each { emit_const(*it) }
+          deferred_consts.each do |const|
+            emit_const(*const, internal: true)
+          end
         end
 
 
         emit_sub_messages
-        deferred_sub_message_datatypes.each { emit_const(*it) }
+        deferred_sub_message_datatypes.each do |const|
+          emit_const(*const, internal: true)
+        end
 
         emit_module('Messages') do
           @ynl.operations.each do |name, oper|
@@ -281,6 +282,7 @@ module Ynl
           'NOTIFICATIONS',
           "Ractor.make_shareable({#{notification_operations.map { |oper| "#{oper.notification.message.value} => Notifications::#{oper.name.as_class_name}" }.join(', ') }})",
           rbs: 'Hash[::Integer, ::Class]',
+          internal: true,
         )
 
         # emit request methods
@@ -431,7 +433,8 @@ module Ynl
       write('end')
     end
 
-    private def emit_const(name, value, rbs: nil)
+    private def emit_const(name, value, rbs: nil, internal: false)
+      emit_internal if internal
       write(name, ' = ', value, *([' #: ', rbs] if rbs))
     end
 
@@ -802,6 +805,7 @@ module Ynl
         'MCAST_GROUPS',
         "Ractor.make_shareable({#{entries.join(', ')}})",
         rbs: 'Hash[::Symbol, ::Nl::McastGroup]',
+        internal: true,
       )
     end
 
