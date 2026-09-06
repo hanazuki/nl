@@ -41,7 +41,8 @@ module Ynl
       'admin-perm' => 'Requires CAP_NET_ADMIN in the initial user namespace.',
       'uns-admin-perm' => 'Requires CAP_NET_ADMIN in the user namespace owning the network namespace.',
     }.freeze
-    private_constant :OPERATION_FLAG_DOCS
+    KERNEL_DOC_REFERENCE = %r{Documentation/(?<path>[A-Za-z0-9_./+-]+)\.rst\b}
+    private_constant :OPERATION_FLAG_DOCS, :KERNEL_DOC_REFERENCE
 
     def initialize(ynl, out)
       @ynl = ynl
@@ -515,6 +516,9 @@ module Ynl
 
     private def emit_comment(comment)
       return unless comment
+      comment = comment.gsub(KERNEL_DOC_REFERENCE) do |reference|
+        "{https://docs.kernel.org/#{$~[:path]}.html #{reference}}"
+      end
       comment.each_line(chomp: true) do |line|
         write('# ', line)
       end
