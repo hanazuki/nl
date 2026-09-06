@@ -126,6 +126,16 @@ jobs:
       with:
         path: doc
 
+  ci-pass:
+    if: ${{ always() }}
+    needs: [build, doc]
+    runs-on: ubuntu-slim
+    permissions: {}
+    steps:
+    - name: Check required jobs
+      if: ${{ needs.build.result != 'success' || needs.doc.result != 'success' }}
+      run: exit 1
+
   publish:
     if: startsWith(github.ref, 'refs/tags/')
     needs: [build]
