@@ -152,7 +152,7 @@ module Ynl
               emit_class('Attribute', '::Nl::AttributeSet::Attribute') do
               end
               attr_set.attributes.each do |attr|
-                emit_comment(attr.doc)
+                emit_comment(attribute_doc(attr))
                 emit_class(attr.name.as_class_name, 'Attribute') do
                   emit_const('TYPE', attr.value)
                   emit_const('NAME', attr.name.as_variable_name.as_symbol_literal)
@@ -203,7 +203,7 @@ module Ynl
               attr_set.attributes.each do |attribute|
                 next if attribute.type.is_a?(Types::Pad)
 
-                emit_comment(attribute.doc)
+                emit_comment(attribute_doc(attribute))
                 emit_rbs_comment('return: ' + attribute_rbs_type(attribute))
                 emit_yard_return(attribute_yard_type(attribute))
                 emit_yard_see(attribute.name.as_class_name)
@@ -583,7 +583,7 @@ module Ynl
             raise ParseError, "Multi-attribute #{param.inspect} conflicts with a fixed-header member"
           end
 
-          emit_comment(attribute.doc)
+          emit_comment(attribute_doc(attribute))
           emit_rbs_comment('return: ' + attribute_rbs_type(attribute))
           emit_yard_return(attribute_yard_type(attribute))
           emit_yard_see("AttributeSets::#{attribute_set.name.as_class_name}::#{attribute.name.as_class_name}")
@@ -638,7 +638,7 @@ module Ynl
         format.attribute_set&.attributes&.each do |attribute|
           next if attribute.type.is_a?(Types::Pad)
           extending = format.fixed_header&.members&.any? { it.name == attribute.name }
-          emit_comment(attribute.doc)
+          emit_comment(attribute_doc(attribute))
           emit_rbs_comment('return: ' + attribute_rbs_type(attribute))
           emit_yard_return(attribute_yard_type(attribute))
           emit_yard_see("AttributeSets::#{format.attribute_set.name.as_class_name}::#{attribute.name.as_class_name}")
@@ -746,6 +746,27 @@ module Ynl
       attribute.multi? ? "Array<#{type}>" : type
     end
 
+    private def attribute_doc(attribute)
+      return attribute.doc unless attribute.enum
+
+      definition = "{#{attribute_value_definition(attribute)}}"
+      value_doc = if attribute.enum_as_flags || attribute.enum.is_a?(Models::Flags)
+        "Known flags are defined in #{definition}."
+      else
+        "Known enum values are defined in #{definition}."
+      end
+      [attribute.doc, value_doc].compact.reject(&:empty?).join("\n\n")
+    end
+
+    private def attribute_value_definition(attribute)
+      namespace = if attribute.enum_as_flags || attribute.enum.is_a?(Models::Flags)
+        'Flags'
+      else
+        'Enums'
+      end
+      "#{namespace}::#{attribute.enum.name.as_class_name}"
+    end
+
     private def sub_message_rbs_type(type)
       formats = type.sub_message.formats.map do |format|
         "SubMessages::#{type.sub_message.name.as_class_name}::#{format.value.as_class_name}"
@@ -840,7 +861,7 @@ module Ynl
           'args',
           param.name.as_variable_name,
           parameter_yard_type(param),
-          param.doc,
+          param.is_a?(Models::AttributeSet::Attribute) ? attribute_doc(param) : param.doc,
           indentation:,
         )
       end
