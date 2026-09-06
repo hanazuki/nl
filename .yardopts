@@ -1,0 +1,7 @@
+--tag rbs:RBS
+--hide-tag rbs
+--no-private
+nl/lib/**/*.rb
+ynl/lib/**/*.rb
+nl-linux/lib/**/*.rb
+nl-linux/generated/**/*.rb

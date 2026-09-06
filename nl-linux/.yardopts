@@ -1,0 +1,5 @@
+--tag rbs:RBS
+--hide-tag rbs
+--no-private
+lib/**/*.rb
+generated/**/*.rb

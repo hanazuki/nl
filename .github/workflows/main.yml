@@ -21,11 +21,11 @@ jobs:
     permissions:
       contents: read
     steps:
-    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
         persist-credentials: false
     - name: Set up Ruby
-      uses: ruby/setup-ruby@319994f95fa847cf3fb3cd3dbe89f6dcde9f178f # v1.295.0
+      uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
       with:
         ruby-version: ${{ matrix.ruby }}
         bundler-cache: true
@@ -65,17 +65,17 @@ jobs:
     outputs:
       artifact-id: ${{ steps.upload.outputs.artifact-id }}
     steps:
-    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
         persist-credentials: false
-    - uses: ruby/setup-ruby@319994f95fa847cf3fb3cd3dbe89f6dcde9f178f # v1.295.0
+    - uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
       with:
         ruby-version: ruby
     - run: |
         bundle config set --local deployment true
         bundle install
     - id: upload
-      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       with:
         name: bundle
         path: |
@@ -90,23 +90,51 @@ jobs:
       id-token: write
       attestations: write
     steps:
-    - name: Install bubblewrap
-      run: |
-        sudo apt-get update && sudo apt-get install -y bubblewrap apparmor-profiles
-        sudo ln -s /usr/share/apparmor/extra-profiles/bwrap-userns-restrict /etc/apparmor.d/
-        sudo systemctl reload apparmor
-    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
         persist-credentials: false
-    - uses: ruby/setup-ruby@319994f95fa847cf3fb3cd3dbe89f6dcde9f178f # v1.295.0
+    - uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
       with:
         ruby-version: ruby
     - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
       with:
         artifact-ids: ${{ needs.bundle-install.outputs.artifact-id }}
-    - uses: release-gems/action/build@d437156fdb56ff38941834e0e8f86ea0b1f34751 # v1.1.0
+    - uses: release-gems/action/build@4aaa7904a8e9de7f0f4a5b646e3cfe8f1e225c2b # v1.2.1
       with:
         sandbox: bubblewrap
+
+  doc:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        persist-credentials: false
+    - name: Set up Ruby
+      uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
+      with:
+        ruby-version: ruby
+        bundler-cache: true
+    - name: Generate
+      run: bundle exec rake generate
+    - name: Generate documentation
+      run: bundle exec yardoc
+    - name: Upload GitHub Pages artifact
+      if: github.ref == 'refs/heads/master'
+      uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+      with:
+        path: doc
+
+  ci-pass:
+    if: ${{ always() }}
+    needs: [build, doc]
+    runs-on: ubuntu-slim
+    permissions: {}
+    steps:
+    - name: Check required jobs
+      if: ${{ needs.build.result != 'success' || needs.doc.result != 'success' }}
+      run: exit 1
 
   publish:
     if: startsWith(github.ref, 'refs/tags/')
@@ -117,4 +145,22 @@ jobs:
       contents: write
       id-token: write
     steps:
-    - uses: release-gems/action@d437156fdb56ff38941834e0e8f86ea0b1f34751 # v1.1.0
+    - uses: release-gems/action@4aaa7904a8e9de7f0f4a5b646e3cfe8f1e225c2b # v1.2.1
+
+  publish-doc:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [build, doc]
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    concurrency:
+      group: github-pages
+      cancel-in-progress: false
+    runs-on: ubuntu-slim
+    permissions:
+      pages: write
+      id-token: write
+    steps:
+    - name: Deploy GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
