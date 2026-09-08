@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.4.0 (2026-09-08)
+
 - Generate sub-messages.
 
 ## v0.3.0 (2026-09-01)
