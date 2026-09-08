@@ -1,14 +1,12 @@
 # Generic Netlink wire definitions
-#--
-# rbs_inline: enabled
 
 require_relative '../raw/wire'
 require_relative '../endian'
 
 module Nl
   module Genl
+    # Constants from <linux/genetlink.h>
     module Constants
-      # From include/uapi/linux/genetlink.
       GENL_NAMSIZ = 16
       GENL_MIN_ID = Raw::NLMSG_MIN_TYPE
       GENL_MAX_ID = 1023
@@ -50,8 +48,22 @@ module Nl
     end
     include Constants
 
-    GenlMsgHdr = Struct.new(:cmd, :version, :reserved)
-    # Generic Netlink message header
+    # Header prepended to a Generic Netlink payload after the Netlink header.
+    #
+    # This corresponds to Linux's +struct genlmsghdr+.
+    #
+    # @!attribute [rw] cmd
+    #   @return [Integer] family-specific command identifier
+    # @!attribute [rw] version
+    #   @return [Integer] family-specific protocol version
+    # @!attribute [rw] reserved
+    #   @return [Integer] reserved field, which must be zero
+    GenlMsgHdr = Struct.new(
+      :cmd, #: Integer
+      :version, #: Integer
+      :reserved, #: Integer
+    )
+
     class GenlMsgHdr
       FORMAT = Ractor.make_shareable([
         Endian::Host::U8,
@@ -60,10 +72,20 @@ module Nl
       ])
       private_constant :FORMAT
 
+      # Decodes a header from the decoder's current position.
+      #
+      # @param [Decoder] decoder the source decoder
+      # @return [GenlMsgHdr] the decoded header
+      # @rbs (Decoder decoder) -> instance
       def self.decode(decoder)
         new(*decoder.get_values(FORMAT))
       end
 
+      # Encodes this header at the encoder's current position.
+      #
+      # @param [Encoder] encoder the destination encoder
+      # @return [void]
+      # @rbs (Encoder encoder) -> void
       def encode(encoder)
         encoder.put_values(FORMAT, to_a)
       end

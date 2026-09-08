@@ -1,5 +1,3 @@
-# rbs_inline: enabled
-
 module Nl
   module Async
     module Drivers

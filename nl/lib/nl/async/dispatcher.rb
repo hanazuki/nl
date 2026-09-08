@@ -1,5 +1,3 @@
-# rbs_inline: enabled
-
 require_relative '../datagram'
 require_relative '../error'
 require_relative '../exchange'

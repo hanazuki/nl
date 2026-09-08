@@ -4,6 +4,8 @@ require_relative 'models'
 
 module Ynl
   class Parser
+    # @param [String, #read] source
+    # @rbs (String | _Readable source) -> void
     def initialize(source)
       @yaml = YAML.load(source, aliases: true)
 
@@ -19,10 +21,15 @@ module Ynl
       @mcast_groups = {}
     end
 
+    # @param [String, #to_path] path
+    # @return [Models::Family]
+    # @rbs (String | _PathLike path) -> Models::Family
     def self.parse_file(path)
       File.open(path) {|f| new(f) }.parse
     end
 
+    # @return [Models::Family]
+    # @rbs () -> Models::Family
     def parse
       protocol = @yaml['protocol'] || 'genetlink'
       version = @yaml.fetch('version', 1)

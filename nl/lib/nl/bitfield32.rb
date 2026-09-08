@@ -1,13 +1,18 @@
-# rbs_inline: enabled
-
 module Nl
   # A 32-bit value paired with a mask selecting the meaningful bits.
   class Bitfield32
     UINT32_RANGE = (0...2**32)
 
+    # A 32-bit flags
+    # @return [Integer]
     attr_reader :value #: Integer
+
+    # A 32-bit mask selecting the meaningful bits
+    # @return [Integer]
     attr_reader :selector #: Integer
 
+    # @param [Integer] value
+    # @param [Integer] selector
     # @rbs (Integer value, Integer selector) -> void
     def initialize(value, selector)
       validate_uint32(value, :value)
@@ -21,6 +26,8 @@ module Nl
     end
 
     # Returns 1 or 0 for a selected bit, or nil for an unselected bit.
+    # @param [Integer] index Bits are indexed from the least significant bit, starting at zero.
+    # @return [0, 1, nil]
     # @rbs (Integer index) -> (0 | 1 | nil)
     def [](index)
       mask = bit_mask(index)
@@ -30,6 +37,8 @@ module Nl
     end
 
     # Selects and sets or clears a bit. Assigning nil unselects it.
+    # @param [Integer] index Bits are indexed from the least significant bit, starting at zero.
+    # @param [0, 1, nil] state
     # @rbs (Integer index, (0 | 1 | nil) state) -> (0 | 1 | nil)
     def []=(index, state)
       mask = bit_mask(index)
@@ -50,6 +59,7 @@ module Nl
       state
     end
 
+    # Converts a bit index to a bit mask
     # @rbs (Integer index) -> Integer
     private def bit_mask(index)
       unless index.is_a?(Integer)
@@ -62,6 +72,7 @@ module Nl
       1 << index
     end
 
+    # Validates if an Integer fits in uint32
     # @rbs (Integer integer, Symbol name) -> void
     private def validate_uint32(integer, name)
       unless integer.is_a?(Integer)

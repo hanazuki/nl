@@ -4,8 +4,8 @@ require_relative '../endian'
 
 module Nl
   module Raw
+    # Constants from <linux/netlink.h>
     module Constants
-      # From include/uapi/linux/netlink.h
       NETLINK_ROUTE = 0
       NETLINK_NETFILTER = 12
       NETLINK_GENERIC = 16
@@ -44,8 +44,28 @@ module Nl
     end
     include Constants
 
-    NlMsgHdr = Struct.new(:len, :type, :flags, :seq, :pid)
-    # Message header
+    # Fixed-format metadata header prepended to every Netlink message.
+    #
+    # This corresponds to Linux's +struct nlmsghdr+.
+    #
+    # @!attribute [rw] len
+    #   @return [Integer] message length in bytes, including this header
+    # @!attribute [rw] type
+    #   @return [Integer] message content type
+    # @!attribute [rw] flags
+    #   @return [Integer] bitwise combination of +NLM_F_+ flags
+    # @!attribute [rw] seq
+    #   @return [Integer] sequence number used to correlate requests and replies
+    # @!attribute [rw] pid
+    #   @return [Integer] sender's Netlink port ID
+    NlMsgHdr = Struct.new(
+      :len, #: Integer
+      :type, #: Integer
+      :flags, #: Integer
+      :seq, #: Integer
+      :pid, #: Integer
+    )
+
     class NlMsgHdr
       FORMAT = Ractor.make_shareable([
         Endian::Host::U32,
@@ -56,12 +76,22 @@ module Nl
       ])
       private_constant :FORMAT
 
+      # Decodes a header from the decoder's current position.
+      #
+      # @param [Decoder] decoder the source decoder
+      # @return [NlMsgHdr] the decoded header
+      # @rbs (Decoder decoder) -> instance
       def self.decode(decoder)
         obj = new(*decoder.get_values(FORMAT))
         decoder.align_to(Constants::NLMSG_ALIGNTO)
         obj
       end
 
+      # Encodes this header at the encoder's current position.
+      #
+      # @param [Encoder] encoder the destination encoder
+      # @return [void]
+      # @rbs (Encoder encoder) -> void
       def encode(encoder)
         encoder.reserve(Constants::NLMSG_HDRLEN)
         encoder.put_values(FORMAT, to_a)
@@ -69,8 +99,20 @@ module Nl
       end
     end
 
-    NlAttr = Struct.new(:len, :type)
-    # Attribute header
+    # Fixed-format header prepended to every Netlink attribute.
+    #
+    # This corresponds to Linux's +struct nlattr+.
+    #
+    # @!attribute [rw] len
+    #   @return [Integer] attribute length in bytes, including this header but
+    #     excluding trailing alignment padding
+    # @!attribute [rw] type
+    #   @return [Integer] attribute type combined with optional +NLA_F_+ flags
+    NlAttr = Struct.new(
+      :len, #: Integer
+      :type, #: Integer
+    )
+
     class NlAttr
       FORMAT = Ractor.make_shareable([
         Endian::Host::U16,
@@ -78,12 +120,22 @@ module Nl
       ])
       private_constant :FORMAT
 
+      # Decodes an attribute header from the decoder's current position.
+      #
+      # @param [Decoder] decoder the source decoder
+      # @return [NlAttr] the decoded header
+      # @rbs (Decoder decoder) -> instance
       def self.decode(decoder)
         obj = new(*decoder.get_values(FORMAT))
         decoder.align_to(Constants::NLA_ALIGNTO)
         obj
       end
 
+      # Encodes this attribute header at the encoder's current position.
+      #
+      # @param [Encoder] encoder the destination encoder
+      # @return [void]
+      # @rbs (Encoder encoder) -> void
       def encode(encoder)
         encoder.reserve(Constants::NLA_HDRLEN)
         encoder.put_values(FORMAT, to_a)

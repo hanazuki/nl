@@ -1,5 +1,3 @@
-# rbs_inline: enabled
-
 require_relative 'error'
 
 module Nl

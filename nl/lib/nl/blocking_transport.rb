@@ -1,5 +1,3 @@
-# rbs_inline: enabled
-
 require_relative 'datagram'
 require_relative 'exchange'
 require_relative 'notification_router'

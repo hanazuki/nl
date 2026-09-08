@@ -1,5 +1,3 @@
-# rbs_inline: enabled
-
 require_relative 'raw/wire'
 require_relative 'bitfield32'
 

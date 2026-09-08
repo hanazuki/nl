@@ -1,17 +1,27 @@
+# Byte-order helpers
+
 module Nl
   module Endian
+    # sizeof(int)
     SIZEOF_INT = [1].pack('i!').bytesize
+    # sizeof(long)
     SIZEOF_LONG = [1].pack('l!').bytesize
+    # sizeof(long long)
     SIZEOF_LLONG = [1].pack('q!').bytesize
 
+    # Little-endian scalar types.
     module Little
       U8, S8, U16, S16, U32, S32, U64, S64, F32, F64 = :U8, :S8, :u16, :s16, :u32, :s32, :u64, :s64, :f32, :f64
     end
 
+    # Big-endian scalar types.
     module Big
       U8, S8, U16, S16, U32, S32, U64, S64, F32, F64 = :U8, :S8, :U16, :S16, :U32, :S32, :U64, :S64, :F32, :F64
     end
 
+    # Host-endian scalar types.
+    #
+    # This module includes either {Little} or {Big} depending on the host's native byte order.
     module Host
       include (IO::Buffer::HOST_ENDIAN == IO::Buffer::LITTLE_ENDIAN ? Little : Big)
 

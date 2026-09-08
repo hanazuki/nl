@@ -55,12 +55,5 @@ module Nl
         classes[command]
       end
     end
-
-    class Message < Raw::Message
-      def self.decode(decoder, type:)
-        genlhdr = Nl::Genl::GenlMsgHdr.decode(decoder)
-        super(decoder, type: genlhdr.cmd)
-      end
-    end
   end
 end

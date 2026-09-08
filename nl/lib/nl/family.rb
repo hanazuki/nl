@@ -1,5 +1,3 @@
-#--
-# rbs_inline: enabled
 require_relative 'connection'
 require_relative 'notification'
 

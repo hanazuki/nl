@@ -1,3 +1,4 @@
+--load yard/rbs_inline.rb
 --tag rbs:RBS
 --hide-tag rbs
 --no-private

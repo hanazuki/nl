@@ -1,12 +1,27 @@
-# Parse for YNL netlink specification
+# Parser for YNL netlink specification
 #
 # See: https://www.kernel.org/doc/html/latest/userspace-api/netlink/specs.html
 
 require_relative 'ynl/family'
 
+# Ynl parser and code generator. See {Family} for library entrypoint.
 module Ynl
+  # @rbs!
+  #   interface _Readable
+  #     def read: () -> String
+  #   end
+  #
+  #   interface _Writable
+  #     def write: (*String strings) -> untyped
+  #   end
+  #
+  #   interface _PathLike
+  #      def to_path: () -> String
+  #   end
+
   class ParseError < StandardError; end
 
+  # @private
   module Types
     Scalar = Data.define(:type, :byte_order) do
       def resolve(f)
