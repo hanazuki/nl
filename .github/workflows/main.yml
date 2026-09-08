@@ -145,7 +145,7 @@ jobs:
       contents: write
       id-token: write
     steps:
-    - uses: release-gems/action@4aaa7904a8e9de7f0f4a5b646e3cfe8f1e225c2b # v1.2.1
+    - uses: release-gems/action/publish@4aaa7904a8e9de7f0f4a5b646e3cfe8f1e225c2b # v1.2.1
 
   publish-doc:
     if: startsWith(github.ref, 'refs/tags/')
