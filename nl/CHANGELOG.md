@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.4.1 (2026-09-08)
+
 ## v0.4.0 (2026-09-08)
 
 - Represent `bitfield32` values with mutable `Bitfield32` objects.
