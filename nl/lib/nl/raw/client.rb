@@ -74,7 +74,6 @@ module Nl
       # Closes the underlying Netlink connection.
       #
       # @return [void]
-      #--
       # @rbs () -> void
       def close
         @connection.close

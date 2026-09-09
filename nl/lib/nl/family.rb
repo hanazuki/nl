@@ -34,18 +34,20 @@ module Nl
   #   end
 
   class Family
-    DEFAULT_NOTIFICATION_CAPACITY = Connection::DEFAULT_NOTIFICATION_CAPACITY
+    DEFAULT_NOTIFICATION_CAPACITY = Connection::DEFAULT_NOTIFICATION_CAPACITY #: Integer
 
+    # Socket-owning family.
+    #
+    # {Family} instances that owns sockets are extended with this module.
     module Session
-      def close #: nil
+      # Closes the Netlink socket owned by this {Family}.
+      # @rbs () -> void
+      def close
         @connection.close
       end
     end
 
-    #--
-    # @rbs connection: _Connection
-    # @rbs endpoint: Raw::Endpoint
-    # @rbs return: instance
+    # @rbs (_Connection connection, endpoint: Raw::Endpoint) -> instance
     def initialize(connection, endpoint:)
       @endpoint = endpoint
       @connection = connection
@@ -59,38 +61,54 @@ module Nl
       @connection.exchange(@endpoint, kind, request_class, reply_class, args, &block)
     end
 
-    def async_capable? #: bool
+    # Returns if this family supports asynchronous operations.
+    #
+    # @rbs () -> bool
+    def async_capable?
       @connection.async_capable?
     end
 
-    # Adds multicast memberships to the existing family socket. Membership is
-    # additive and remains active until explicitly removed or the owner closes.
+    # Adds multicast memberships to the netlink socket.
+    #
+    # Membership is additive and remains active until explicitly removed or the owner closes.
+    #
+    # @param [Array<Symbol>] groups
+    # @return [Family] self
+    # @rbs (Symbol *groups) -> self
     def subscribe(*groups)
       @connection.add_memberships(multicast_group_ids(groups))
       self
     end
 
+    # Removes multicast memberships from the netlink socket.
+    #
+    # @param [Array<Symbol>] groups
+    # @return [Family] self
+    # @rbs (Symbol *groups) -> self
     def unsubscribe(*groups)
       @connection.drop_memberships(multicast_group_ids(groups))
       self
     end
 
+    # Receives the next unsolicited message.
+    #
+    # @rbs (?timeout: Integer?) -> Message
     def receive_notification(timeout: nil)
       @notification_stream.next(timeout:)
     end
 
+    # Receives unsolicited messages.
+    #
+    # @rbs () { (Message) -> void } -> void
     def each_notification(&block)
       return @notification_stream.each unless block
 
       @notification_stream.each(&block)
     end
 
-    # Builds a generated asynchronous-operation facade with a narrowly scoped
-    # callback, so the facade does not need access to Family's private API.
-    #--
-    # @rbs operations_class: Class
-    # @rbs stream_capacity: Integer?
-    # @rbs return: untyped
+    # Builds a asynchronous-operation facade.
+    #
+    # @rbs (Class operations_class, ?stream_capacity: Integer?) -> untyped
     private def build_async_facade(operations_class, stream_capacity: nil)
       unless async_capable?
         raise Async::UnavailableError, 'async operations require an executor'
