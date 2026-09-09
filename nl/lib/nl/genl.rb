@@ -1,5 +1,3 @@
-# Generic Netlink family support
-
 require_relative 'genl/wire'
 require_relative 'family'
 require_relative 'raw'

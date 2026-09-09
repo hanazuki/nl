@@ -1,6 +1,5 @@
-# Byte-order helpers
-
 module Nl
+  # Byte-order helpers
   module Endian
     # sizeof(int)
     SIZEOF_INT = [1].pack('i!').bytesize

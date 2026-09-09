@@ -1,5 +1,3 @@
-# Netlink sockets
-
 require 'socket'
 
 module Nl
