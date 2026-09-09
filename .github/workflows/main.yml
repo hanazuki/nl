@@ -121,7 +121,6 @@ jobs:
     - name: Generate documentation
       run: bundle exec yardoc
     - name: Upload GitHub Pages artifact
-      if: github.ref == 'refs/heads/master'
       uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
       with:
         path: doc
