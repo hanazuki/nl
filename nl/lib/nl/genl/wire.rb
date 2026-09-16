@@ -79,7 +79,12 @@ module Nl
       # @return [GenlMsgHdr] the decoded header
       # @rbs (Decoder decoder) -> instance
       def self.decode(decoder)
-        new(*decoder.get_values(FORMAT))
+        # Unrolling get_values improves performance for this small header.
+        new(
+          decoder.get_value(Endian::Host::U8),
+          decoder.get_value(Endian::Host::U8),
+          decoder.get_value(Endian::Host::U16),
+        )
       end
 
       # Encodes this header at the encoder's current position.

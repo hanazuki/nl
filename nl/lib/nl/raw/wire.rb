@@ -127,7 +127,11 @@ module Nl
       # @return [NlAttr] the decoded header
       # @rbs (Decoder decoder) -> instance
       def self.decode(decoder)
-        obj = new(*decoder.get_values(FORMAT))
+        # Unrolling get_values improves performance for this small header.
+        obj = new(
+          decoder.get_value(Endian::Host::U16),
+          decoder.get_value(Endian::Host::U16),
+        )
         decoder.align_to(Constants::NLA_ALIGNTO)
         obj
       end
