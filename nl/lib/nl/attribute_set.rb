@@ -70,8 +70,11 @@ module Nl
       encoder.align_to(Raw::NLA_ALIGNTO)
     end
 
-    def encode(encoder, external_selectors: [])
-      context = Selector::State.new(self.class::SELECTOR_NAMES.fetch(:local).length, external_selectors)
+    def encode(encoder, external_selectors: Selector::EMPTY_VALUES)
+      context = Selector::State.for(
+        self.class::SELECTOR_NAMES.fetch(:local).length,
+        external_selectors,
+      )
       @attributes.each do |attr|
         if slot = attr.class::SELECTOR_SLOT
           context.set_local(slot, attr.value)
@@ -111,8 +114,11 @@ module Nl
         attr
       end
 
-      def decode(decoder, external_selectors: [])
-        context = Selector::State.new(self::SELECTOR_NAMES.fetch(:local).length, external_selectors)
+      def decode(decoder, external_selectors: Selector::EMPTY_VALUES)
+        context = Selector::State.for(
+          self::SELECTOR_NAMES.fetch(:local).length,
+          external_selectors,
+        )
         attrs = []
         while decoder.available?
           attr = decode1(decoder, context)
@@ -126,12 +132,15 @@ module Nl
         raise Decoder::Error, "unknown sub-message selector value: #{error.value.inspect}"
       end
 
-      def build_attributes(params = nil, external_selectors: [], **keywords)
+      def build_attributes(params = nil, external_selectors: Selector::EMPTY_VALUES, **keywords)
         params = (params || {}).merge(keywords)
         unknown = params.keys - self::BY_NAME.keys
         raise ArgumentError, "unknown attributes: #{unknown.join(', ')}" unless unknown.empty?
 
-        context = Selector::State.new(self::SELECTOR_NAMES.fetch(:local).length, external_selectors)
+        context = Selector::State.for(
+          self::SELECTOR_NAMES.fetch(:local).length,
+          external_selectors,
+        )
         coerced_selectors = {}
         self::SELECTOR_NAMES.fetch(:local).each_with_index do |name, slot|
           next unless params.key?(name)

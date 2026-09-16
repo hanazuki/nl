@@ -2,6 +2,8 @@ require_relative 'structured_payload'
 
 module Nl
   module Selector
+    EMPTY_VALUES = Ractor.make_shareable([])
+
     class MissingSelectorValueError < StandardError
       attr_reader :scope, :index
 
@@ -48,6 +50,12 @@ module Nl
     end
 
     class State
+      def self.for(local_count, external)
+        return EMPTY if local_count.zero? && external.empty?
+
+        new(local_count, external)
+      end
+
       def initialize(local_count, external)
         @local = Array.new(local_count)
         @external = external
@@ -69,6 +77,8 @@ module Nl
         value = values[key]
         value.nil? ? yield : value
       end
+
+      EMPTY = Ractor.make_shareable(new(0, EMPTY_VALUES))
     end
   end
 
@@ -87,7 +97,7 @@ module Nl
       @nlattr_type_flags = nlattr_type_flags
     end
 
-    def encode(encoder, external_selectors: [])
+    def encode(encoder, external_selectors: Selector::EMPTY_VALUES)
       encoder.put_string(payload)
     end
   end

@@ -14,7 +14,7 @@ module Nl
     end
 
     module ClassMethods
-      def from_params(params = nil, external_selectors: [], **keywords)
+      def from_params(params = nil, external_selectors: Selector::EMPTY_VALUES, **keywords)
         params = (params || {}).merge(keywords).transform_keys(&:to_sym)
 
         if self::FIXED_HEADER
@@ -42,7 +42,7 @@ module Nl
         new(fixed_header, attributes)
       end
 
-      def decode(decoder, external_selectors: [])
+      def decode(decoder, external_selectors: Selector::EMPTY_VALUES)
         fixed_header = self::FIXED_HEADER&.decode(decoder)
         attributes = self::ATTRIBUTE_SET&.decode(decoder, external_selectors:)
         new(fixed_header, attributes)
@@ -53,7 +53,7 @@ module Nl
       end
     end
 
-    def encode(encoder, external_selectors: [])
+    def encode(encoder, external_selectors: Selector::EMPTY_VALUES)
       fixed_header&.encode(encoder)
       attributes&.encode(encoder, external_selectors:)
     end
