@@ -159,10 +159,7 @@ module Nl
       def coerce(value, context: nil)
         return value unless value.is_a?(Hash)
 
-        unknown = value.keys - @type::MEMBERS.keys
-        raise ArgumentError, "unknown struct members: #{unknown.join(', ')}" unless unknown.empty?
-
-        @type.new(*@type::MEMBERS.map { |name, datatype| datatype.coerce(value[name], context:) })
+        @type.from_params(value, context:)
       end
 
       def encode(encoder, value, context: nil)
