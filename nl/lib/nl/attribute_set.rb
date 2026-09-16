@@ -116,9 +116,9 @@ module Nl
         attrs = []
         while decoder.available?
           attr = decode1(decoder, context)
-          attrs << attr
+          attrs << attr if attr
         end
-        new(attrs.compact)
+        new(attrs)
       rescue Selector::MissingSelectorValueError => error
         raise Decoder::Error,
           "selector #{selector_name(error).inspect} must precede the dependent attribute"
