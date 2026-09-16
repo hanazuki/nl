@@ -392,9 +392,15 @@ module Nl
       private def decode_level(decoder, levels, external_selectors)
         result = {}
         while decoder.available?(Raw::NLA_HDRLEN)
-          nlattr = Raw::NlAttr.decode(decoder)
-          type = nlattr.type & Raw::NLA_TYPE_MASK
-          value = decoder.limit(nlattr.len - Raw::NLA_HDRLEN) do
+          # Inline NlAttr.decode to avoid allocating a header object.
+          length = decoder.get_value(Endian::Host::U16)
+          type = decoder.get_value(Endian::Host::U16) & Raw::NLA_TYPE_MASK
+          if length < Raw::NLA_HDRLEN
+            raise Decoder::Error,
+              "attribute length must be at least #{Raw::NLA_HDRLEN} bytes, got #{length}"
+          end
+          decoder.align_to(Raw::NLA_ALIGNTO)
+          value = decoder.limit(length - Raw::NLA_HDRLEN) do
             if levels == 1
               external_selectors.empty? ? @attribute_set.decode(decoder) :
                 @attribute_set.decode(decoder, external_selectors:)
@@ -436,9 +442,16 @@ module Nl
       def decode(decoder, context: nil, nlattr_type_flags: 0)
         result = []
         while decoder.available?
-          nlattr = Raw::NlAttr.decode(decoder)
-          flags = nlattr.type & (Raw::NLA_F_NESTED | Raw::NLA_F_NET_BYTEORDER)
-          element = decoder.limit(nlattr.len - Raw::NLA_HDRLEN) do
+          # Inline NlAttr.decode to avoid allocating a header object.
+          length = decoder.get_value(Endian::Host::U16)
+          type = decoder.get_value(Endian::Host::U16)
+          if length < Raw::NLA_HDRLEN
+            raise Decoder::Error,
+              "attribute length must be at least #{Raw::NLA_HDRLEN} bytes, got #{length}"
+          end
+          decoder.align_to(Raw::NLA_ALIGNTO)
+          flags = type & (Raw::NLA_F_NESTED | Raw::NLA_F_NET_BYTEORDER)
+          element = decoder.limit(length - Raw::NLA_HDRLEN) do
             @sub_type.decode(decoder, context:, nlattr_type_flags: flags)
           end
           decoder.align_to(Raw::NLA_ALIGNTO)

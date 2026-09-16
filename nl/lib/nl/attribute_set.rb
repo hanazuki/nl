@@ -97,10 +97,17 @@ module Nl
 
     class << self
       private def decode1(decoder, context)
-        nlattr = Raw::NlAttr.decode(decoder)
-        flags = nlattr.type & (Raw::NLA_F_NESTED | Raw::NLA_F_NET_BYTEORDER)
-        attr = decoder.limit(nlattr.len - Raw::NLA_HDRLEN) do
-          if attr_class = self::BY_TYPE[nlattr.type & Raw::NLA_TYPE_MASK]
+        # Inline NlAttr.decode to avoid allocating a header object.
+        length = decoder.get_value(Endian::Host::U16)
+        type = decoder.get_value(Endian::Host::U16)
+        if length < Raw::NLA_HDRLEN
+          raise Decoder::Error,
+            "attribute length must be at least #{Raw::NLA_HDRLEN} bytes, got #{length}"
+        end
+        decoder.align_to(Raw::NLA_ALIGNTO)
+        flags = type & (Raw::NLA_F_NESTED | Raw::NLA_F_NET_BYTEORDER)
+        attr = decoder.limit(length - Raw::NLA_HDRLEN) do
+          if attr_class = self::BY_TYPE[type & Raw::NLA_TYPE_MASK]
             attr_class.decode(decoder, context:, nlattr_type_flags: flags)
           else
             decoder.skip

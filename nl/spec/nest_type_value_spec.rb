@@ -38,4 +38,16 @@ RSpec.describe Nl::DataTypes::NestTypeValue do
     expect(value.dig(7, 9)).to be_a(attribute_set)
     expect(value.dig(7, 9)[:type].value).to eq 42
   end
+
+  it 'rejects an attribute shorter than its header' do
+    encoder = Nl::Encoder.new
+    encoder.put_value(Nl::Endian::Host::U16, Nl::Raw::NLA_HDRLEN - 1)
+    encoder.put_value(Nl::Endian::Host::U16, 1)
+
+    expect { described_class.new(leaf_type, 1).decode(Nl::Decoder.new(encoder.buffer)) }
+      .to raise_error(
+        Nl::Decoder::Error,
+        'attribute length must be at least 4 bytes, got 3',
+      )
+  end
 end
