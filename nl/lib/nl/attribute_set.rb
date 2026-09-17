@@ -71,13 +71,16 @@ module Nl
     end
 
     def encode(encoder, external_selectors: Selector::EMPTY_VALUES)
+      local_count = self.class::SELECTOR_NAMES.fetch(:local).length
       context = Selector::State.for(
-        self.class::SELECTOR_NAMES.fetch(:local).length,
+        local_count,
         external_selectors,
       )
-      @attributes.each do |attr|
-        if slot = attr.class::SELECTOR_SLOT
-          context.set_local(slot, attr.value)
+      unless local_count.zero?
+        @attributes.each do |attr|
+          if slot = attr.class::SELECTOR_SLOT
+            context.set_local(slot, attr.value)
+          end
         end
       end
 
@@ -115,21 +118,30 @@ module Nl
           end
         end
         decoder.align_to(Raw::NLA_ALIGNTO)
-        if attr && (slot = attr.class::SELECTOR_SLOT)
-          context.set_local(slot, attr.value)
-        end
         attr
       end
 
       def decode(decoder, external_selectors: Selector::EMPTY_VALUES)
+        local_count = self::SELECTOR_NAMES.fetch(:local).length
         context = Selector::State.for(
-          self::SELECTOR_NAMES.fetch(:local).length,
+          local_count,
           external_selectors,
         )
         attrs = []
-        while decoder.available?
-          attr = decode1(decoder, context)
-          attrs << attr if attr
+        if local_count.zero?
+          # Fast path for no-selector case
+          while decoder.available?
+            attr = decode1(decoder, context)
+            attrs << attr if attr
+          end
+        else
+          while decoder.available?
+            attr = decode1(decoder, context)
+            if attr && (slot = attr.class::SELECTOR_SLOT)
+              context.set_local(slot, attr.value)
+            end
+            attrs << attr if attr
+          end
         end
         new(attrs)
       rescue Selector::MissingSelectorValueError => error
