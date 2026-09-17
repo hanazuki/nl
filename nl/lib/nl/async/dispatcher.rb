@@ -129,7 +129,7 @@ module Nl
           key = [header.seq, header.pid]
           pending = @mutex.synchronize { @pending[key] }
           unless pending
-            @notifications.route(header, payload) if header.seq.zero?
+            @notifications.route(header, payload) if header.seq == 0
             next
           end
 

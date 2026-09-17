@@ -51,7 +51,7 @@ module Nl
       def notification_class(endpoint, header, payload, classes)
         return unless notification_frame?(endpoint, header, payload)
 
-        command = Nl::Genl::GenlMsgHdr.decode(Decoder.new(payload)).cmd
+        command = payload.lookahead { Nl::Genl::GenlMsgHdr.decode(it).cmd }
         classes[command]
       end
     end

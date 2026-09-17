@@ -53,4 +53,15 @@ RSpec.describe Nl::AttributeSet do
 
     expect(attributes[:singular].value).to eq 10
   end
+
+  it 'rejects an attribute shorter than its header' do
+    encoder = Nl::Encoder.new
+    encoder.put_value(Nl::Endian::Host::U16, Nl::Raw::NLA_HDRLEN - 1)
+    encoder.put_value(Nl::Endian::Host::U16, 1)
+
+    expect { attribute_set.decode(Nl::Decoder.new(encoder.buffer)) }.to raise_error(
+      Nl::Decoder::Error,
+      'attribute length must be at least 4 bytes, got 3',
+    )
+  end
 end

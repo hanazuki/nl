@@ -42,7 +42,7 @@ RSpec.describe Nl::Genl::Protocol do
 
   it 'selects and decodes notifications by family ID and command ID' do
     header = Nl::Raw::NlMsgHdr.new(20, 42, 0, 0, 0)
-    payload = IO::Buffer.for([9, 1, 0].pack('CCS!'))
+    payload = Nl::Decoder.new(IO::Buffer.for([9, 1, 0].pack('CCS!')))
     classes = {9 => GenlNotification}
 
     expect(protocol.notification_frame?(endpoint, header, payload)).to be(true)

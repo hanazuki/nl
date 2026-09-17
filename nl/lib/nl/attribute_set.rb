@@ -70,11 +70,17 @@ module Nl
       encoder.align_to(Raw::NLA_ALIGNTO)
     end
 
-    def encode(encoder, external_selectors: [])
-      context = Selector::State.new(self.class::SELECTOR_NAMES.fetch(:local).length, external_selectors)
-      @attributes.each do |attr|
-        if slot = attr.class::SELECTOR_SLOT
-          context.set_local(slot, attr.value)
+    def encode(encoder, external_selectors: Selector::EMPTY_VALUES)
+      local_count = self.class::SELECTOR_NAMES.fetch(:local).length
+      context = Selector::State.for(
+        local_count,
+        external_selectors,
+      )
+      unless local_count == 0
+        @attributes.each do |attr|
+          if slot = attr.class::SELECTOR_SLOT
+            context.set_local(slot, attr.value)
+          end
         end
       end
 
@@ -94,10 +100,17 @@ module Nl
 
     class << self
       private def decode1(decoder, context)
-        nlattr = Raw::NlAttr.decode(decoder)
-        flags = nlattr.type & (Raw::NLA_F_NESTED | Raw::NLA_F_NET_BYTEORDER)
-        attr = decoder.limit(nlattr.len - Raw::NLA_HDRLEN) do
-          if attr_class = self::BY_TYPE[nlattr.type & Raw::NLA_TYPE_MASK]
+        # Inline NlAttr.decode to avoid allocating a header object.
+        length = decoder.get_value(Endian::Host::U16)
+        type = decoder.get_value(Endian::Host::U16)
+        if length < Raw::NLA_HDRLEN
+          raise Decoder::Error,
+            "attribute length must be at least #{Raw::NLA_HDRLEN} bytes, got #{length}"
+        end
+        decoder.align_to(Raw::NLA_ALIGNTO)
+        flags = type & (Raw::NLA_F_NESTED | Raw::NLA_F_NET_BYTEORDER)
+        attr = decoder.limit(length - Raw::NLA_HDRLEN) do
+          if attr_class = self::BY_TYPE[type & Raw::NLA_TYPE_MASK]
             attr_class.decode(decoder, context:, nlattr_type_flags: flags)
           else
             decoder.skip
@@ -105,20 +118,32 @@ module Nl
           end
         end
         decoder.align_to(Raw::NLA_ALIGNTO)
-        if attr && (slot = attr.class::SELECTOR_SLOT)
-          context.set_local(slot, attr.value)
-        end
         attr
       end
 
-      def decode(decoder, external_selectors: [])
-        context = Selector::State.new(self::SELECTOR_NAMES.fetch(:local).length, external_selectors)
+      def decode(decoder, external_selectors: Selector::EMPTY_VALUES)
+        local_count = self::SELECTOR_NAMES.fetch(:local).length
+        context = Selector::State.for(
+          local_count,
+          external_selectors,
+        )
         attrs = []
-        while decoder.available?
-          attr = decode1(decoder, context)
-          attrs << attr
+        if local_count == 0
+          # Fast path for no-selector case
+          while decoder.available?
+            attr = decode1(decoder, context)
+            attrs << attr if attr
+          end
+        else
+          while decoder.available?
+            attr = decode1(decoder, context)
+            if attr && (slot = attr.class::SELECTOR_SLOT)
+              context.set_local(slot, attr.value)
+            end
+            attrs << attr if attr
+          end
         end
-        new(attrs.compact)
+        new(attrs)
       rescue Selector::MissingSelectorValueError => error
         raise Decoder::Error,
           "selector #{selector_name(error).inspect} must precede the dependent attribute"
@@ -126,12 +151,15 @@ module Nl
         raise Decoder::Error, "unknown sub-message selector value: #{error.value.inspect}"
       end
 
-      def build_attributes(params = nil, external_selectors: [], **keywords)
+      def build_attributes(params = nil, external_selectors: Selector::EMPTY_VALUES, **keywords)
         params = (params || {}).merge(keywords)
         unknown = params.keys - self::BY_NAME.keys
         raise ArgumentError, "unknown attributes: #{unknown.join(', ')}" unless unknown.empty?
 
-        context = Selector::State.new(self::SELECTOR_NAMES.fetch(:local).length, external_selectors)
+        context = Selector::State.for(
+          self::SELECTOR_NAMES.fetch(:local).length,
+          external_selectors,
+        )
         coerced_selectors = {}
         self::SELECTOR_NAMES.fetch(:local).each_with_index do |name, slot|
           next unless params.key?(name)

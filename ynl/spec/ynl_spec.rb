@@ -160,6 +160,11 @@ RSpec.describe Ynl do
       expect(generated.string).to include(':"inner", #: Structs::Inner')
       expect(generated.string).to include('bytes: ::Nl::DataTypes::Binary.new(length: 3, check: nil)')
       expect(generated.string).to include('inner: ::Nl::DataTypes::Struct.new(Structs::Inner, check: nil)')
+      expect(generated.string).to include('MEMBERS[:"prefix"].decode(decoder)')
+      expect(generated.string).to include('MEMBERS[:"prefix"].encode(encoder, public_send(:"prefix"))')
+      expect(generated.string).to include('MEMBERS[:"prefix"].coerce(params[:"prefix"], context:)')
+      expect(generated.string).not_to include('.map {|name, datatype|')
+      expect(generated.string).not_to include('.each {|name, datatype|')
     end
 
     it 'encodes and decodes structured binary attributes' do
@@ -571,7 +576,7 @@ RSpec.describe Ynl do
         encoded = encoder.buffer
         decoder = Nl::Decoder.new(encoded)
         header = Nl::Raw::NlMsgHdr.decode(decoder)
-        payload = decoder.get_buffer
+        payload = decoder
 
         selected = protocol.notification_class(endpoint, header, payload, family_class::NOTIFICATIONS)
         notification = protocol.decode_notification(endpoint, header, payload, selected)

@@ -100,7 +100,7 @@ module Nl
         actual_key = [header.seq, header.pid]
         if actual_key == expected_key
           yield @protocol.decode_frame(endpoint, header, payload, reply_class)
-        elsif header.seq.zero?
+        elsif header.seq == 0
           @notifications.route(header, payload)
         else
           raise UnexpectedSequenceError.new(expected_key, actual_key)
@@ -113,7 +113,7 @@ module Nl
 
     private def receive_notifications
       Datagram.each_frame(receive_datagram) do |header, payload|
-        if header.seq.zero?
+        if header.seq == 0
           @notifications.route(header, payload)
         else
           raise UnexpectedSequenceError.new(nil, [header.seq, header.pid])

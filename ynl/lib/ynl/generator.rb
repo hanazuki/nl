@@ -114,6 +114,23 @@ module Ynl
                 emit_const('MEMBERS', members, rbs: 'Hash[::Symbol, ::Nl::_DataType]', internal: true)
               end
 
+              emit_internal
+              emit_rbs_comment('(Hash[Symbol, untyped] params, ?context: untyped) -> instance')
+              write('def self.from_params(params, context: nil)')
+              indent do
+                write('unknown = params.keys - members')
+                write('raise ArgumentError, "unknown struct members: #{unknown.join(\', \')}" unless unknown.empty?')
+                write('self.new(')
+                indent do
+                  struct.members.each do |member|
+                    member_name = member.name.as_variable_name.as_symbol_literal
+                    write("MEMBERS[#{member_name}].coerce(params[#{member_name}], context:),")
+                  end
+                end
+                write(')')
+              end
+              write('end')
+
               emit_comment('Decodes the struct.')
               emit_rbs_comment(
                 'decoder: ::Nl::Decoder',
@@ -123,7 +140,14 @@ module Ynl
               emit_yard_return('self')
               write('def self.decode(decoder)')
               indent do
-                write('self.new(*MEMBERS.map {|name, datatype| datatype.decode(decoder) })')
+                write('self.new(')
+                indent do
+                  struct.members.each do |member|
+                    member_name = member.name.as_variable_name.as_symbol_literal
+                    write("MEMBERS[#{member_name}].decode(decoder),")
+                  end
+                end
+                write(')')
               end
               write('end')
 
@@ -136,7 +160,10 @@ module Ynl
               emit_yard_return('void')
               write('def encode(encoder)')
               indent do
-                write('MEMBERS.each {|name, datatype| datatype.encode(encoder, self.public_send(name)) }')
+                struct.members.each do |member|
+                  member_name = member.name.as_variable_name.as_symbol_literal
+                  write("MEMBERS[#{member_name}].encode(encoder, public_send(#{member_name}))")
+                end
               end
               write('end')
             end

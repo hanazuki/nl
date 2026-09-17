@@ -47,8 +47,7 @@ module Nl
       end
 
       # Decodes one frame using the reply class associated with its sequence.
-      def decode_frame(_endpoint, header, payload, message_class)
-        decoder = Decoder.new(payload)
+      def decode_frame(_endpoint, header, decoder, message_class)
         if header.type < Raw::NLMSG_MIN_TYPE
           case header.type
           when Raw::NLMSG_ERROR
@@ -57,7 +56,7 @@ module Nl
               raise ProtocolViolation, "expected zero or negative NLMSG_ERROR errno, got #{errno}"
             end
 
-            errno.zero? ? AckFrame.new(header:) : ErrorFrame.new(header:, errno: -errno)
+            errno == 0 ? AckFrame.new(header:) : ErrorFrame.new(header:, errno: -errno)
           when Raw::NLMSG_DONE
             return DoneFrame.new(header:, errno: nil) unless decoder.available?
 
@@ -66,7 +65,7 @@ module Nl
               raise ProtocolViolation, "expected zero or negative NLMSG_DONE errno, got #{errno}"
             end
 
-            DoneFrame.new(header:, errno: errno.negative? ? -errno : nil)
+            DoneFrame.new(header:, errno: errno < 0 ? -errno : nil)
           else
             UnknownFrame.new(header:)
           end

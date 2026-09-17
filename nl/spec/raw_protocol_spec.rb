@@ -23,7 +23,7 @@ RSpec.describe Nl::Raw::Protocol do
   def decode_control(type, errno: nil)
     header = Nl::Raw::NlMsgHdr.new(0, type, 0, 1, 77)
     payload = errno.nil? ? ''.b : [errno].pack('i!')
-    [header, protocol.decode_frame(endpoint, header, IO::Buffer.for(payload), nil)]
+    [header, protocol.decode_frame(endpoint, header, Nl::Decoder.new(IO::Buffer.for(payload)), nil)]
   end
 
   it 'decodes NLMSG_ERROR errno as data' do
@@ -53,7 +53,12 @@ RSpec.describe Nl::Raw::Protocol do
 
   it 'decodes a data message into a frame' do
     header = Nl::Raw::NlMsgHdr.new(0, FrameMessage::TYPE, Nl::Raw::NLM_F_MULTI, 1, 77)
-    frame = protocol.decode_frame(endpoint, header, IO::Buffer.for('reply'), FrameMessage)
+    frame = protocol.decode_frame(
+      endpoint,
+      header,
+      Nl::Decoder.new(IO::Buffer.for('reply')),
+      FrameMessage,
+    )
     expect(frame).to eq(Nl::Raw::DataFrame.new(header:, message: 'reply'))
   end
 end

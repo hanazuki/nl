@@ -144,3 +144,18 @@ RSpec.describe Nl::DataTypes::Binary do
     )
   end
 end
+
+RSpec.describe Nl::DataTypes::IndexedArray do
+  it 'rejects an attribute shorter than its header' do
+    encoder = Nl::Encoder.new
+    encoder.put_value(Nl::Endian::Host::U16, Nl::Raw::NLA_HDRLEN - 1)
+    encoder.put_value(Nl::Endian::Host::U16, 1)
+    element = Nl::DataTypes::Scalar.new(Nl::Endian::Host::U32, check: nil)
+
+    expect { described_class.new(element).decode(Nl::Decoder.new(encoder.buffer)) }
+      .to raise_error(
+        Nl::Decoder::Error,
+        'attribute length must be at least 4 bytes, got 3',
+      )
+  end
+end
