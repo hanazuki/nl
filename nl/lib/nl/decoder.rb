@@ -25,7 +25,7 @@ module Nl
     def limit(size)
       orig_limit = @limit
       new_limit = @position + size
-      raise OutOfBounds if size.negative? || new_limit > orig_limit
+      raise OutOfBounds if size < 0 || new_limit > orig_limit
 
       @limit = new_limit
       result = yield self
@@ -52,7 +52,7 @@ module Nl
 
     def get_string(length = @limit - @position)
       nposition = @position + length
-      raise OutOfBounds if length.negative? || nposition > @limit
+      raise OutOfBounds if length < 0 || nposition > @limit
       value = @buffer.get_string(@position, length)
       @position = nposition
       value
@@ -60,7 +60,7 @@ module Nl
 
     def slice(length = @limit - @position)
       nposition = @position + length
-      raise OutOfBounds if length.negative? || nposition > @limit
+      raise OutOfBounds if length < 0 || nposition > @limit
       value = self.class.new(@buffer, @position, length)
       @position = nposition
       value

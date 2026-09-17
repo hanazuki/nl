@@ -56,7 +56,7 @@ module Nl
               raise ProtocolViolation, "expected zero or negative NLMSG_ERROR errno, got #{errno}"
             end
 
-            errno.zero? ? AckFrame.new(header:) : ErrorFrame.new(header:, errno: -errno)
+            errno == 0 ? AckFrame.new(header:) : ErrorFrame.new(header:, errno: -errno)
           when Raw::NLMSG_DONE
             return DoneFrame.new(header:, errno: nil) unless decoder.available?
 
@@ -65,7 +65,7 @@ module Nl
               raise ProtocolViolation, "expected zero or negative NLMSG_DONE errno, got #{errno}"
             end
 
-            DoneFrame.new(header:, errno: errno.negative? ? -errno : nil)
+            DoneFrame.new(header:, errno: errno < 0 ? -errno : nil)
           else
             UnknownFrame.new(header:)
           end

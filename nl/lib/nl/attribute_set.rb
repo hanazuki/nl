@@ -76,7 +76,7 @@ module Nl
         local_count,
         external_selectors,
       )
-      unless local_count.zero?
+      unless local_count == 0
         @attributes.each do |attr|
           if slot = attr.class::SELECTOR_SLOT
             context.set_local(slot, attr.value)
@@ -128,7 +128,7 @@ module Nl
           external_selectors,
         )
         attrs = []
-        if local_count.zero?
+        if local_count == 0
           # Fast path for no-selector case
           while decoder.available?
             attr = decode1(decoder, context)

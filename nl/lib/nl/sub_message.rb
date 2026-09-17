@@ -51,7 +51,7 @@ module Nl
 
     class State
       def self.for(local_count, external)
-        return EMPTY if local_count.zero? && external.empty?
+        return EMPTY if local_count == 0 && external.empty?
 
         new(local_count, external)
       end
