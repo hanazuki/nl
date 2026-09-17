@@ -576,7 +576,7 @@ RSpec.describe Ynl do
         encoded = encoder.buffer
         decoder = Nl::Decoder.new(encoded)
         header = Nl::Raw::NlMsgHdr.decode(decoder)
-        payload = decoder.get_buffer
+        payload = decoder
 
         selected = protocol.notification_class(endpoint, header, payload, family_class::NOTIFICATIONS)
         notification = protocol.decode_notification(endpoint, header, payload, selected)

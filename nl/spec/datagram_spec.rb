@@ -25,7 +25,7 @@ RSpec.describe Nl::Datagram do
       [20, 1, 'one'],
       [21, 2, 'two'],
     ])
-    expect(frames.map(&:last)).to all(be_a(IO::Buffer))
+    expect(frames.map(&:last)).to all(be_a(Nl::Decoder))
   end
 
   it 'rejects a payload shorter than its declared message length' do

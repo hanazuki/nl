@@ -47,8 +47,7 @@ module Nl
       end
 
       # Decodes one frame using the reply class associated with its sequence.
-      def decode_frame(_endpoint, header, payload, message_class)
-        decoder = Decoder.new(payload)
+      def decode_frame(_endpoint, header, decoder, message_class)
         if header.type < Raw::NLMSG_MIN_TYPE
           case header.type
           when Raw::NLMSG_ERROR
