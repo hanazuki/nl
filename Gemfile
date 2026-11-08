@@ -10,3 +10,7 @@ gem 'rbs-inline', '~> 0.14'
 gem 'rspec', '~> 3.0'
 gem 'simplecov', '~> 1.1'
 gem 'yard', '~> 0.9'
+
+group :rperf do
+  gem 'rperf', '~> 0.11.1'
+end
