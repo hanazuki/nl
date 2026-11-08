@@ -1,0 +1,31 @@
+name: prperf
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+
+jobs:
+  bench:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+      checks: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v6.1.0
+        with:
+          persist-credentials: false
+      - uses: ruby/setup-ruby@v1.338.0
+        with:
+          ruby-version: '4.0'
+          bundler-cache: true
+      - name: Generate protocol definitions
+        run: bundle exec rake generate
+      - uses: rperf-dev/prperf-action@v1
+        with:
+          benchmark: decode_routes
+          run: ruby --yjit benchmark/decode_routes.rb -n 100 benchmark/inet-sampled.pcap
