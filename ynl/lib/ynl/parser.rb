@@ -7,18 +7,11 @@ module Ynl
     # @param [String, #read] source
     # @rbs (String | _Readable source) -> void
     def initialize(source)
-      @yaml = YAML.load(source, aliases: true)
-
-      @consts = {}
-      @flags = {}
-      @enums = {}
-      @structs = {}
-
-      @attribute_sets = {}
+      @document = YAML.load(source, aliases: true)
+      @attribute_declarations = {}
       @attribute_definitions = {}
-      @sub_messages = {}
-      @operations = {}
-      @mcast_groups = {}
+      @expanding_subsets = []
+      @operation_values = []
     end
 
     # @param [String, #to_path] path
@@ -28,25 +21,26 @@ module Ynl
       File.open(path) {|f| new(f) }.parse
     end
 
+    # Returns a complete, deeply frozen model graph.
     # @return [Models::Family]
     # @rbs () -> Models::Family
     def parse
-      protocol = @yaml['protocol'] || 'genetlink'
-      version = @yaml.fetch('version', 1)
-      protonum = @yaml['protonum']
-      name = @yaml['name']
-      doc = translate_doc(@yaml['doc'])
+      return @family if @family
 
-      @yaml['definitions']&.each do |d|
-        parse_definition(d)
+      normalize
+      @family = materialize
+    end
+
+    private def normalize
+      @document.fetch('attribute-sets').each do |declaration|
+        name = declaration.fetch('name')
+        if @attribute_declarations.key?(name)
+          raise ParseError, "Duplicate AttributeSet: #{name}"
+        end
+        @attribute_declarations[name] = declaration
       end
-      @yaml['attribute-sets'].each do |d|
-        parse_attribute_set(d)
-      end
-      @yaml['sub-messages']&.each do |d|
-        parse_sub_message(d)
-      end
-      if operations = @yaml['operations']
+      @attribute_declarations.each_key { attribute_definitions(it) }
+      if operations = @document['operations']
         enum_model = case operations['enum-model']
         when 'directional'
           :directional
@@ -55,13 +49,12 @@ module Ynl
         else
           raise ParseError, "Unknown enum model: #{operations['enum-model']}"
         end
-        @default_fixed_header = operations['fixed-header']&.then { @structs.fetch(it) }
 
         if enum_model == :unified
           counter = 0
           operations['list']&.each do |d|
             counter = d['value'] || (counter + 1)
-            parse_operation(d, request_id: counter, reply_id: counter)
+            @operation_values << [d, counter, counter]
           end
         else
           request_counter = 1
@@ -69,7 +62,7 @@ module Ynl
           operations['list']&.each do |d|
             if d.key?('notify') || d.key?('event')
               reply_counter = d['value'] || reply_counter
-              parse_operation(d, request_id: nil, reply_id: reply_counter)
+              @operation_values << [d, nil, reply_counter]
               reply_counter += 1
             else
               primary = d['do'] || d['dump']
@@ -83,48 +76,118 @@ module Ynl
               else
                 reply_id = nil
               end
-              parse_operation(d, request_id:, reply_id:)
+              @operation_values << [d, request_id, reply_id]
             end
           end
         end
       end
-      @yaml.dig('mcast-groups', 'list')&.each do |d|
-        parse_mcast_group(d)
+    end
+
+    private def materialize
+      @consts = {}
+      @enums = {}
+      @flags = {}
+      @structs = {}
+      @attribute_sets = {}
+      @sub_messages = {}
+      @operations = {}
+      @mcast_groups = {}
+      @operation_declarations = {}
+      @building_operations = []
+      @operation_values.each do |entry|
+        name = entry.first.fetch('name')
+        raise ParseError, "Duplicate Operation: #{name}" if @operation_declarations.key?(name)
+        @operation_declarations[name] = entry
+      end
+      declare_models
+
+      @document.fetch('definitions', []).each { build_definition(it) }
+      @attribute_declarations.each_value { build_attribute_set(it) }
+      @document.fetch('sub-messages', []).each { build_sub_message(it) }
+      @document.dig('mcast-groups', 'list')&.each { build_mcast_group(it) }
+      @default_fixed_header = @document.dig('operations', 'fixed-header')&.then do
+        reference(@structs, it, 'struct')
+      end
+      # Construction may visit a notification source first; retain declaration
+      # order in the exposed table and keep the previously assigned wire IDs.
+      @operations = @operation_values.to_h do |declaration, request_id, reply_id|
+        operation = build_operation(declaration, request_id:, reply_id:)
+        [operation.name, operation]
       end
 
       Models::Family.new(
-        name:,
-        protocol:,
-        version:,
-        protonum:,
-        doc:,
-        consts: @consts,
-        enums: @enums,
-        flags: @flags,
-        structs: @structs,
-        attribute_sets: @attribute_sets,
-        sub_messages: @sub_messages,
-        operations: @operations,
-        mcast_groups: @mcast_groups,
-      ).resolve
+        name: @document['name']&.dedup, protocol: (@document['protocol'] || 'genetlink').dedup,
+        version: @document.fetch('version', 1), protonum: @document['protonum'],
+        doc: translate_doc(@document['doc']),
+        consts: @consts.freeze, enums: @enums.freeze, flags: @flags.freeze, structs: @structs.freeze,
+        attribute_sets: @attribute_sets.freeze, sub_messages: @sub_messages.freeze,
+        operations: @operations.freeze, mcast_groups: @mcast_groups.freeze).freeze
     end
 
-    private def parse_definition(d)
+    # Establish identities through ordinary constructors. Their owned arrays
+    # remain mutable until the corresponding members, attributes, or formats
+    # have been built; references can already point to these models.
+    private def declare_models
+      @document.fetch('definitions', []).each do |d|
+        next unless d['type'] == 'struct'
+        register(@structs, Models::Struct.new(
+          name: d.fetch('name').dedup, members: [], doc: translate_doc(d['doc'])).freeze)
+      end
+      @attribute_sets = @attribute_declarations.to_h do |name, _|
+        [name, declare_attribute_set(name)]
+      end
+      @document.fetch('sub-messages', []).each do |d|
+        register(@sub_messages, Models::SubMessage.new(
+          name: d.fetch('name').dedup, formats: []).freeze)
+      end
+    end
+
+    private def declare_attribute_set(name)
+      return @attribute_sets.fetch(name) if @attribute_sets.key?(name)
+
+      d = reference(@attribute_declarations, name, 'attribute set')
+      model = if parent = d['subset-of']
+        Models::AttributeSubset.new(
+          name: name.dedup, superset: declare_attribute_set(parent),
+          attributes: [], doc: translate_doc(d['doc']))
+      else
+        Models::AttributeSet.new(
+          name: name.dedup, name_prefix: d['name_prefix']&.dedup,
+          attributes: [], doc: translate_doc(d['doc']))
+      end
+      @attribute_sets[name] = model.freeze
+    end
+
+    private def register(table, model)
+      if table.key?(model.name)
+        raise ParseError, "Duplicate #{model.class.name.split('::').last}: #{model.name}"
+      end
+      table[model.name] = model
+    end
+
+    private def reference(table, name, kind)
+      table.fetch(name) { raise ParseError, "Unknown #{kind}: #{name}" }
+    end
+
+    private def find_type(name)
+      @enums[name] || @flags[name] || @structs[name] || raise(ParseError, "Unknown type: #{name}")
+    end
+
+    private def build_definition(d)
       case type = d.fetch('type')
       when 'const'
-        v = parse_const(d)
+        v = build_const(d)
         @consts[v.name] = v
       when 'enum'
-        v = parse_enum_flags(d, type: :enum)
+        v = build_enum_flags(d, type: :enum)
         reject_enum_flags_name_collision(v.name, @flags)
         @enums[v.name] = v
       when 'flags'
-        v = parse_enum_flags(d, type: :flags)
+        v = build_enum_flags(d, type: :flags)
         reject_enum_flags_name_collision(v.name, @enums)
         @flags[v.name] = v
       when 'struct'
-        v = parse_struct(d)
-        @structs[v.name] = v
+        build_struct(d)
       else
         raise ParseError, "Unknown definition type: #{type}"
       end
@@ -136,122 +199,128 @@ module Ynl
       raise ParseError, "Definition #{name.inspect} cannot be both an enum and flags"
     end
 
-    private def parse_const(d)
-      name = "#{d['name-prefix']}#{d.fetch('name')}"
-      value = d.fetch('value')
-      unless value.is_a?(Integer) || value.is_a?(String)
+    private def build_const(d)
+      name = "#{d['name-prefix']}#{d.fetch('name')}".dedup
+      literal = d.fetch('value')
+      value = case literal
+      when String
+        literal.dedup
+      when Integer
+        literal
+      else
         raise ParseError, "Constant value must be a string or an integer: #{name}"
       end
 
-      Models::Const.new(name, value, translate_doc(d['doc']))
+      Models::Const.new(name:, value:, doc: translate_doc(d['doc'])).freeze
     end
 
-    private def parse_enum_flags(d, type:)
+    private def build_enum_flags(d, type:)
       cls = type == :enum ? Models::Enum : Models::Flags
-      result = cls.new(name: d.fetch('name'), doc: translate_doc(d['doc']))
-
       start_value = d['value-start'] || 0
       raw_value = start_value
 
-      d.fetch('entries').each do |v|
+      entries = d.fetch('entries').map do |v|
         explicit_value = v.is_a?(Hash) ? v['value'] : nil
         raw_value = explicit_value unless explicit_value.nil?
         value = type == :enum ? raw_value : 1 << raw_value
         case v
         when String
-          entry = cls::Entry.new(name: v, value:)
+          entry = cls::Entry.new(name: v.dedup, value:).freeze
         when Hash
-          entry = cls::Entry.new(name: v.fetch('name'), value:, doc: translate_doc(v['doc']))
+          entry = cls::Entry.new(name: v.fetch('name').dedup, value:, doc: translate_doc(v['doc'])).freeze
         else
           raise ParseError, "Unknown class for enum/flags entry: #{v.class}"
         end
 
-        result.entries << entry
-
         raw_value += 1
+        entry
 
       rescue
         raise ParseError, "Failed to parse enum/flags entry: #{v.fetch('name')}"
       end
 
-      result
+      cls.new(name: d.fetch('name').dedup, entries: entries.freeze, doc: translate_doc(d['doc'])).freeze
     rescue
       raise ParseError, "Failed to parse enum/flags: #{d.fetch('name')}"
     end
 
-    private def parse_struct_member_type(d)
+    private def build_struct_member_type(d)
+      length = d['len']
+      length = length.dedup if length.is_a?(String)
       type = d.fetch('type')
       case type
       when 'u8', 'u16', 'u32', 'u64', 's8', 's16', 's32', 's64', 'int', 'uint'
         Types::Scalar.new(
-          type: type,
-          byte_order: parse_byte_order(d['byte-order']),
-        )
+          type: type.dedup,
+          byte_order: build_byte_order(d['byte-order']),
+        ).freeze
       when 'binary'
         Types::Binary.new(
-          struct: d['struct'] ? Models::Thunk.new {|f| f.structs.fetch(d['struct']) } : nil,
-          length: d['len'],
-          display_hint: d['display-hint'],
-        )
+          struct: d['struct'] ? reference(@structs, d.fetch('struct'), 'struct') : nil,
+          length: length,
+          display_hint: d['display-hint']&.dedup,
+        ).freeze
       when 'pad'
         Types::Pad.new(
-          length: d['len'],
-        )
+          length: length,
+        ).freeze
       else
         fail "Unknown type: #{type}"
       end
     end
 
-    private def parse_attribute_type(d)
+    private def build_attribute_type(d)
       type = d.fetch('type')
       case type
       when 'u8', 'u16', 'u32', 'u64', 's8', 's16', 's32', 's64', 'int', 'uint', 'sint'
         Types::Scalar.new(
-          type: type,
-          byte_order: parse_byte_order(d['byte-order']),
-        )
+          type: type.dedup,
+          byte_order: build_byte_order(d['byte-order']),
+        ).freeze
       when 'binary'
         if d.key?('sub-type')
-          Types::PackedArray.new(sub_type: parse_packed_array_sub_type(d))
+          Types::PackedArray.new(sub_type: build_packed_array_sub_type(d)).freeze
         else
           Types::Binary.new(
-            struct: d['struct'] ? Models::Thunk.new {|f| f.structs.fetch(d.fetch('struct')) } : nil,
+            struct: d['struct'] ? reference(@structs, d.fetch('struct'), 'struct') : nil,
             length: nil,
-            display_hint: d['display-hint'],
-          )
+            display_hint: d['display-hint']&.dedup,
+          ).freeze
         end
       when 'string'
-        Types::String.new
+        Types::String.new.freeze
       when 'nest'
         Types::NestedAttributes.new(
-          attribute_set: Models::Thunk.new {|f| f.attribute_sets.fetch(d.fetch('nested-attributes')) },
-        )
+          attribute_set: reference(@attribute_sets, d.fetch('nested-attributes'), 'attribute set'),
+        ).freeze
       when 'indexed-array'
         Types::IndexedArray.new(
-          sub_type: parse_indexed_array_sub_type(d),
-        )
+          sub_type: build_indexed_array_sub_type(d),
+        ).freeze
       when 'nest-type-value'
         if d['nested-attributes']
+          type_values = d.fetch('type-value')
+          type_values.map!(&:dedup).freeze unless type_values.frozen?
           Types::NestTypeValue.new(
-            attribute_set: Models::Thunk.new {|f| f.attribute_sets.fetch(d.fetch('nested-attributes')) },
-            type_values: d.fetch('type-value'),
-          )
+            attribute_set: reference(@attribute_sets, d.fetch('nested-attributes'), 'attribute set'),
+            type_values:,
+          ).freeze
         else
-          Types::Binary.new(struct: nil, length: nil, display_hint: nil)
+          Types::Binary.new(struct: nil, length: nil, display_hint: nil).freeze
         end
       when 'sub-message'
         Types::SubMessage.new(
-          sub_message: Models::Thunk.new {|f| f.sub_messages.fetch(d.fetch('sub-message')) },
-          selector: d.fetch('selector'),
-        )
+          sub_message: reference(@sub_messages, d.fetch('sub-message'), 'sub-message'),
+          selector: d.fetch('selector').dedup,
+        ).freeze
       when 'pad'
         Types::Pad.new(
           length: nil,
-        )
+        ).freeze
       when 'flag'
-        Types::Flag.new
+        Types::Flag.new.freeze
       when 'bitfield32'
-        Types::Bitfield32.new
+        Types::Bitfield32.new.freeze
       when 'unused'
         nil
       else
@@ -259,43 +328,43 @@ module Ynl
       end
     end
 
-    private def parse_indexed_array_sub_type(d)
+    private def build_indexed_array_sub_type(d)
       sub_type = d.fetch('sub-type')
       case sub_type
       when 'u8', 'u16', 'u32', 'u64', 's8', 's16', 's32', 's64', 'int', 'uint', 'sint'
         Types::Scalar.new(
-          type: sub_type,
-          byte_order: parse_byte_order(d['byte-order']),
-        )
+          type: sub_type.dedup,
+          byte_order: build_byte_order(d['byte-order']),
+        ).freeze
       when 'binary'
         Types::Binary.new(
           struct: nil,
           length: nil,
-          display_hint: d['display-hint'],
-        )
+          display_hint: d['display-hint']&.dedup,
+        ).freeze
       when 'nest'
         Types::NestedAttributes.new(
-          attribute_set: Models::Thunk.new {|f| f.attribute_sets.fetch(d.fetch('nested-attributes')) },
-        )
+          attribute_set: reference(@attribute_sets, d.fetch('nested-attributes'), 'attribute set'),
+        ).freeze
       else
         raise ParseError, "Unknown indexed-array sub-type: #{sub_type}"
       end
     end
 
-    private def parse_packed_array_sub_type(d)
+    private def build_packed_array_sub_type(d)
       sub_type = d.fetch('sub-type')
       case sub_type
       when 'u8', 'u16', 'u32', 'u64', 's8', 's16', 's32', 's64', 'int'
         Types::Scalar.new(
-          type: sub_type,
-          byte_order: parse_byte_order(d['byte-order']),
-        )
+          type: sub_type.dedup,
+          byte_order: build_byte_order(d['byte-order']),
+        ).freeze
       else
         raise ParseError, "Unknown packed-array sub-type: #{sub_type}"
       end
     end
 
-    private def parse_byte_order(v)
+    private def build_byte_order(v)
       case v
       when nil
         :host
@@ -308,34 +377,33 @@ module Ynl
       end
     end
 
-    private def parse_struct(d)
-      result = Models::Struct.new(name: d.fetch('name'), doc: translate_doc(d['doc']))
-
-      d.fetch('members').each do |v|
-        type = parse_struct_member_type(v)
-        member = Models::Struct::Member.new(name: v.fetch('name'), type: type, doc: translate_doc(v['doc']))
-        result.members << member
-      rescue
-        raise ParseError, "Failed to parse struct member: #{v.fetch('name')}"
+    private def build_struct(d)
+      model = @structs.fetch(d.fetch('name'))
+      d.fetch('members').each do |member|
+        model.members << Models::Struct::Member.new(
+          name: member.fetch('name').dedup, type: build_struct_member_type(member),
+          doc: translate_doc(member['doc'])).freeze
+      rescue => error
+        raise ParseError, "Failed to parse struct member #{member.fetch('name')}: #{error.message}"
       end
-
-      result
-    rescue
-      raise ParseError, "Failed to parse struct: #{d.fetch('name')}"
+      model.members.freeze
+      model
+    rescue => error
+      raise ParseError, "Failed to parse struct #{d.fetch('name')}: #{error.message}"
     end
 
-    private def parse_checks(d)
+    private def build_checks(d)
       d.filter_map do |op, value|
-        parse_check(op, value)
-      end
+        build_check(op, value)
+      end.freeze
     rescue
       raise ParseError, "Failed to parse checks"
     end
 
-    private def parse_check(op, value_literal)
+    private def build_check(op, value_literal)
       case op
       when 'max', 'min', 'min-len', 'max-len', 'exact-len'
-        Models::Check.new(operation: op, value: parse_value(value_literal))
+        Models::Check.new(operation: op.dedup, value: build_value(value_literal)).freeze
       when 'unterminated-ok'
         return nil
       else
@@ -345,7 +413,7 @@ module Ynl
       raise ParseError, "Failed to parse check: #{op}"
     end
 
-    private def parse_value(v)
+    private def build_value(v)
       case v
       when Integer
         v
@@ -361,36 +429,51 @@ module Ynl
       end
     end
 
-    private def parse_attribute_set(d)
-      name = d.fetch('name')
-      if subset_of = d['subset-of']
-        superset = @attribute_sets.fetch(subset_of)
-        inherited = @attribute_definitions.fetch(subset_of).to_h { [it.fetch('name'), it] }
-        definitions = d.fetch('attributes').uniq { it.fetch('name') }.map do |override|
-          parent = inherited.fetch(override.fetch('name'))
-          parent.merge(override).merge('value' => parent.fetch('value'))
-        end
-        attributes = definitions.filter_map { parse_attribute(it) }
-        result = Models::AttributeSubset.new(name:, superset:, attributes:, doc: translate_doc(d['doc']))
-      else
-        name_prefix = d['name_prefix']
-        result = Models::AttributeSet.new(name:, name_prefix:, doc: translate_doc(d['doc']))
-        value = 0
-        definitions = d.fetch('attributes').map do |v|
-          value = v.fetch('value', value + 1)
-          v.merge('value' => value)
-        end
-        result.attributes.concat(definitions.filter_map { parse_attribute(it) })
+    # Subsets depend on their parent's normalized contents, unlike ordinary
+    # references, which only need the target's identity. Expand that dependency
+    # separately so forward subsets work and inheritance cycles fail clearly.
+    private def attribute_definitions(name)
+      return @attribute_definitions.fetch(name) if @attribute_definitions.key?(name)
+      if @expanding_subsets.include?(name)
+        chain = (@expanding_subsets + [name]).join(' -> ')
+        raise ParseError, "Attribute subset inheritance cycle: #{chain}"
       end
+      d = reference(@attribute_declarations, name, 'attribute set')
+      @expanding_subsets << name
+      begin
+        definitions = if parent_name = d['subset-of']
+          inherited = attribute_definitions(parent_name).to_h { [it.fetch('name'), it] }
+          d.fetch('attributes').uniq { it.fetch('name') }.map do |override|
+            parent = inherited.fetch(override.fetch('name'))
+            parent.merge(override).merge('value' => parent.fetch('value'))
+          end
+        else
+          value = 0
+          d.fetch('attributes').map do |attribute|
+            value = attribute.fetch('value', value + 1)
+            attribute.merge('value' => value)
+          end
+        end
+        @attribute_definitions[name] = definitions
+      ensure
+        @expanding_subsets.pop
+      end
+    end
 
-      @attribute_sets[name] = result
-      @attribute_definitions[name] = definitions
-
+    private def build_attribute_set(d)
+      name = d.fetch('name')
+      model = @attribute_sets.fetch(name)
+      attribute_definitions(name).each do |definition|
+        attribute = build_attribute(definition)
+        model.attributes << attribute if attribute
+      end
+      model.attributes.freeze
+      model
     rescue => error
       raise ParseError, "Failed to parse attribute set #{d.fetch('name')}: #{error.message}"
     end
 
-    private def parse_attribute(d)
+    private def build_attribute(d)
       multi_attr = d.fetch('multi-attr', false)
       unless multi_attr == true || multi_attr == false
         raise ParseError, "multi-attr must be a boolean"
@@ -404,104 +487,110 @@ module Ynl
         raise ParseError, "enum-as-flags requires enum"
       end
 
-      return unless type = parse_attribute_type(d)
+      return unless type = build_attribute_type(d)
 
       Models::AttributeSet::Attribute.new(
-        name: d.fetch('name'),
+        name: d.fetch('name').dedup,
         type:,
         value: d.fetch('value'),
-        checks: (parse_checks(d['checks']) if d['checks']),
+        checks: (build_checks(d['checks']) if d['checks']),
         doc: translate_doc(d['doc']),
         multi_attr:,
-        enum: d['enum']&.then { |ref| Models::Thunk.new {|f| f.find_type(ref) } },
+        enum: d['enum']&.then { find_type(it) },
         enum_as_flags:,
-      )
+      ).freeze
     rescue => error
       raise ParseError, "Failed to parse attribute #{d.fetch('name')}: #{error.message}"
     end
 
-    private def parse_sub_message(d)
-      name = d.fetch('name')
-      result = Models::SubMessage.new(name:)
-      d.fetch('formats', []).each do |fmt|
-        fixed_header = fmt['fixed-header']&.then do |ref|
-          Models::Thunk.new {|f| f.structs.fetch(ref) }
-        end
-        attr_set = fmt['attribute-set']&.then do |ref|
-          Models::Thunk.new {|f| f.attribute_sets.fetch(ref) }
-        end
-        result.formats << Models::SubMessage::Format.new(fmt.fetch('value'), fixed_header, attr_set)
+    private def build_sub_message(d)
+      model = @sub_messages.fetch(d.fetch('name'))
+      d.fetch('formats', []).each do |format|
+        model.formats << Models::SubMessage::Format.new(
+          value: format.fetch('value').dedup,
+          fixed_header: format['fixed-header']&.then { reference(@structs, it, 'struct') },
+          attribute_set: format['attribute-set']&.then { reference(@attribute_sets, it, 'attribute set') }).freeze
       end
-      @sub_messages[name] = result
+      model.formats.freeze
+      model
     end
 
-    private def parse_operation(d, request_id:, reply_id:)
-      name = d.fetch('name')
-
-      fixed_header = d['fixed-header']&.then do
-        @structs.fetch(it)
-      rescue
-        raise ParseError, "Undefined fixed header: #{it}"
-      end || @default_fixed_header
-
-      attribute_set = d['attribute-set']&.then do
-        @attribute_sets.fetch(it)
-      rescue
-        raise ParseError, "Undefined attribute set: #{it}"
+    private def build_operation(d, request_id:, reply_id:)
+      name = d.fetch('name').dedup
+      return @operations.fetch(name) if @operations.key?(name)
+      if @building_operations.include?(name)
+        chain = (@building_operations + [name]).join(' -> ')
+        raise ParseError, "Notification source cycle: #{chain}"
       end
 
-      doit = d['do']&.then { parse_request_reply(it, default_request_id: request_id, default_reply_id: reply_id) }
-      dumpit = d['dump']&.then { parse_request_reply(it, default_request_id: request_id, default_reply_id: reply_id) }
-      notification = parse_notification(d, default_id: reply_id)
+      @building_operations << name
+      begin
+        fixed_header = d['fixed-header']&.then do
+          reference(@structs, it, 'struct')
+        end || @default_fixed_header
+        attribute_set = d['attribute-set']&.then do
+          reference(@attribute_sets, it, 'attribute set')
+        end
 
-      @operations[name] = Models::Operation.new(
-        name:, doc: translate_doc(d['doc']), flags: d.fetch('flags', []), fixed_header:, attribute_set:,
-        doit:, dumpit:, notification:,
-      )
+        doit = d['do']&.then { build_request_reply(it, default_request_id: request_id, default_reply_id: reply_id) }
+        dumpit = d['dump']&.then { build_request_reply(it, default_request_id: request_id, default_reply_id: reply_id) }
+        notification = build_notification(d, default_id: reply_id)
+        flags = d.fetch('flags', [])
+        flags.map!(&:dedup).freeze unless flags.frozen?
+
+        @operations[name] = Models::Operation.new(
+          name:, doc: translate_doc(d['doc']), flags:,
+          fixed_header:, attribute_set:, doit:, dumpit:, notification:,
+        ).freeze
+      ensure
+        @building_operations.pop
+      end
     end
 
-    private def parse_notification(d, default_id:)
+    private def build_notification(d, default_id:)
       if source = d['notify']
+        declaration, request_id, reply_id = reference(@operation_declarations, source, 'operation')
+        source_operation = build_operation(declaration, request_id:, reply_id:)
         Models::Notification.new(
           kind: :notify,
-          message: parse_message({}, default_id:),
-          source:,
-          group: d['mcgrp'],
-        )
+          message: build_message({}, default_id:),
+          source: source_operation,
+          group: d['mcgrp']&.then { reference(@mcast_groups, it, 'multicast group') },
+        ).freeze
       elsif event = d['event']
         Models::Notification.new(
           kind: :event,
-          message: parse_message(event, default_id:),
+          message: build_message(event, default_id:),
           source: nil,
-          group: d['mcgrp'],
-        )
+          group: d['mcgrp']&.then { reference(@mcast_groups, it, 'multicast group') },
+        ).freeze
       end
     end
 
-    private def parse_request_reply(d, default_request_id:, default_reply_id:)
+    private def build_request_reply(d, default_request_id:, default_reply_id:)
       Models::RequestReply.new(
-        request: parse_message(d.fetch('request', {}), default_id: default_request_id),
-        reply: d['reply']&.then { parse_message(it, default_id: default_reply_id) },
-      )
+        request: build_message(d.fetch('request', {}), default_id: default_request_id),
+        reply: d['reply']&.then { build_message(it, default_id: default_reply_id) },
+      ).freeze
     end
 
-    private def parse_message(d, default_id:)
-      Models::Message.new(value: d['value'] || default_id, attributes: d.fetch('attributes', []))
+    private def build_message(d, default_id:)
+      attributes = d.fetch('attributes', [])
+      attributes.map!(&:dedup).freeze unless attributes.frozen?
+      Models::Message.new(value: d['value'] || default_id, attributes:).freeze
     end
 
-    private def parse_mcast_group(d)
-      name = d.fetch('name')
+    private def build_mcast_group(d)
+      name = d.fetch('name').dedup
       @mcast_groups[name] = Models::McastGroup.new(
-        name,
-        d['value'],
-        translate_doc(d['doc']),
-      )
+        name:, value: d['value'], doc: translate_doc(d['doc']),
+      ).freeze
     end
 
     private def translate_doc(doc)
       return unless doc
 
-      doc.gsub(/(?:\s|^)\K@(?<ident>[\w.-]+)/i) { "`#{$~[:ident]}`" }
+      doc.gsub(/(?:\s|^)\K@(?<ident>[\w.-]+)/i) { "`#{$~[:ident]}`" }.dedup
     end
   end
 end

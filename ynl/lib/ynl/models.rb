@@ -4,28 +4,8 @@ module Ynl
       :consts, :enums, :flags, :structs,
       :attribute_sets, :sub_messages, :operations, :mcast_groups)
     class Family
-      def resolve
-        structs.transform_values! {|s| s.resolve(self) }
-        sub_messages.transform_values! {|s| s.resolve(self) }
-        attribute_sets.transform_values! {|s| s.resolve(self) }
-        operations.transform_values! {|operation| operation.resolve(self) }
-        self
-      end
-
       def find_type(name)
         enums[name] or flags[name] or structs[name] or raise ParseError, "Unknown type: #{name}"
-      end
-    end
-
-    class Thunk
-      def initialize(&block)
-        @block = block
-      end
-
-      def resolve(f)
-        raise ParseError, "Circular dependency" if @resolving
-        @resolving = true
-        @block.call(f)
       end
     end
 
@@ -33,24 +13,13 @@ module Ynl
     Check = ::Struct.new(:operation, :value)
 
     class SubMessage
-      Format = ::Struct.new(:value, :fixed_header, :attribute_set) do
-        def resolve(f)
-          self.fixed_header = fixed_header.resolve(f) if fixed_header.is_a?(Thunk)
-          self.attribute_set = attribute_set.resolve(f) if attribute_set.is_a?(Thunk)
-          self
-        end
-      end
+      Format = ::Struct.new(:value, :fixed_header, :attribute_set)
 
       attr_reader :name, :formats
 
-      def initialize(name:)
+      def initialize(name:, formats:)
         @name = name
-        @formats = []
-      end
-
-      def resolve(f)
-        formats.map! { it.resolve(f) }
-        self
+        @formats = formats
       end
     end
 
@@ -59,14 +28,10 @@ module Ynl
 
       attr_reader :name, :entries, :doc
 
-      def initialize(name:, doc:)
+      def initialize(name:, entries:, doc:)
         @name = name
-        @entries = []
+        @entries = entries
         @doc = doc
-      end
-
-      def resolve(f)
-        self
       end
     end
 
@@ -75,47 +40,27 @@ module Ynl
 
       attr_reader :name, :entries, :doc
 
-      def initialize(name:, doc:)
+      def initialize(name:, entries:, doc:)
         @name = name
-        @entries = []
+        @entries = entries
         @doc = doc
-      end
-
-      def resolve(f)
-        self
       end
     end
 
     class Struct
-      Member = ::Struct.new(:name, :type, :doc) do
-        def resolve(f)
-          self.type = self.type.resolve(f)
-          self
-        end
-      end
+      Member = ::Struct.new(:name, :type, :doc)
 
       attr_reader :name, :members, :doc
 
-      def initialize(name:, doc:)
+      def initialize(name:, members:, doc:)
         @name = name
-        @members = []
+        @members = members
         @doc = doc
-      end
-
-      def resolve(f)
-        @members.map! {|m| m.resolve(f) }
-        self
       end
     end
 
     class AttributeSet
       Attribute = ::Struct.new(:name, :type, :value, :checks, :doc, :multi_attr, :enum, :enum_as_flags) do
-        def resolve(f)
-          self.type = type.resolve(f)
-          self.enum = enum.resolve(f) if enum
-          self
-        end
-
         def multi?
           multi_attr
         end
@@ -123,18 +68,11 @@ module Ynl
 
       attr_reader :name, :name_prefix, :attributes, :doc
 
-      def initialize(name:, name_prefix:, doc:)
+      def initialize(name:, name_prefix:, attributes:, doc:)
         @name = name
         @name_prefix = name_prefix
-        @attributes = []
+        @attributes = attributes
         @doc = doc
-      end
-
-      def resolve(f)
-        attributes.map! { it.resolve(f) }
-        self
-      rescue
-        raise ParseError, "Failed to resolve attribute set: #{name}"
       end
     end
 
@@ -150,13 +88,6 @@ module Ynl
 
       def attributes
         @attributes
-      end
-
-      def resolve(f)
-        attributes.map! { it.resolve(f) }
-        self
-      rescue
-        raise ParseError, "Failed to resolve attribute subset: #{name}"
       end
     end
 
@@ -175,13 +106,6 @@ module Ynl
         @dumpit = dumpit
         @notification = notification
       end
-
-      def resolve(f)
-        @doit = @doit&.resolve(f)
-        @dumpit = @dumpit&.resolve(f)
-        @notification = @notification&.resolve(f)
-        self
-      end
     end
 
     class Notification
@@ -193,15 +117,6 @@ module Ynl
         @source = source
         @group = group
       end
-
-      def resolve(f)
-        @message = @message.resolve(f)
-        @source = f.operations.fetch(@source) if @source
-        @group = f.mcast_groups.fetch(@group) if @group
-        self
-      rescue KeyError => error
-        raise ParseError, "Failed to resolve #{kind} notification: #{error.message}"
-      end
     end
 
     class RequestReply
@@ -211,12 +126,6 @@ module Ynl
         @request = request
         @reply = reply
       end
-
-      def resolve(f)
-        @request = @request&.resolve(f)
-        @reply = @reply&.resolve(f)
-        self
-      end
     end
 
     class Message
@@ -225,10 +134,6 @@ module Ynl
       def initialize(value:, attributes:)
         @value = value
         @attributes = attributes
-      end
-
-      def resolve(f)
-        self
       end
     end
   end
