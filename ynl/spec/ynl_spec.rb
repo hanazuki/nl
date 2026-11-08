@@ -303,7 +303,7 @@ RSpec.describe Ynl do
       Ynl::Family.generate(source, generated)
 
       expect(generated.string).to include(
-        '::Nl::DataTypes::PackedArray.new(::Nl::DataTypes::Scalar.new(::Nl::Endian::Big::U32, check: nil), check: nil)',
+        '::Nl::DataTypes::PackedArray.new(::Nl::DataTypes::Scalar[::Nl::Endian::Big::U32].new(check: nil), check: nil)',
       )
       expect(generated.string).to include('values: ::Array[::Integer]')
     end

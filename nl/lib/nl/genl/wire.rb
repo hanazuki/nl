@@ -81,9 +81,9 @@ module Nl
       def self.decode(decoder)
         # Unrolling get_values improves performance for this small header.
         new(
-          decoder.get_value(Endian::Host::U8),
-          decoder.get_value(Endian::Host::U8),
-          decoder.get_value(Endian::Host::U16),
+          decoder.get_U8,
+          decoder.get_U8,
+          decoder.get_host_u16,
         )
       end
 

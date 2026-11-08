@@ -51,7 +51,7 @@ module Nl
         if header.type < Raw::NLMSG_MIN_TYPE
           case header.type
           when Raw::NLMSG_ERROR
-            errno = decoder.get_value(Endian::Host::SINT)
+            errno = decoder.get_host_sint
             if errno.positive?
               raise ProtocolViolation, "expected zero or negative NLMSG_ERROR errno, got #{errno}"
             end
@@ -60,7 +60,7 @@ module Nl
           when Raw::NLMSG_DONE
             return DoneFrame.new(header:, errno: nil) unless decoder.available?
 
-            errno = decoder.get_value(Endian::Host::SINT)
+            errno = decoder.get_host_sint
             if errno.positive?
               raise ProtocolViolation, "expected zero or negative NLMSG_DONE errno, got #{errno}"
             end

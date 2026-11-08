@@ -1158,7 +1158,7 @@ module Ynl
         if ['sint', 'uint'].include?(type.type)
           "::Nl::DataTypes::VariableInteger.new(#{byte_order}, signed: #{type.type == 'sint'}, check: #{to_checks(checks)})"
         else
-          "::Nl::DataTypes::Scalar.new(#{byte_order}::#{type.type.as_const_name}, check: #{to_checks(checks)})"
+          "::Nl::DataTypes::Scalar[#{byte_order}::#{type.type.as_const_name}].new(check: #{to_checks(checks)})"
         end
       when Types::String
         "::Nl::DataTypes::String.new(check: #{to_checks(checks)})"

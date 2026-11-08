@@ -1,5 +1,7 @@
 require_relative 'raw/wire'
 require_relative 'bitfield32'
+require_relative 'datatypes/base'
+require_relative 'datatypes/scalar'
 
 module Nl
   # @rbs!
@@ -11,40 +13,6 @@ module Nl
   #   end
 
   module DataTypes
-    class Base
-      def initialize(check: nil)
-        @check = check
-      end
-
-      def nlattr_type_flags(_value = nil, context: nil)
-        0
-      end
-
-      def coerce(value, context: nil)
-        value
-      end
-
-      private def checked(value)
-        @check&.call(value)
-        value
-      end
-    end
-
-    class Scalar < Base
-      def initialize(type, check:)
-        super(check:)
-        @type = type
-      end
-
-      def encode(encoder, value, context: nil)
-        encoder.put_value(@type, checked(value || 0))
-      end
-
-      def decode(decoder, context: nil, nlattr_type_flags: 0)
-        checked(decoder.get_value(@type))
-      end
-    end
-
     class VariableInteger < Base
       UINT32_RANGE = (0...2**32)
       UINT64_RANGE = (0...2**64)
@@ -56,6 +24,8 @@ module Nl
         prefix = signed ? 'S' : 'U'
         @type32 = byte_order.const_get("#{prefix}32")
         @type64 = byte_order.const_get("#{prefix}64")
+        @scalar32 = Scalar[@type32].new
+        @scalar64 = Scalar[@type64].new
         @range32 = signed ? SINT32_RANGE : UINT32_RANGE
         @range64 = signed ? SINT64_RANGE : UINT64_RANGE
       end
@@ -71,13 +41,13 @@ module Nl
       end
 
       def decode(decoder, context: nil, nlattr_type_flags: 0)
-        type = case decoder.remaining
-        when 4 then @type32
-        when 8 then @type64
+        scalar = case decoder.remaining
+        when 4 then @scalar32
+        when 8 then @scalar64
         else
           raise Decoder::Error, "variable integer payload must be 4 or 8 bytes, got #{decoder.remaining}"
         end
-        checked(decoder.get_value(type))
+        checked(scalar.decode(decoder))
       end
     end
 
@@ -214,8 +184,8 @@ module Nl
       end
 
       def decode(decoder, context: nil, nlattr_type_flags: 0)
-        value = decoder.get_value(Endian::Host::U32)
-        selector = decoder.get_value(Endian::Host::U32)
+        value = decoder.get_host_u32
+        selector = decoder.get_host_u32
         Nl::Bitfield32.new(value, selector)
       end
     end
@@ -393,8 +363,8 @@ module Nl
         result = {}
         while decoder.available?(Raw::NLA_HDRLEN)
           # Inline NlAttr.decode to avoid allocating a header object.
-          length = decoder.get_value(Endian::Host::U16)
-          type = decoder.get_value(Endian::Host::U16) & Raw::NLA_TYPE_MASK
+          length = decoder.get_host_u16
+          type = decoder.get_host_u16 & Raw::NLA_TYPE_MASK
           if length < Raw::NLA_HDRLEN
             raise Decoder::Error,
               "attribute length must be at least #{Raw::NLA_HDRLEN} bytes, got #{length}"
@@ -443,8 +413,8 @@ module Nl
         result = []
         while decoder.available?
           # Inline NlAttr.decode to avoid allocating a header object.
-          length = decoder.get_value(Endian::Host::U16)
-          type = decoder.get_value(Endian::Host::U16)
+          length = decoder.get_host_u16
+          type = decoder.get_host_u16
           if length < Raw::NLA_HDRLEN
             raise Decoder::Error,
               "attribute length must be at least #{Raw::NLA_HDRLEN} bytes, got #{length}"

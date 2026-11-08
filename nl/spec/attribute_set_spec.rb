@@ -6,13 +6,13 @@ RSpec.describe Nl::AttributeSet do
       singular = Class.new(set::Attribute)
       singular.const_set(:TYPE, 1)
       singular.const_set(:NAME, :singular)
-      singular.const_set(:DATATYPE, Nl::DataTypes::Scalar.new(Nl::Endian::Host::U32, check: nil))
+      singular.const_set(:DATATYPE, Nl::DataTypes::Scalar[Nl::Endian::Host::U32].new(check: nil))
 
       repeated = Class.new(set::Attribute)
       repeated.const_set(:TYPE, 2)
       repeated.const_set(:NAME, :repeated)
       repeated.const_set(:MULTI, true)
-      repeated.const_set(:DATATYPE, Nl::DataTypes::Scalar.new(Nl::Endian::Host::U32, check: nil))
+      repeated.const_set(:DATATYPE, Nl::DataTypes::Scalar[Nl::Endian::Host::U32].new(check: nil))
 
       set.const_set(:Singular, singular)
       set.const_set(:Repeated, repeated)

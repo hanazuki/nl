@@ -4,7 +4,7 @@ RSpec.describe Nl::DataTypes::NestTypeValue do
   let(:leaf_type) do
     Class.new do
       def self.decode(decoder)
-        decoder.get_value(Nl::Endian::Host::U32)
+        decoder.get_host_u32
       end
     end
   end
@@ -25,7 +25,7 @@ RSpec.describe Nl::DataTypes::NestTypeValue do
       attribute = Class.new(set::Attribute)
       attribute.const_set(:TYPE, 1)
       attribute.const_set(:NAME, :type)
-      attribute.const_set(:DATATYPE, Nl::DataTypes::Scalar.new(Nl::Endian::Host::U32, check: nil))
+      attribute.const_set(:DATATYPE, Nl::DataTypes::Scalar[Nl::Endian::Host::U32].new(check: nil))
       set.const_set(:Type, attribute)
       set.const_set(:BY_NAME, { type: attribute }.freeze)
       set.const_set(:BY_TYPE, { 1 => attribute }.freeze)
