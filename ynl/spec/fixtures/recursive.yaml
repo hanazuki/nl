@@ -1,0 +1,52 @@
+name: recursive
+protocol: genetlink
+doc: Recursive schema used to exercise model linking.
+
+definitions:
+  - name: header
+    type: struct
+    members:
+      - { name: tail, type: binary, struct: tail }
+  - name: tail
+    type: struct
+    members:
+      - { name: value, type: u32 }
+
+attribute-sets:
+  - name: selected
+    subset-of: outer
+    attributes:
+      - { name: child }
+  - name: outer
+    attributes:
+      - { name: encap, type: nest, nested-attributes: outer }
+      - { name: child, type: nest, nested-attributes: inner, value: 10 }
+      - { name: kind, type: string }
+      - { name: packet, type: sub-message, sub-message: packet, selector: kind }
+  - name: inner
+    attributes:
+      - { name: parent, type: nest, nested-attributes: outer }
+  - name: payload
+    attributes:
+      - { name: value, type: u32 }
+
+sub-messages:
+  - name: packet
+    formats:
+      - { value: data, fixed-header: header, attribute-set: payload }
+
+operations:
+  list:
+    - name: changed
+      notify: get
+      mcgrp: changes
+    - name: get
+      attribute-set: outer
+      flags: [admin-perm]
+      do:
+        reply:
+          attributes: [encap, child, kind, packet]
+
+mcast-groups:
+  list:
+    - { name: changes }
