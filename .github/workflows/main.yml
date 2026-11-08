@@ -21,11 +21,11 @@ jobs:
     permissions:
       contents: read
     steps:
-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+    - uses: actions/checkout@v7.0.1
       with:
         persist-credentials: false
     - name: Set up Ruby
-      uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
+      uses: ruby/setup-ruby@v1.321.0
       with:
         ruby-version: ${{ matrix.ruby }}
         bundler-cache: true
@@ -36,7 +36,7 @@ jobs:
       env:
         COVERAGE: 'true'
     - name: Upload coverage to Coveralls
-      uses: coverallsapp/github-action@8d6379e14d29928660c4ba802d8e85393440b329 # v2.3.8
+      uses: coverallsapp/github-action@v2.3.8
       with:
         file: coverage/.resultset.json
         format: simplecov
@@ -52,7 +52,7 @@ jobs:
     permissions: {}
     steps:
     - name: Finish Coveralls parallel build
-      uses: coverallsapp/github-action@8d6379e14d29928660c4ba802d8e85393440b329 # v2.3.8
+      uses: coverallsapp/github-action@v2.3.8
       with:
         github-token: ${{ github.token }}
         fail-on-error: false
@@ -65,17 +65,17 @@ jobs:
     outputs:
       artifact-id: ${{ steps.upload.outputs.artifact-id }}
     steps:
-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+    - uses: actions/checkout@v7.0.1
       with:
         persist-credentials: false
-    - uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
+    - uses: ruby/setup-ruby@v1.321.0
       with:
         ruby-version: ruby
     - run: |
         bundle config set --local deployment true
         bundle install
     - id: upload
-      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      uses: actions/upload-artifact@v7.0.1
       with:
         name: bundle
         path: |
@@ -90,16 +90,16 @@ jobs:
       id-token: write
       attestations: write
     steps:
-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+    - uses: actions/checkout@v7.0.1
       with:
         persist-credentials: false
-    - uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
+    - uses: ruby/setup-ruby@v1.321.0
       with:
         ruby-version: ruby
-    - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+    - uses: actions/download-artifact@v8.0.1
       with:
         artifact-ids: ${{ needs.bundle-install.outputs.artifact-id }}
-    - uses: release-gems/action/build@4aaa7904a8e9de7f0f4a5b646e3cfe8f1e225c2b # v1.2.1
+    - uses: release-gems/action/build@v1.2.1
       with:
         sandbox: bubblewrap
 
@@ -108,11 +108,11 @@ jobs:
     permissions:
       contents: read
     steps:
-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+    - uses: actions/checkout@v7.0.1
       with:
         persist-credentials: false
     - name: Set up Ruby
-      uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
+      uses: ruby/setup-ruby@v1.321.0
       with:
         ruby-version: ruby
         bundler-cache: true
@@ -121,7 +121,7 @@ jobs:
     - name: Generate documentation
       run: bundle exec yardoc
     - name: Upload GitHub Pages artifact
-      uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+      uses: actions/upload-pages-artifact@v5.0.0
       with:
         path: doc
 
@@ -144,7 +144,7 @@ jobs:
       contents: write
       id-token: write
     steps:
-    - uses: release-gems/action/publish@4aaa7904a8e9de7f0f4a5b646e3cfe8f1e225c2b # v1.2.1
+    - uses: release-gems/action/publish@v1.2.1
 
   publish-doc:
     if: startsWith(github.ref, 'refs/tags/')
@@ -162,4 +162,4 @@ jobs:
     steps:
     - name: Deploy GitHub Pages
       id: deployment
-      uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
+      uses: actions/deploy-pages@v5.0.1
