@@ -84,15 +84,13 @@ module Nl
       # @return [NlMsgHdr] the decoded header
       # @rbs (Decoder decoder) -> instance
       def self.decode(decoder)
-        obj = new(
+        new(
           decoder.get_host_u32,
           decoder.get_host_u16,
           decoder.get_host_u16,
           decoder.get_host_u32,
           decoder.get_host_u32,
         )
-        decoder.align_to(Constants::NLMSG_ALIGNTO)
-        obj
       end
 
       # Encodes this header at the encoder's current position.
@@ -103,7 +101,6 @@ module Nl
       def encode(encoder)
         encoder.reserve(Constants::NLMSG_HDRLEN)
         encoder.put_values(FORMAT, to_a)
-        encoder.align_to(Constants::NLMSG_ALIGNTO)
       end
     end
 
@@ -136,12 +133,10 @@ module Nl
       # @rbs (Decoder decoder) -> instance
       def self.decode(decoder)
         # Unrolling get_values improves performance for this small header.
-        obj = new(
+        new(
           decoder.get_host_u16,
           decoder.get_host_u16,
         )
-        decoder.align_to(Constants::NLA_ALIGNTO)
-        obj
       end
 
       # Encodes this attribute header at the encoder's current position.
@@ -152,7 +147,6 @@ module Nl
       def encode(encoder)
         encoder.reserve(Constants::NLA_HDRLEN)
         encoder.put_values(FORMAT, to_a)
-        encoder.align_to(Constants::NLA_ALIGNTO)
       end
     end
   end
