@@ -23,24 +23,27 @@ RSpec.describe Nl::DataTypes::Scalar do
 
       expect(encoder.buffer.get_string).to eq(bytes)
       expect(datatype.decode(Nl::Decoder.new(IO::Buffer.for(bytes)))).to eq(value)
-      expect(datatype).to be_a(described_class)
+      expect(datatype.coerce(value)).to eq(value)
+      expect(datatype.nlattr_type_flags(value)).to eq(0)
       expect(Ractor.make_shareable(datatype)).to equal(datatype)
     end
   end
 
   it 'applies checks during encoding and decoding' do
-    datatype = described_class[:U8].new(check: ->(value) { raise RangeError if value > 10 })
+    datatype = Nl::DataTypes::Checked.new(
+      described_class[:U8].new,
+      check: ->(value) { raise RangeError if value > 10 },
+    )
 
     expect { datatype.encode(Nl::Encoder.new, 11) }.to raise_error(RangeError)
     expect { datatype.decode(Nl::Decoder.new(IO::Buffer.for("\x0b"))) }.to raise_error(RangeError)
   end
 
-  it 'encodes a missing value as zero' do
-    encoder = Nl::Encoder.new
+  it 'rejects nil and false instead of encoding them as zero' do
+    datatype = described_class[:U16].new
 
-    described_class[:U16].new.encode(encoder, nil)
-
-    expect(encoder.buffer.get_string).to eq("\0\0")
+    expect { datatype.encode(Nl::Encoder.new, nil) }.to raise_error(TypeError)
+    expect { datatype.encode(Nl::Encoder.new, false) }.to raise_error(TypeError)
   end
 end
 
@@ -89,7 +92,7 @@ RSpec.describe Nl::DataTypes::VariableInteger do
 
   describe 'unsigned integers' do
     subject(:datatype) do
-      described_class.new(Nl::Endian::Host, signed: false, check: nil)
+      described_class.new(Nl::Endian::Host, signed: false)
     end
 
     it 'uses the smallest supported width' do
@@ -112,12 +115,14 @@ RSpec.describe Nl::DataTypes::VariableInteger do
     it 'rejects values outside the unsigned 64-bit range' do
       expect { encode(datatype, -1) }.to raise_error(RangeError)
       expect { encode(datatype, 2**64) }.to raise_error(RangeError)
+      expect { encode(datatype, nil) }.to raise_error(RangeError)
+      expect { encode(datatype, false) }.to raise_error(RangeError)
     end
   end
 
   describe 'signed integers' do
     subject(:datatype) do
-      described_class.new(Nl::Endian::Host, signed: true, check: nil)
+      described_class.new(Nl::Endian::Host, signed: true)
     end
 
     it 'uses the smallest supported width at signed boundaries' do
@@ -144,14 +149,14 @@ RSpec.describe Nl::DataTypes::VariableInteger do
   end
 
   it 'honors the configured byte order' do
-    datatype = described_class.new(Nl::Endian::Big, signed: false, check: nil)
+    datatype = described_class.new(Nl::Endian::Big, signed: false)
 
     expect(encode(datatype, 0x01020304).get_string).to eq("\x01\x02\x03\x04".b)
     expect(encode(datatype, 0x0102030405060708).get_string).to eq("\x01\x02\x03\x04\x05\x06\x07\x08".b)
   end
 
   it 'rejects payloads whose width is neither 32 nor 64 bits' do
-    datatype = described_class.new(Nl::Endian::Host, signed: false, check: nil)
+    datatype = described_class.new(Nl::Endian::Host, signed: false)
 
     [0, 3, 5, 12].each do |length|
       decoder = Nl::Decoder.new(IO::Buffer.new(length))
@@ -164,7 +169,7 @@ RSpec.describe Nl::DataTypes::VariableInteger do
 end
 
 RSpec.describe Nl::DataTypes::Binary do
-  subject(:datatype) { described_class.new(length: 3, check: nil) }
+  subject(:datatype) { described_class.new(length: 3) }
 
   it 'decodes exactly its configured length' do
     decoder = Nl::Decoder.new(IO::Buffer.for("abcdef".b))
@@ -192,7 +197,7 @@ RSpec.describe Nl::DataTypes::IndexedArray do
     encoder = Nl::Encoder.new
     encoder.put_value(Nl::Endian::Host::U16, Nl::Raw::NLA_HDRLEN - 1)
     encoder.put_value(Nl::Endian::Host::U16, 1)
-    element = Nl::DataTypes::Scalar[Nl::Endian::Host::U32].new(check: nil)
+    element = Nl::DataTypes::Scalar[Nl::Endian::Host::U32].new
 
     expect { described_class.new(element).decode(Nl::Decoder.new(encoder.buffer)) }
       .to raise_error(

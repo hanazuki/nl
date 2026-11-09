@@ -19,7 +19,7 @@ module Nl
 
         if self::FIXED_HEADER
           header_params = params.slice(*self::FIXED_HEADER.members)
-          fixed_header = self::FIXED_HEADER.new(**header_params)
+          fixed_header = self::FIXED_HEADER.from_params(header_params)
         else
           header_params = {}
         end

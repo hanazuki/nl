@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Avoid validation overhead for datatypes without checks by moving validation
+  into opt-in wrappers. Replace datatype constructor `check:` arguments with
+  `DataTypes::Checked.new(datatype, check:)`, or `CheckedPayload` for checks on
+  encoded structs and packed arrays.
 - Return decoded values directly from `AttributeSet#[]` instead of attribute
   wrapper objects. Replace `attributes[:name].value` with `attributes[:name]`.
 - Replace `AttributeSet#<<` with `append(name_or_id, value)`. Construct empty

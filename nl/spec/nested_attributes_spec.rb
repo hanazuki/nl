@@ -5,7 +5,7 @@ RSpec.describe Nl::DataTypes::NestedAttributes do
     Class.new(Nl::AttributeSet).tap do |attribute_set|
       attribute = Nl::AttributeSet::Definition.new(
         id: 2, name: :value,
-        datatype: Nl::DataTypes::Scalar[Nl::Endian::Host::U32].new(check: nil),
+        datatype: Nl::DataTypes::Scalar[Nl::Endian::Host::U32].new,
       )
       attribute_set.const_set(:Value, attribute)
       attribute_set.const_set(:BY_NAME, { value: attribute }.freeze)

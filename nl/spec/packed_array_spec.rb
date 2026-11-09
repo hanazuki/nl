@@ -15,7 +15,7 @@ RSpec.describe Nl::DataTypes::PackedArray do
 
   subject(:datatype) do
     described_class.new(
-      Nl::DataTypes::Scalar[Nl::Endian::Big::U32].new(check: nil),
+      Nl::DataTypes::Scalar[Nl::Endian::Big::U32].new,
     )
   end
 
@@ -42,11 +42,12 @@ RSpec.describe Nl::DataTypes::PackedArray do
   end
 
   it 'applies binary length checks to the packed payload' do
-    checked = described_class.new(
-      Nl::DataTypes::Scalar[Nl::Endian::Big::U32].new(check: nil),
+    checked = Nl::DataTypes::CheckedPayload.new(
+      datatype,
       check: -> { raise ArgumentError, 'wrong length' unless it.bytesize == 8 },
     )
 
+    expect(decode(checked, encode(checked, [1, 2]))).to eq([1, 2])
     expect { encode(checked, [1]) }.to raise_error(ArgumentError, 'wrong length')
     expect { decode(checked, "\0".b * 4) }.to raise_error(ArgumentError, 'wrong length')
   end
