@@ -124,7 +124,12 @@ module Ynl
                 indent do
                   struct.members.each do |member|
                     member_name = member.name.as_variable_name.as_symbol_literal
-                    write("MEMBERS[#{member_name}].coerce(params[#{member_name}], context:),")
+                    value = if member.type.is_a?(Types::Scalar)
+                      "params.fetch(#{member_name}, 0)"
+                    else
+                      "params[#{member_name}]"
+                    end
+                    write("MEMBERS[#{member_name}].coerce(#{value}, context:),")
                   end
                 end
                 write(')')
@@ -1120,7 +1125,7 @@ module Ynl
     end
 
     private def to_datatype(type, checks, owner: nil)
-      case type
+      datatype = case type
       when Types::Pad
         "::Nl::DataTypes::Pad.new(#{type.length})"
       when Types::Flag
@@ -1130,20 +1135,20 @@ module Ynl
       when Types::Scalar
         byte_order = "::Nl::Endian::#{type.byte_order.name.as_class_name}"
         if ['sint', 'uint'].include?(type.type)
-          "::Nl::DataTypes::VariableInteger.new(#{byte_order}, signed: #{type.type == 'sint'}, check: #{to_checks(checks)})"
+          "::Nl::DataTypes::VariableInteger.new(#{byte_order}, signed: #{type.type == 'sint'})"
         else
-          "::Nl::DataTypes::Scalar[#{byte_order}::#{type.type.as_const_name}].new(check: #{to_checks(checks)})"
+          "::Nl::DataTypes::Scalar[#{byte_order}::#{type.type.as_const_name}].new"
         end
       when Types::String
-        "::Nl::DataTypes::String.new(check: #{to_checks(checks)})"
+        "::Nl::DataTypes::String.new"
       when Types::Binary
         if type.struct
-          "::Nl::DataTypes::Struct.new(Structs::#{type.struct.name.as_class_name}, check: #{to_checks(checks)}, consume_remaining: true)"
+          "::Nl::DataTypes::Struct.new(Structs::#{type.struct.name.as_class_name}, consume_remaining: true)"
         else
-          "::Nl::DataTypes::Binary.new(check: #{to_checks(checks)})"
+          "::Nl::DataTypes::Binary.new"
         end
       when Types::PackedArray
-        "::Nl::DataTypes::PackedArray.new(#{to_datatype(type.sub_type, nil)}, check: #{to_checks(checks)})"
+        "::Nl::DataTypes::PackedArray.new(#{to_datatype(type.sub_type, nil)})"
       when Types::NestedAttributes
         bindings = selector_bindings_literal(owner, type.attribute_set)
         "::Nl::DataTypes::NestedAttributes.new(AttributeSets::#{type.attribute_set.name.as_class_name}, selector_bindings: #{bindings})"
@@ -1165,13 +1170,27 @@ module Ynl
       else
         raise "Unknown type: #{type.class}"
       end
+
+      return datatype if !checks || checks.empty?
+
+      case type
+      when Types::Scalar, Types::String
+        "::Nl::DataTypes::Checked.new(#{datatype}, check: #{to_checks(checks)})"
+      when Types::Binary
+        wrapper = type.struct ? 'CheckedPayload' : 'Checked'
+        "::Nl::DataTypes::#{wrapper}.new(#{datatype}, check: #{to_checks(checks)})"
+      when Types::PackedArray
+        "::Nl::DataTypes::CheckedPayload.new(#{datatype}, check: #{to_checks(checks)})"
+      else
+        datatype
+      end
     end
 
     private def to_struct_member_datatype(type)
       if type.is_a?(Types::Binary) && type.struct
-        "::Nl::DataTypes::Struct.new(Structs::#{type.struct.name.as_class_name}, check: nil)"
+        "::Nl::DataTypes::Struct.new(Structs::#{type.struct.name.as_class_name})"
       elsif type.is_a?(Types::Binary)
-        "::Nl::DataTypes::Binary.new(length: #{type.length}, check: nil)"
+        "::Nl::DataTypes::Binary.new(length: #{type.length})"
       else
         to_datatype(type, nil)
       end

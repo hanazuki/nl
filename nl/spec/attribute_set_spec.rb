@@ -3,7 +3,7 @@ require 'nl'
 RSpec.describe Nl::AttributeSet do
   let(:attribute_set) do
     Class.new(described_class).tap do |set|
-      datatype = Nl::DataTypes::Scalar[Nl::Endian::Host::U32].new(check: nil)
+      datatype = Nl::DataTypes::Scalar[Nl::Endian::Host::U32].new
       singular = Nl::AttributeSet::Definition.new(id: 1, name: :singular, datatype:)
       repeated = Nl::AttributeSet::Definition.new(id: 2, name: :repeated, datatype:, multi: true)
 
@@ -73,7 +73,7 @@ RSpec.describe Nl::AttributeSet do
     expect(definition).to equal(attribute_set.by_type(1))
     expect(definition).to be_a(Nl::AttributeSet::Definition)
     expect(definition).to be_frozen
-    expect(definition.datatype).to be_a(Nl::DataTypes::Scalar)
+    expect(definition.datatype).to be_a(Nl::DataTypes::Scalar[Nl::Endian::Host::U32])
     expect(definition.id).to eq(1)
     expect(definition.name).to eq(:singular)
   end

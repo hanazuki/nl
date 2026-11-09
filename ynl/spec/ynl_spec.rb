@@ -158,13 +158,25 @@ RSpec.describe Ynl do
       expect(encoder.buffer.get_string).to eq("\x01\x02\x03\x04\x04\x05\x06".b)
       expect(decoded).to eq(outer)
       expect(generated.string).to include(':"inner", #: Structs::Inner')
-      expect(generated.string).to include('bytes: ::Nl::DataTypes::Binary.new(length: 3, check: nil)')
-      expect(generated.string).to include('inner: ::Nl::DataTypes::Struct.new(Structs::Inner, check: nil)')
+      expect(generated.string).to include('bytes: ::Nl::DataTypes::Binary.new(length: 3)')
+      expect(generated.string).to include('inner: ::Nl::DataTypes::Struct.new(Structs::Inner)')
       expect(generated.string).to include('MEMBERS[:"prefix"].decode(decoder)')
       expect(generated.string).to include('MEMBERS[:"prefix"].encode(encoder, public_send(:"prefix"))')
-      expect(generated.string).to include('MEMBERS[:"prefix"].coerce(params[:"prefix"], context:)')
+      expect(generated.string).to include('MEMBERS[:"prefix"].coerce(params.fetch(:"prefix", 0), context:)')
       expect(generated.string).not_to include('.map {|name, datatype|')
       expect(generated.string).not_to include('.each {|name, datatype|')
+    end
+
+    it 'defaults omitted numeric struct members at construction and rejects explicit nil on encoding' do
+      cls = Ynl::Family.build(Pathname(__dir__) + 'fixtures/fixed_struct_members.yaml')
+      record = cls::Structs::Inner.from_params({})
+      encoder = Nl::Encoder.new
+
+      expect(record.value).to eq(0)
+      record.encode(encoder)
+      expect(encoder.buffer.get_string).to eq("\0\0".b)
+      expect { cls::Structs::Inner.from_params({value: nil}).encode(Nl::Encoder.new) }
+        .to raise_error(TypeError)
     end
 
     it 'encodes and decodes structured binary attributes' do
@@ -188,7 +200,7 @@ RSpec.describe Ynl do
       expect(decoded).to have_attributes(prefix: 1, bytes: "\x02\x03\x04".b, suffix: 6)
       expect(decoded.inner).to eq(cls::Structs::Inner.new(0x0504))
       expect(generated.string).to include(
-        '::Nl::DataTypes::Struct.new(Structs::Outer, check:',
+        '::Nl::DataTypes::CheckedPayload.new(::Nl::DataTypes::Struct.new(Structs::Outer, consume_remaining: true), check:',
       )
       expect(generated.string).to include(
         '?record: (Structs::Outer | ::Hash[::Symbol, untyped])',
@@ -246,10 +258,10 @@ RSpec.describe Ynl do
       Ynl::Family.generate(source, generated)
 
       expect(generated.string).to include(
-        '::Nl::DataTypes::VariableInteger.new(::Nl::Endian::Host, signed: false, check: nil)',
+        '::Nl::DataTypes::VariableInteger.new(::Nl::Endian::Host, signed: false)',
       )
       expect(generated.string).to include(
-        '::Nl::DataTypes::VariableInteger.new(::Nl::Endian::Host, signed: true, check: nil)',
+        '::Nl::DataTypes::VariableInteger.new(::Nl::Endian::Host, signed: true)',
       )
     end
 
@@ -303,7 +315,7 @@ RSpec.describe Ynl do
       Ynl::Family.generate(source, generated)
 
       expect(generated.string).to include(
-        '::Nl::DataTypes::PackedArray.new(::Nl::DataTypes::Scalar[::Nl::Endian::Big::U32].new(check: nil), check: nil)',
+        '::Nl::DataTypes::PackedArray.new(::Nl::DataTypes::Scalar[::Nl::Endian::Big::U32].new)',
       )
       expect(generated.string).to include('values: ::Array[::Integer]')
     end

@@ -1,6 +1,7 @@
 require_relative 'raw/wire'
 require_relative 'bitfield32'
-require_relative 'datatypes/base'
+require_relative 'datatypes/defaults'
+require_relative 'datatypes/checked'
 require_relative 'datatypes/scalar'
 
 module Nl
@@ -13,14 +14,15 @@ module Nl
   #   end
 
   module DataTypes
-    class VariableInteger < Base
+    class VariableInteger
+      include Defaults
+
       UINT32_RANGE = (0...2**32)
       UINT64_RANGE = (0...2**64)
       SINT32_RANGE = (-(2**31)...2**31)
       SINT64_RANGE = (-(2**63)...2**63)
 
-      def initialize(byte_order, signed:, check:)
-        super(check:)
+      def initialize(byte_order, signed:)
         prefix = signed ? 'S' : 'U'
         @type32 = byte_order.const_get("#{prefix}32")
         @type64 = byte_order.const_get("#{prefix}64")
@@ -31,7 +33,6 @@ module Nl
       end
 
       def encode(encoder, value, context: nil)
-        value = checked(value || 0)
         unless @range64.cover?(value)
           raise RangeError, "integer #{value.inspect} is outside the #{@range64.begin}...#{@range64.end} range"
         end
@@ -47,32 +48,30 @@ module Nl
         else
           raise Decoder::Error, "variable integer payload must be 4 or 8 bytes, got #{decoder.remaining}"
         end
-        checked(scalar.decode(decoder))
+        scalar.decode(decoder)
       end
     end
 
-    class String < Base
-      def initialize(check:)
-        super(check:)
-      end
+    class String
+      include Defaults
 
       def encode(encoder, value, context: nil)
-        encoder.put_zstring(checked(value))
+        encoder.put_zstring(value)
       end
 
       def decode(decoder, context: nil, nlattr_type_flags: 0)
-        checked(decoder.get_zstring)
+        decoder.get_zstring
       end
     end
 
-    class Binary < Base
-      def initialize(length: nil, check:)
-        super(check:)
+    class Binary
+      include Defaults
+
+      def initialize(length: nil)
         @length = length
       end
 
       def encode(encoder, value, context: nil)
-        value = checked(value)
         if @length && value.bytesize != @length
           raise ArgumentError, "binary value must be exactly #{@length} bytes, got #{value.bytesize}"
         end
@@ -80,27 +79,22 @@ module Nl
       end
 
       def decode(decoder, context: nil, nlattr_type_flags: 0)
-        checked(decoder.get_string(@length || decoder.remaining))
+        decoder.get_string(@length || decoder.remaining)
       end
     end
 
     # An array whose elements are packed consecutively without per-element
     # headers or alignment padding.
-    class PackedArray < Base
-      def initialize(sub_type, check: nil)
-        super(check:)
+    class PackedArray
+      include Defaults
+
+      def initialize(sub_type)
         @sub_type = sub_type
       end
 
       def encode(encoder, values, context: nil)
         values = coerce(values, context:)
-        if @check
-          temporary = Encoder.new
-          values.each { @sub_type.encode(temporary, it, context:) }
-          encoder.put_string(checked(temporary.buffer.get_string))
-        else
-          values.each { @sub_type.encode(encoder, it, context:) }
-        end
+        values.each { @sub_type.encode(encoder, it, context:) }
       end
 
       def coerce(values, context: nil)
@@ -108,20 +102,16 @@ module Nl
       end
 
       def decode(decoder, context: nil, nlattr_type_flags: 0)
-        if @check
-          payload = checked(decoder.get_string)
-          decoder = Decoder.new(IO::Buffer.for(payload))
-        end
-
         result = []
         result << @sub_type.decode(decoder, context:, nlattr_type_flags: 0) while decoder.available?
         result
       end
     end
 
-    class Struct < Base
-      def initialize(type, check: nil, consume_remaining: false)
-        super(check:)
+    class Struct
+      include Defaults
+
+      def initialize(type, consume_remaining: false)
         @type = type
         @consume_remaining = consume_remaining
       end
@@ -137,33 +127,19 @@ module Nl
           raise TypeError, "value must be an instance of #{@type}"
         end
 
-        if @check
-          temporary = Encoder.new
-          value.encode(temporary)
-          encoder.put_string(checked(temporary.buffer.get_string))
-        else
-          value.encode(encoder)
-        end
+        value.encode(encoder)
       end
 
       def decode(decoder, context: nil, nlattr_type_flags: 0)
-        unless @check
-          value = @type.decode(decoder)
-          decoder.skip if @consume_remaining
-          return value
-        end
-
-        payload = checked(decoder.get_string)
-        nested = Decoder.new(IO::Buffer.for(payload))
-        nested.limit(payload.bytesize) do
-          value = @type.decode(it)
-          it.skip if @consume_remaining
-          value
-        end
+        value = @type.decode(decoder)
+        decoder.skip if @consume_remaining
+        value
       end
     end
 
-    class Flag < Base
+    class Flag
+      include Defaults
+
       def encode(encoder, value, context: nil)
         # flag attribute has no payload; presence encodes true
       end
@@ -173,7 +149,9 @@ module Nl
       end
     end
 
-    class Bitfield32 < Base
+    class Bitfield32
+      include Defaults
+
       def encode(encoder, value, context: nil)
         unless value.is_a?(Nl::Bitfield32)
           raise TypeError, 'bitfield32 value must be an Nl::Bitfield32'
@@ -190,7 +168,9 @@ module Nl
       end
     end
 
-    class Pad < Base
+    class Pad
+      include Defaults
+
       def initialize(length = nil)
         @length = length
       end
@@ -205,7 +185,9 @@ module Nl
       end
     end
 
-    class NestedAttributes < Base
+    class NestedAttributes
+      include Defaults
+
       def initialize(attribute_set, selector_bindings: [])
         @attribute_set = attribute_set
         @selector_bindings = selector_bindings
@@ -236,7 +218,9 @@ module Nl
       end
     end
 
-    class SubMessage < Base
+    class SubMessage
+      include Defaults
+
       Format = Data.define(:type, :selector_bindings, :nested)
 
       def initialize(selector, formats)
@@ -303,7 +287,9 @@ module Nl
     # Nested attributes whose type numbers are keys rather than members of
     # an attribute set. Each level is returned as an Integer-keyed Hash;
     # values at the innermost level are decoded as @attribute_set.
-    class NestTypeValue < Base
+    class NestTypeValue
+      include Defaults
+
       def initialize(attribute_set, levels, selector_bindings: [])
         raise ArgumentError, 'levels must be positive' unless levels.positive?
 
@@ -389,7 +375,9 @@ module Nl
       end
     end
 
-    class IndexedArray < Base
+    class IndexedArray
+      include Defaults
+
       def initialize(sub_type)
         @sub_type = sub_type
       end

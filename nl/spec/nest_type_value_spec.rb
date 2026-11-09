@@ -24,7 +24,7 @@ RSpec.describe Nl::DataTypes::NestTypeValue do
     attribute_set = Class.new(Nl::AttributeSet).tap do |set|
       attribute = Nl::AttributeSet::Definition.new(
         id: 1, name: :type,
-        datatype: Nl::DataTypes::Scalar[Nl::Endian::Host::U32].new(check: nil),
+        datatype: Nl::DataTypes::Scalar[Nl::Endian::Host::U32].new,
       )
       set.const_set(:Type, attribute)
       set.const_set(:BY_NAME, { type: attribute }.freeze)
