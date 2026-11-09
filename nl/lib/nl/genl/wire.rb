@@ -66,11 +66,12 @@ module Nl
     )
 
     class GenlMsgHdr
-      FORMAT = Ractor.make_shareable([
+      FORMAT = [
         Endian::Host::U8,
         Endian::Host::U8,
         Endian::Host::U16,
-      ])
+      ].freeze
+      Ractor.make_shareable(FORMAT) if defined?(Ractor)
       private_constant :FORMAT
 
       # Decodes a header from the decoder's current position.

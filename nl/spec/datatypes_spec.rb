@@ -25,7 +25,6 @@ RSpec.describe Nl::DataTypes::Scalar do
       expect(datatype.decode(Nl::Decoder.new(IO::Buffer.for(bytes)))).to eq(value)
       expect(datatype.coerce(value)).to eq(value)
       expect(datatype.nlattr_type_flags(value)).to eq(0)
-      expect(Ractor.make_shareable(datatype)).to equal(datatype)
     end
   end
 

@@ -4,6 +4,7 @@ require_relative "../../spec/coverage_helper"
 CoverageHelper.start("ynl")
 
 require "ynl"
+require_relative "../../spec/support/fork"
 
 RSpec.configure do |config|
   # Enable flags like --only-failures and --next-failure

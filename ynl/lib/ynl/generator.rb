@@ -107,7 +107,7 @@ module Ynl
               members = struct.members.map do |member|
                 "#{member.name.as_variable_name}: #{to_struct_member_datatype(member.type)}"
               end
-              members = "Ractor.make_shareable({#{members.join(', ')}})"
+              members = "{#{members.join(', ')}}.freeze"
               if struct.members.any? { it.type.is_a?(Types::Binary) && it.type.struct }
                 deferred_struct_consts << ["Structs::#{name.as_class_name}::MEMBERS", members]
               else
@@ -187,7 +187,7 @@ module Ynl
               unless selector_names.empty? && external_selector_names.empty?
                 emit_const(
                   'SELECTOR_NAMES',
-                  "Ractor.make_shareable({local: [#{selector_names.map { it.as_variable_name.as_symbol_literal }.join(', ')}], external: [#{external_selector_names.map { it.as_variable_name.as_symbol_literal }.join(', ')}]})",
+                  "{local: [#{selector_names.map { it.as_variable_name.as_symbol_literal }.join(', ')}], external: [#{external_selector_names.map { it.as_variable_name.as_symbol_literal }.join(', ')}]}.freeze",
                   internal: true,
                 )
               end
@@ -232,8 +232,6 @@ module Ynl
         emit_module('AttributeSets') do
           @ynl.attribute_sets.each do |name, attr_set|
             emit_class(name.as_class_name) do
-              # Datatypes may contain validation procs; freeze the indexes
-              # without requiring their contents to be Ractor-shareable.
               emit_internal
               write('BY_TYPE = {')
               indent do
@@ -248,6 +246,7 @@ module Ynl
                 end
               end
               write('}.freeze #: Hash[::Integer, ::Nl::AttributeSet::Definition]')
+              write('Ractor.make_shareable(BY_TYPE) if defined?(Ractor)')
               emit_const(
                 'BY_NAME',
                 'BY_TYPE.values.to_h { [it.name, it] }.freeze',
@@ -291,7 +290,7 @@ module Ynl
 
         emit_const(
           'NOTIFICATIONS',
-          "Ractor.make_shareable({#{notification_operations.map { |oper| "#{oper.notification.message.value} => Notifications::#{oper.name.as_class_name}" }.join(', ') }})",
+          "{#{notification_operations.map { |oper| "#{oper.notification.message.value} => Notifications::#{oper.name.as_class_name}" }.join(', ') }}.freeze",
           rbs: 'Hash[::Integer, ::Class]',
           internal: true,
         )
@@ -444,9 +443,10 @@ module Ynl
       write('end')
     end
 
-    private def emit_const(name, value, rbs: nil, internal: false)
+    private def emit_const(name, value, rbs: nil, internal: false, make_shareable: true)
       emit_internal if internal
       write(name, ' = ', value, *([' #: ', rbs] if rbs))
+      write('Ractor.make_shareable(', name, ') if defined?(Ractor)') if make_shareable
     end
 
     private def emit_value_definitions(namespace, definitions)
@@ -576,7 +576,7 @@ module Ynl
         emit_const('FIXED_HEADER', fixed_header&.then { 'Structs::' + it.name.as_class_name } || 'nil')
         emit_const('ATTRIBUTE_SET', "AttributeSets::#{attribute_set.name.as_class_name}")
         attribute_params = attribute_set.attributes.map(&:name) & message.attributes
-        emit_const('ATTRIBUTES', "Ractor.make_shareable(%i[#{attribute_params.map { it.as_variable_name }.join(' ')}])")
+        emit_const('ATTRIBUTES', "%i[#{attribute_params.map { it.as_variable_name }.join(' ')}].freeze")
         fixed_header&.members&.each do |member|
           param = member.name
           datatype = member.type
@@ -836,7 +836,7 @@ module Ynl
       end
       emit_const(
         'MCAST_GROUPS',
-        "Ractor.make_shareable({#{entries.join(', ')}})",
+        "{#{entries.join(', ')}}.freeze",
         rbs: 'Hash[::Symbol, ::Nl::McastGroup]',
         internal: true,
       )
@@ -1082,7 +1082,7 @@ module Ynl
       bindings = @external_selectors.fetch(child).map do |selector|
         selector_source_literal(parent, selector)
       end
-      "Ractor.make_shareable([#{bindings.join(', ')}])"
+      "[#{bindings.join(', ')}]"
     end
 
     private def selector_value_literal(set, selector, format_value)
@@ -1196,8 +1196,8 @@ module Ynl
     end
 
     private def to_checks(checks)
-      return 'nil' if !checks || checks.empty?
-      %Q{-> { #{checks.map { to_check(it) }.join('; ')} }}
+      body = "{ #{checks.map { to_check(it) }.join('; ')} }"
+      "nil.instance_exec { -> #{body} }"
     end
 
     private def to_check(check)

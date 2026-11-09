@@ -2,7 +2,8 @@ require_relative 'structured_payload'
 
 module Nl
   module Selector
-    EMPTY_VALUES = Ractor.make_shareable([])
+    EMPTY_VALUES = [].freeze
+    Ractor.make_shareable(EMPTY_VALUES) if defined?(Ractor)
 
     class MissingSelectorValueError < StandardError
       attr_reader :scope, :index
@@ -78,7 +79,8 @@ module Nl
         value.nil? ? yield : value
       end
 
-      EMPTY = Ractor.make_shareable(new(0, EMPTY_VALUES))
+      EMPTY = new(0, EMPTY_VALUES).freeze
+      Ractor.make_shareable(EMPTY) if defined?(Ractor)
     end
   end
 
