@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Update kernel YNL specification from Linux 7.3.
+- Adopt the attribute interface changes in nl v0.5.0.
 
 ## v0.4.2 (2026-09-09)
 

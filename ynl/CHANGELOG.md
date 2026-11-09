@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Stop generating per-attribute classes and constants. Attribute definitions
+  are shared `Nl::AttributeSet::Definition` records indexed by `BY_NAME` and
+  `BY_TYPE`. Replace references such as `Attrs::Mtu::TYPE` with
+  `Attrs.by_name(:mtu).id`, and `Attrs::Mtu::DATATYPE` with
+  `Attrs.by_name(:mtu).datatype`.
+
 ## v0.4.2 (2026-09-09)
 
 ## v0.4.1 (2026-09-08)

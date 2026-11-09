@@ -3,12 +3,9 @@ require 'nl'
 RSpec.describe Nl::DataTypes::NestedAttributes do
   let(:inner_attribute_set) do
     Class.new(Nl::AttributeSet).tap do |attribute_set|
-      attribute = Class.new(attribute_set::Attribute)
-      attribute.const_set(:TYPE, 2)
-      attribute.const_set(:NAME, :value)
-      attribute.const_set(
-        :DATATYPE,
-        Nl::DataTypes::Scalar[Nl::Endian::Host::U32].new(check: nil),
+      attribute = Nl::AttributeSet::Definition.new(
+        id: 2, name: :value,
+        datatype: Nl::DataTypes::Scalar[Nl::Endian::Host::U32].new(check: nil),
       )
       attribute_set.const_set(:Value, attribute)
       attribute_set.const_set(:BY_NAME, { value: attribute }.freeze)
@@ -20,10 +17,7 @@ RSpec.describe Nl::DataTypes::NestedAttributes do
     nested_datatype = described_class.new(inner_attribute_set)
 
     Class.new(Nl::AttributeSet).tap do |attribute_set|
-      attribute = Class.new(attribute_set::Attribute)
-      attribute.const_set(:TYPE, 1)
-      attribute.const_set(:NAME, :nested)
-      attribute.const_set(:DATATYPE, nested_datatype)
+      attribute = Nl::AttributeSet::Definition.new(id: 1, name: :nested, datatype: nested_datatype)
       attribute_set.const_set(:Nested, attribute)
       attribute_set.const_set(:BY_NAME, { nested: attribute }.freeze)
       attribute_set.const_set(:BY_TYPE, { 1 => attribute }.freeze)

@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- Return decoded values directly from `AttributeSet#[]` instead of attribute
+  wrapper objects. Replace `attributes[:name].value` with `attributes[:name]`.
+- Replace `AttributeSet#<<` with `append(name_or_id, value)`. Construct empty
+  sets with `AttributeSet.new`, and use `build_attributes(params)` instead of
+  passing an array of attribute wrappers to the constructor.
+- Change `Raw::Message#append_attribute` to accept an attribute name or numeric
+  ID and its value: `message.append_attribute(:mtu, 1500)`.
+- Replace `AttributeSet::Attribute` and per-attribute classes with immutable
+  `AttributeSet::Definition` records. `by_name` and `by_type` return definitions
+  exposing `id`, `name`, `datatype`, `multi`, `order`, and `selector_slot`.
+
 ## v0.4.2 (2026-09-09)
 
 ## v0.4.1 (2026-09-08)

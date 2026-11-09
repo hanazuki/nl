@@ -2,91 +2,77 @@ require_relative 'datatypes'
 
 module Nl
   class AttributeSet
-    Attribute = Struct.new(:value)
-    class Attribute
-      MULTI = false
-      ORDER = nil
-      SELECTOR_SLOT = nil
-
-      def self.multi?
-        self::MULTI
-      end
-
-      def self.decode(decoder, context: nil, nlattr_type_flags: 0)
-        new(self::DATATYPE.decode(decoder, context:, nlattr_type_flags:))
-      end
-
-      def encode(encoder, context: nil)
-        self.class::DATATYPE.encode(encoder, self.value, context:)
+    Definition = Data.define(:id, :name, :datatype, :multi, :order, :selector_slot) do
+      def initialize(id:, name:, datatype:, multi: false, order: 0, selector_slot: nil)
+        super(id:, name:, datatype:, multi:, order:, selector_slot:)
       end
     end
 
-    def initialize(attributes)
-      attr_class = self.class::Attribute
-
-      attributes.each do |attr|
-        unless attr.kind_of?(attr_class)
-          raise TypeError, "attribute must be an instance of #{attr_class}"
-        end
-      end
-
-      @attributes = Array(attributes)
+    def initialize(attributes = [])
+      # Alternating numeric IDs and values preserve duplicates and wire order
+      # without allocating a wrapper or a pair array for each attribute.
+      @attributes = attributes
     end
 
     def [](type)
-      case type
-      when Symbol
-        attr_class = self.class.by_name(type)
-      when Integer
-        attr_class = self.class.by_type(type)
-      else
-        raise TypeError, "attribute type must be a Symbol or an Integer"
+      definition = definition_for(type)
+      id = definition.id
+      values = [] if definition.multi
+      i = 0
+      while i < @attributes.length
+        if @attributes[i] == id
+          return @attributes[i + 1] unless values
+          values << @attributes[i + 1]
+        end
+        i += 2
       end
-
-      attributes = @attributes.select { it.kind_of?(attr_class) }
-      attr_class.multi? ? attributes : attributes.first
+      values
     end
 
-    def <<(attr)
-      attr_class = self.class::Attribute
-      unless attr.kind_of?(attr_class)
-        raise TypeError, "attribute must be an instance of #{attr_class}"
-      end
-
-      @attributes << attr
+    def append(type, value)
+      @attributes.push(definition_for(type).id, value)
+      self
     end
 
     SELECTOR_NAMES = {local: [].freeze, external: [].freeze}.freeze
 
-    private def encode1(encoder, attr, context)
-      datatype = attr.class::DATATYPE
-      flags = datatype.nlattr_type_flags(attr.value, context:)
-      type = attr.class::TYPE | flags
+    private def definition_for(type)
+      case type
+      when Symbol then self.class.by_name(type)
+      when Integer then self.class.by_type(type)
+      else raise TypeError, 'attribute type must be a Symbol or an Integer'
+      end
+    end
+
+    private def encode1(encoder, definition, value, context)
+      datatype = definition.datatype
+      flags = datatype.nlattr_type_flags(value, context:)
+      type = definition.id | flags
       nlattr = Raw::NlAttr.new(0, type)
       encoder.measure(Endian::Host::U16) do
         nlattr.encode(encoder)
-        attr.encode(encoder, context:)
+        datatype.encode(encoder, value, context:)
       end
       encoder.align_to(Raw::NLA_ALIGNTO)
     end
 
     def encode(encoder, external_selectors: Selector::EMPTY_VALUES)
+      definitions = self.class::BY_TYPE
       local_count = self.class::SELECTOR_NAMES.fetch(:local).length
-      context = Selector::State.for(
-        local_count,
-        external_selectors,
-      )
+      context = Selector::State.for(local_count, external_selectors)
       unless local_count == 0
-        @attributes.each do |attr|
-          if slot = attr.class::SELECTOR_SLOT
-            context.set_local(slot, attr.value)
+        i = 0
+        while i < @attributes.length
+          if slot = definitions.fetch(@attributes[i]).selector_slot
+            context.set_local(slot, @attributes[i + 1])
           end
+          i += 2
         end
       end
 
-      attributes = @attributes.sort_by { it.class::ORDER }
-      attributes.each do |attr|
-        encode1(encoder, attr, context)
+      indices = (0...@attributes.length).step(2).sort_by { definitions.fetch(@attributes[it]).order }
+      indices.each do |i|
+        encode1(encoder, definitions.fetch(@attributes[i]), @attributes[i + 1], context)
       end
     rescue Selector::MissingSelectorValueError => error
       raise ArgumentError, "selector #{selector_name(error).inspect} is required by a dependent attribute"
@@ -99,8 +85,7 @@ module Nl
     end
 
     class << self
-      private def decode1(decoder, context)
-        # Inline NlAttr.decode to avoid allocating a header object.
+      private def decode1(decoder, context, attributes)
         length = decoder.get_host_u16
         type = decoder.get_host_u16
         if length < Raw::NLA_HDRLEN
@@ -109,41 +94,30 @@ module Nl
         end
         decoder.align_to(Raw::NLA_ALIGNTO)
         flags = type & (Raw::NLA_F_NESTED | Raw::NLA_F_NET_BYTEORDER)
-        attr = decoder.limit(length - Raw::NLA_HDRLEN) do
-          if attr_class = self::BY_TYPE[type & Raw::NLA_TYPE_MASK]
-            attr_class.decode(decoder, context:, nlattr_type_flags: flags)
+        id = type & Raw::NLA_TYPE_MASK
+        definition = self::BY_TYPE[id]
+        value = decoder.limit(length - Raw::NLA_HDRLEN) do
+          if definition
+            definition.datatype.decode(decoder, context:, nlattr_type_flags: flags)
           else
             decoder.skip
-            nil
           end
         end
         decoder.align_to(Raw::NLA_ALIGNTO)
-        attr
+        if definition
+          attributes.push(id, value)
+          if slot = definition.selector_slot
+            context.set_local(slot, value)
+          end
+        end
       end
 
       def decode(decoder, external_selectors: Selector::EMPTY_VALUES)
         local_count = self::SELECTOR_NAMES.fetch(:local).length
-        context = Selector::State.for(
-          local_count,
-          external_selectors,
-        )
-        attrs = []
-        if local_count == 0
-          # Fast path for no-selector case
-          while decoder.available?
-            attr = decode1(decoder, context)
-            attrs << attr if attr
-          end
-        else
-          while decoder.available?
-            attr = decode1(decoder, context)
-            if attr && (slot = attr.class::SELECTOR_SLOT)
-              context.set_local(slot, attr.value)
-            end
-            attrs << attr if attr
-          end
-        end
-        new(attrs)
+        context = Selector::State.for(local_count, external_selectors)
+        attributes = []
+        decode1(decoder, context, attributes) while decoder.available?
+        new(attributes)
       rescue Selector::MissingSelectorValueError => error
         raise Decoder::Error,
           "selector #{selector_name(error).inspect} must precede the dependent attribute"
@@ -163,25 +137,28 @@ module Nl
         coerced_selectors = {}
         self::SELECTOR_NAMES.fetch(:local).each_with_index do |name, slot|
           next unless params.key?(name)
-          attr_class = self::BY_NAME.fetch(name)
-          value = attr_class::DATATYPE.coerce(params.fetch(name))
+          definition = self::BY_NAME.fetch(name)
+          value = definition.datatype.coerce(params.fetch(name))
           coerced_selectors[name] = value
           context.set_local(slot, value)
         end
 
-        attrs = params.sort_by { |name, _| self::BY_NAME.fetch(name)::ORDER }.flat_map do |name, value|
-          attr_class = self::BY_NAME[name] or raise "Unknown attribute #{name}"
-          if attr_class.multi?
+        attributes = []
+        params.sort_by { |name, _| self::BY_NAME.fetch(name).order }.each do |name, value|
+          definition = self::BY_NAME.fetch(name)
+          if definition.multi
             unless value.is_a?(Array)
               raise TypeError, "value for multi-attribute #{name} must be an Array"
             end
-            value.map { attr_class.new(coerce(attr_class::DATATYPE, it, context)) }
+            value.each do |entry|
+              attributes.push(definition.id, coerce(definition.datatype, entry, context))
+            end
           else
-            value = coerced_selectors.fetch(name) { coerce(attr_class::DATATYPE, value, context) }
-            attr_class.new(value)
+            value = coerced_selectors.fetch(name) { coerce(definition.datatype, value, context) }
+            attributes.push(definition.id, value)
           end
         end
-        new(attrs)
+        new(attributes)
       rescue Selector::MissingSelectorValueError => error
         raise ArgumentError, "selector #{selector_name(error).inspect} is required by a dependent attribute"
       rescue Selector::UnknownSelectorValueError => error
@@ -195,7 +172,6 @@ module Nl
       private def selector_name(error)
         self::SELECTOR_NAMES.fetch(error.scope).fetch(error.index)
       end
-
     end
   end
 end

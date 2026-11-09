@@ -298,8 +298,8 @@ RSpec.describe do
         expect(reply).to be_a Nl::Linux::Ethtool::Messages::DoLinkstateGetReply
 
         dev_name = reply.header[:dev_name]
-        expect(dev_name).to be_a Nl::Linux::Ethtool::AttributeSets::Header::DevName
-        expect(dev_name.value).to eq 'lo'
+        expect(dev_name).to be_a String
+        expect(dev_name).to eq 'lo'
       end
     end
 
@@ -327,10 +327,10 @@ RSpec.describe do
 
       Nl::Linux::Ethtool.open do |ethtool|
         reply = ethtool.do_strset_get(header:, stringsets:, counts_only: true)
-        result = reply.stringsets[:stringset].map(&:value)
+        result = reply.stringsets[:stringset]
 
-        expect(result.map { it[:id].value }).to eq [4, 9]
-        expect(result.map { it[:count].value }).to all be_positive
+        expect(result.map { it[:id] }).to eq [4, 9]
+        expect(result.map { it[:count] }).to all be_positive
       end
     end
 
@@ -355,10 +355,10 @@ RSpec.describe do
         r = ethtool.dump_linkstate_get
         expect(r).to be_an Array
 
-        lo = r.find { it.header[:dev_index]&.value == 1 }
+        lo = r.find { it.header[:dev_index] == 1 }
         dev_name = lo.header[:dev_name]
-        expect(dev_name).to be_a Nl::Linux::Ethtool::AttributeSets::Header::DevName
-        expect(dev_name.value).to eq 'lo'
+        expect(dev_name).to be_a String
+        expect(dev_name).to eq 'lo'
       end
     end
   end
