@@ -92,7 +92,6 @@ module Nl
           raise Decoder::Error,
             "attribute length must be at least #{Raw::NLA_HDRLEN} bytes, got #{length}"
         end
-        decoder.align_to(Raw::NLA_ALIGNTO)
         flags = type & (Raw::NLA_F_NESTED | Raw::NLA_F_NET_BYTEORDER)
         id = type & Raw::NLA_TYPE_MASK
         definition = self::BY_TYPE[id]

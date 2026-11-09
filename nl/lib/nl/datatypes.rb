@@ -355,7 +355,6 @@ module Nl
             raise Decoder::Error,
               "attribute length must be at least #{Raw::NLA_HDRLEN} bytes, got #{length}"
           end
-          decoder.align_to(Raw::NLA_ALIGNTO)
           value = decoder.limit(length - Raw::NLA_HDRLEN) do
             if levels == 1
               external_selectors.empty? ? @attribute_set.decode(decoder) :
@@ -407,7 +406,6 @@ module Nl
             raise Decoder::Error,
               "attribute length must be at least #{Raw::NLA_HDRLEN} bytes, got #{length}"
           end
-          decoder.align_to(Raw::NLA_ALIGNTO)
           flags = type & (Raw::NLA_F_NESTED | Raw::NLA_F_NET_BYTEORDER)
           element = decoder.limit(length - Raw::NLA_HDRLEN) do
             @sub_type.decode(decoder, context:, nlattr_type_flags: flags)
