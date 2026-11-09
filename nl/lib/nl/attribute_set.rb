@@ -85,7 +85,7 @@ module Nl
     end
 
     class << self
-      private def decode1(decoder, context, attributes)
+      private def decode1(decoder, context, attributes, definitions)
         length = decoder.get_host_u16
         type = decoder.get_host_u16
         if length < Raw::NLA_HDRLEN
@@ -95,7 +95,7 @@ module Nl
         decoder.align_to(Raw::NLA_ALIGNTO)
         flags = type & (Raw::NLA_F_NESTED | Raw::NLA_F_NET_BYTEORDER)
         id = type & Raw::NLA_TYPE_MASK
-        definition = self::BY_TYPE[id]
+        definition = definitions[id]
         value = decoder.limit(length - Raw::NLA_HDRLEN) do
           if definition
             definition.datatype.decode(decoder, context:, nlattr_type_flags: flags)
@@ -116,7 +116,8 @@ module Nl
         local_count = self::SELECTOR_NAMES.fetch(:local).length
         context = Selector::State.for(local_count, external_selectors)
         attributes = []
-        decode1(decoder, context, attributes) while decoder.available?
+        definitions = self::BY_TYPE
+        decode1(decoder, context, attributes, definitions) while decoder.available?
         new(attributes)
       rescue Selector::MissingSelectorValueError => error
         raise Decoder::Error,
