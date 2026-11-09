@@ -20,7 +20,7 @@ module Nl
 
         reply = client.family(Nlctrl).do_getfamily(family_name:)
         groups = (reply.mcast_groups || []).to_h do |attributes|
-          [attributes[:name].value, attributes[:id].value]
+          [attributes[:name], attributes[:id]]
         end
         Genl::FamilyInfo.new(id: reply.family_id, multicast_groups: groups.freeze)
       end

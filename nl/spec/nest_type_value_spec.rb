@@ -22,10 +22,10 @@ RSpec.describe Nl::DataTypes::NestTypeValue do
 
   it 'coerces hashes at the innermost level to attribute sets' do
     attribute_set = Class.new(Nl::AttributeSet).tap do |set|
-      attribute = Class.new(set::Attribute)
-      attribute.const_set(:TYPE, 1)
-      attribute.const_set(:NAME, :type)
-      attribute.const_set(:DATATYPE, Nl::DataTypes::Scalar[Nl::Endian::Host::U32].new(check: nil))
+      attribute = Nl::AttributeSet::Definition.new(
+        id: 1, name: :type,
+        datatype: Nl::DataTypes::Scalar[Nl::Endian::Host::U32].new(check: nil),
+      )
       set.const_set(:Type, attribute)
       set.const_set(:BY_NAME, { type: attribute }.freeze)
       set.const_set(:BY_TYPE, { 1 => attribute }.freeze)
@@ -36,7 +36,7 @@ RSpec.describe Nl::DataTypes::NestTypeValue do
     value = described_class.new(attribute_set, 2).coerce(7 => { 9 => { type: 42 } })
 
     expect(value.dig(7, 9)).to be_a(attribute_set)
-    expect(value.dig(7, 9)[:type].value).to eq 42
+    expect(value.dig(7, 9)[:type]).to eq 42
   end
 
   it 'rejects an attribute shorter than its header' do

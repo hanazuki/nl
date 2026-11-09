@@ -43,14 +43,14 @@ RSpec.describe Ynl do
       expect(generated.string).to include('::Nl::Selector::External.new(0)')
       expect(generated.string).to include('selector_bindings: Ractor.make_shareable([::Nl::Selector::Local.new(0)])')
       expect(generated.string).to include('selector_bindings: Ractor.make_shareable([::Nl::Selector::External.new(0)])')
-      expect(generated.string).to include('SELECTOR_SLOT = 0')
+      expect(cls::AttributeSets::OuterAttrs.by_name(:kind).selector_slot).to eq(0)
       expect(generated.string).not_to include('SELECTOR_SLOTS_BY_')
       expect(generated.string).to include('# @rbs return: AttributeSets::ChildAttrs')
-      expect(generated.string).to include('def child; self[:"child"]&.value; end')
+      expect(generated.string).to include('def child; self[:"child"]; end')
       expect(generated.string).to include(
         '# @rbs return: SubMessages::PayloadMessage::Foo | SubMessages::PayloadMessage::Bar | ::Nl::RawSubMessage',
       )
-      expect(generated.string).to include('def data; self[:"data"]&.value; end')
+      expect(generated.string).to include('def data; self[:"data"]; end')
     end
 
     it 'compiles enum selector names to their integer values' do
@@ -67,12 +67,12 @@ RSpec.describe Ynl do
       attributes.encode(encoder)
       decoded = cls::AttributeSets::EnumAttrs.decode(Nl::Decoder.new(encoder.buffer))
 
-      expect(decoded[:data].value).to have_attributes(header_value: 3, payload_value: 5)
+      expect(decoded[:data]).to have_attributes(header_value: 3, payload_value: 5)
       expect(encoder.buffer.get_value(Nl::Endian::Host::U16, 2)).to eq(
-        cls::AttributeSets::EnumAttrs::Kind::TYPE,
+        cls::AttributeSets::EnumAttrs.by_name(:kind).id,
       )
-      expect(cls::AttributeSets::EnumAttrs::Kind::ORDER).to eq(0)
-      expect(cls::AttributeSets::EnumAttrs::Data::ORDER).to eq(1)
+      expect(cls::AttributeSets::EnumAttrs.by_name(:kind).order).to eq(0)
+      expect(cls::AttributeSets::EnumAttrs.by_name(:data).order).to eq(1)
       expect(generated.string).to include('10 => ::Nl::DataTypes::SubMessage::Format.new')
       expect(generated.string).to include('20 => ::Nl::DataTypes::SubMessage::Format.new')
     end
@@ -86,8 +86,8 @@ RSpec.describe Ynl do
       )
       attrs[:data].then do |data|
         encoded.measure(Nl::Endian::Host::U16) do
-          Nl::Raw::NlAttr.new(0, data.class::TYPE | Nl::Raw::NLA_F_NESTED).encode(encoded)
-          data.value.encode(encoded)
+          Nl::Raw::NlAttr.new(0, cls::AttributeSets::EnumAttrs.by_name(:data).id | Nl::Raw::NLA_F_NESTED).encode(encoded)
+          data.encode(encoded)
         end
         encoded.align_to(Nl::Raw::NLA_ALIGNTO)
       end
@@ -120,7 +120,7 @@ RSpec.describe Ynl do
       attributes.encode(encoded)
 
       decoded = cls::AttributeSets::EnumAttrs.decode(Nl::Decoder.new(encoded.buffer))
-      value = decoded[:data].value
+      value = decoded[:data]
       reencoded = Nl::Encoder.new
       decoded.encode(reencoded)
 
@@ -182,7 +182,7 @@ RSpec.describe Ynl do
       encoder = Nl::Encoder.new
 
       attributes.encode(encoder)
-      decoded = cls::AttributeSets::Attrs.decode(Nl::Decoder.new(encoder.buffer))[:record].value
+      decoded = cls::AttributeSets::Attrs.decode(Nl::Decoder.new(encoder.buffer))[:record]
 
       expect(decoded).to be_a(cls::Structs::Outer)
       expect(decoded).to have_attributes(prefix: 1, bytes: "\x02\x03\x04".b, suffix: 6)
@@ -214,7 +214,7 @@ RSpec.describe Ynl do
 
       attributes = cls::AttributeSets::Attrs.decode(Nl::Decoder.new(encoder.buffer))
 
-      expect(attributes[:extensible_record].value).to eq(outer)
+      expect(attributes[:extensible_record]).to eq(outer)
     end
 
     it 'rejects incorrectly sized fixed binary struct members' do
@@ -275,7 +275,7 @@ RSpec.describe Ynl do
 
       Ynl::Family.generate(source, generated)
 
-      expect(generated.string).to include('DATATYPE = ::Nl::DataTypes::Bitfield32.new')
+      expect(generated.string).to include('datatype: ::Nl::DataTypes::Bitfield32.new')
       expect(generated.string).to include('?flags: ::Nl::Bitfield32')
       expect(generated.string).to include('# @rbs return: ::Nl::Bitfield32')
     end
@@ -345,6 +345,30 @@ RSpec.describe Ynl do
       expect(generated.string).to include('# A flag with an explicit bit position.')
     end
 
+    it 'retains valid accessors for attribute names starting with a digit' do
+      source = <<~YAML
+        name: numbered-attributes
+        protocol: genetlink
+        attribute-sets:
+          - name: attrs
+            attributes:
+              - name: 3-way
+                type: u32
+      YAML
+      generated = StringIO.new
+      Ynl::Family.generate(StringIO.new(source), generated)
+      scope = Module.new
+      scope.module_eval(generated.string)
+      attrs = scope::NumberedAttributes::AttributeSets::Attrs
+
+      values = attrs.build_attributes(x_3_way: 42)
+
+      expect(values.x_3_way).to eq(42)
+      expect(attrs.by_name(:x_3_way)).to equal(attrs.by_type(1))
+      expect(attrs.by_type(1).name).to eq(:x_3_way)
+      expect(attrs.const_defined?(:X3Way, false)).to be(false)
+    end
+
     it 'generates array APIs for multi-attributes' do
       path = Pathname(__dir__) + 'fixtures/multi_attr.yaml'
       generated = StringIO.new
@@ -355,9 +379,9 @@ RSpec.describe Ynl do
       message = message_class.from_params(ids: [10, 20])
 
       expect(message.ids).to eq [10, 20]
-      expect(message.attributes[:ids].map(&:value)).to eq [10, 20]
+      expect(message.attributes[:ids]).to eq [10, 20]
       expect(message_class.from_params({}).ids).to eq []
-      expect(cls::AttributeSets::Subset::Ids::MULTI).to be true
+      expect(cls::AttributeSets::Subset.by_name(:ids).multi).to be true
       expect(generated.string).to include('?ids: ::Array[::Integer]')
       expect(generated.string).to include('# @rbs return: ::Array[::Integer]')
     end
@@ -379,8 +403,8 @@ RSpec.describe Ynl do
       do_request = family.do_update(child: { text: 'do' })
       dump_request = family.dump_update(child: { text: 'dump' })
 
-      expect(do_request.child[:text].value).to eq 'do'
-      expect(dump_request.child[:text].value).to eq 'dump'
+      expect(do_request.child[:text]).to eq 'do'
+      expect(dump_request.child[:text]).to eq 'dump'
       expect(generated.string).to include(
         '?child: (AttributeSets::InnerB | ::Hash[::Symbol, untyped])',
       )

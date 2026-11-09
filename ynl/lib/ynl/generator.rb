@@ -173,40 +173,10 @@ module Ynl
           emit_const(name, members, rbs: 'Hash[::Symbol, ::Nl::_DataType]', internal: true)
         end
 
-        deferred_sub_message_datatypes = []
         emit_module('AttributeSets') do
-          deferred_consts = []
           @ynl.attribute_sets.each do |name, attr_set|
             emit_comment(attr_set.doc)
             emit_class(name.as_class_name, '::Nl::AttributeSet') do
-              emit_comment("Abstract class")
-              emit_class('Attribute', '::Nl::AttributeSet::Attribute') do
-              end
-              attr_set.attributes.each do |attr|
-                emit_comment(attribute_doc(attr))
-                emit_class(attr.name.as_class_name, 'Attribute') do
-                  emit_const('TYPE', attr.value)
-                  emit_const('NAME', attr.name.as_variable_name.as_symbol_literal)
-                  emit_const('MULTI', 'true', internal: true) if attr.multi?
-                  emit_const('ORDER', @attribute_orders.fetch(attr_set).fetch(attr), internal: true)
-                  if slot = @local_selectors.fetch(attr_set).index(attr.name)
-                    emit_const('SELECTOR_SLOT', slot, internal: true)
-                  end
-                  if attr.type.is_a?(Types::SubMessage)
-                    deferred_sub_message_datatypes << [
-                      "AttributeSets::#{name.as_class_name}::#{attr.name.as_class_name}::DATATYPE",
-                      to_datatype(attr.type, attr.checks, owner: attr_set),
-                    ]
-                  elsif attr.type.is_a?(Types::NestedAttributes) ||
-                    attr.type.is_a?(Types::NestTypeValue) ||
-                    (attr.type.is_a?(Types::IndexedArray) && attr.type.sub_type.is_a?(Types::NestedAttributes))
-                    deferred_consts << ["#{name.as_class_name}::#{attr.name.as_class_name}::DATATYPE", to_datatype(attr.type, attr.checks, owner: attr_set)]
-                  else
-                    emit_const('DATATYPE', to_datatype(attr.type, attr.checks, owner: attr_set), internal: true)
-                  end
-                end
-              end
-
               selector_names = @local_selectors.fetch(attr_set)
               external_selector_names = @external_selectors.fetch(attr_set)
               unless selector_names.empty? && external_selector_names.empty?
@@ -217,65 +187,71 @@ module Ynl
                 )
               end
 
-              emit_const(
-                'BY_NAME',
-                "Ractor.make_shareable({#{attr_set.attributes.map { "#{it.name.as_variable_name.as_symbol_literal} => #{it.name.as_class_name}" }.join(', ') }})",
-                rbs: 'Hash[::Symbol, Attribute]',
-                internal: true,
-              )
-
-              emit_const(
-                'BY_TYPE',
-                "Ractor.make_shareable({#{attr_set.attributes.map { "#{it.value} => #{it.name.as_class_name}" }.join(', ') }})",
-                rbs: 'Hash[::Integer, Attribute]',
-                internal: true,
-              )
-
               attr_set.attributes.each do |attribute|
                 next if attribute.type.is_a?(Types::Pad)
 
                 emit_comment(attribute_doc(attribute))
                 emit_rbs_comment('return: ' + attribute_rbs_type(attribute))
                 emit_yard_return(attribute_yard_type(attribute))
-                emit_yard_see(attribute.name.as_class_name)
-                expression = if attribute.multi?
-                  "self[#{attribute.name.as_variable_name.as_symbol_literal}].map(&:value)"
-                else
-                  "self[#{attribute.name.as_variable_name.as_symbol_literal}]&.value"
-                end
+                expression = "self[#{attribute.name.as_variable_name.as_symbol_literal}]"
                 emit_getter(attribute.name.as_method_name, expression)
               end
 
               emit_singleton_class do
-                emit_comment('Looks up Attribute class by name.')
+                emit_comment('Looks up an attribute definition by name.')
                 emit_rbs_comment(
                   'name: Symbol',
-                  'return: Attribute',
+                  'return: ::Nl::AttributeSet::Definition',
                 )
                 emit_yard_param('name', 'Symbol')
-                emit_yard_return('Attribute')
+                emit_yard_return('Nl::AttributeSet::Definition')
                 emit_getter('by_name(name)', 'BY_NAME.fetch(name)')
 
-                emit_comment('Looks up Attribute class by type value.')
+                emit_comment('Looks up an attribute definition by numeric ID.')
                 emit_rbs_comment(
                   'type: Integer',
-                  'return: Attribute',
+                  'return: ::Nl::AttributeSet::Definition',
                 )
                 emit_yard_param('type', 'Integer')
-                emit_yard_return('Attribute')
+                emit_yard_return('Nl::AttributeSet::Definition')
                 emit_getter('by_type(type)', 'BY_TYPE.fetch(type)')
               end
             end
           end
-          deferred_consts.each do |const|
-            emit_const(*const, internal: true)
-          end
         end
 
-
         emit_sub_messages
-        deferred_sub_message_datatypes.each do |const|
-          emit_const(*const, internal: true)
+
+        # Construct immutable definitions after every referenced attribute set
+        # and sub-message class exists, including recursive schema references.
+        emit_module('AttributeSets') do
+          @ynl.attribute_sets.each do |name, attr_set|
+            emit_class(name.as_class_name) do
+              # Datatypes may contain validation procs; freeze the indexes
+              # without requiring their contents to be Ractor-shareable.
+              emit_internal
+              write('BY_TYPE = {')
+              indent do
+                attr_set.attributes.each do |attr|
+                  slot = @local_selectors.fetch(attr_set).index(attr.name)
+                  definition = "::Nl::AttributeSet::Definition.new(" \
+                    "id: #{attr.value}, name: #{attr.name.as_variable_name.as_symbol_literal}, " \
+                    "datatype: #{to_datatype(attr.type, attr.checks, owner: attr_set)}, " \
+                    "multi: #{attr.multi?}, order: #{@attribute_orders.fetch(attr_set).fetch(attr)}, " \
+                    "selector_slot: #{slot.inspect})"
+                  emit_comment(attribute_doc(attr))
+                  write("#{attr.value} => #{definition},")
+                end
+              end
+              write('}.freeze #: Hash[::Integer, ::Nl::AttributeSet::Definition]')
+              emit_const(
+                'BY_NAME',
+                'BY_TYPE.values.to_h { [it.name, it] }.freeze',
+                rbs: 'Hash[::Symbol, ::Nl::AttributeSet::Definition]',
+                internal: true,
+              )
+            end
+          end
         end
 
         emit_module('Messages') do
@@ -620,15 +596,14 @@ module Ynl
           emit_comment(attribute_doc(attribute))
           emit_rbs_comment('return: ' + attribute_rbs_type(attribute))
           emit_yard_return(attribute_yard_type(attribute))
-          emit_yard_see("AttributeSets::#{attribute_set.name.as_class_name}::#{attribute.name.as_class_name}")
           if attribute.multi?
-            emit_getter(param.as_method_name, "attributes[#{param.as_variable_name.as_symbol_literal}].map(&:value)")
+            emit_getter(param.as_method_name, "attributes[#{param.as_variable_name.as_symbol_literal}]")
             next
           end
           if extending
-            emit_getter(param.as_method_name, "attributes[#{param.as_variable_name.as_symbol_literal}]&.value || fixed_header.#{param.as_method_name}")
+            emit_getter(param.as_method_name, "attributes[#{param.as_variable_name.as_symbol_literal}] || fixed_header.#{param.as_method_name}")
           else
-            emit_getter(param.as_method_name, "attributes[#{param.as_variable_name.as_symbol_literal}]&.value")
+            emit_getter(param.as_method_name, "attributes[#{param.as_variable_name.as_symbol_literal}]")
           end
         end
       end
@@ -675,13 +650,12 @@ module Ynl
           emit_comment(attribute_doc(attribute))
           emit_rbs_comment('return: ' + attribute_rbs_type(attribute))
           emit_yard_return(attribute_yard_type(attribute))
-          emit_yard_see("AttributeSets::#{format.attribute_set.name.as_class_name}::#{attribute.name.as_class_name}")
           expression = if attribute.multi?
-            "attributes[#{attribute.name.as_variable_name.as_symbol_literal}].map(&:value)"
+            "attributes[#{attribute.name.as_variable_name.as_symbol_literal}]"
           elsif extending
-            "attributes[#{attribute.name.as_variable_name.as_symbol_literal}]&.value || fixed_header.#{attribute.name.as_method_name}"
+            "attributes[#{attribute.name.as_variable_name.as_symbol_literal}] || fixed_header.#{attribute.name.as_method_name}"
           else
-            "attributes[#{attribute.name.as_variable_name.as_symbol_literal}]&.value"
+            "attributes[#{attribute.name.as_variable_name.as_symbol_literal}]"
           end
           emit_getter(attribute.name.as_method_name, expression)
         end

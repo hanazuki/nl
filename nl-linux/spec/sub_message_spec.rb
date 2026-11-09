@@ -16,10 +16,10 @@ RSpec.describe 'generated Linux sub-messages' do
       kind: 'bridge',
     )
 
-    expect(attrs[:data].value).to be_a(
+    expect(attrs[:data]).to be_a(
       Nl::Linux::RtLink::SubMessages::LinkinfoDataMsg::Bridge,
     )
-    expect(attrs[:data].value).to have_attributes(forward_delay: 100, stp_state: 1)
+    expect(attrs[:data]).to have_attributes(forward_delay: 100, stp_state: 1)
   end
 
   it 'selects a fixed-header-only format' do
@@ -29,10 +29,10 @@ RSpec.describe 'generated Linux sub-messages' do
       kind: 'bfifo',
     )
 
-    expect(attrs[:options].value).to be_a(
+    expect(attrs[:options]).to be_a(
       Nl::Linux::Tc::SubMessages::OptionsMsg::Bfifo,
     )
-    expect(attrs[:options].value.limit).to eq(200)
+    expect(attrs[:options].limit).to eq(200)
   end
 
   it 'passes an external selector into a nested attribute set' do
@@ -41,7 +41,7 @@ RSpec.describe 'generated Linux sub-messages' do
       stats2: {app: {maxpacket: 1_500}},
       kind: 'codel',
     )
-    app = attrs[:stats2].value[:app].value
+    app = attrs[:stats2][:app]
 
     expect(app).to be_a(Nl::Linux::Tc::SubMessages::TcaStatsAppMsg::Codel)
     expect(app.maxpacket).to eq(1_500)
@@ -54,9 +54,9 @@ RSpec.describe 'generated Linux sub-messages' do
       type: 1,
     )
 
-    expect(attrs[:data].value).to be_a(
+    expect(attrs[:data]).to be_a(
       Nl::Linux::Nftables::SubMessages::ObjData::Counter,
     )
-    expect(attrs[:data].value).to have_attributes(bytes: 12, packets: 3)
+    expect(attrs[:data]).to have_attributes(bytes: 12, packets: 3)
   end
 end

@@ -66,13 +66,11 @@ module Nl
         super
       end
 
-      # Appends an attribute to the message.
+      # Appends an attribute value, identified by name or wire type.
       #
-      # @param [AttributeSet::Attribute] attribute the attribute to append
-      # @return [void]
-      # @rbs (AttributeSet::Attribute attribute) -> void
-      def append_attribute(attribute)
-        @attributes << attribute
+      # @rbs (Symbol | Integer type, untyped value) -> void
+      def append_attribute(type, value)
+        @attributes.append(type, value)
       end
 
       # Decodes a raw Netlink message payload.

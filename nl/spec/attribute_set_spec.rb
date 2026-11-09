@@ -3,16 +3,9 @@ require 'nl'
 RSpec.describe Nl::AttributeSet do
   let(:attribute_set) do
     Class.new(described_class).tap do |set|
-      singular = Class.new(set::Attribute)
-      singular.const_set(:TYPE, 1)
-      singular.const_set(:NAME, :singular)
-      singular.const_set(:DATATYPE, Nl::DataTypes::Scalar[Nl::Endian::Host::U32].new(check: nil))
-
-      repeated = Class.new(set::Attribute)
-      repeated.const_set(:TYPE, 2)
-      repeated.const_set(:NAME, :repeated)
-      repeated.const_set(:MULTI, true)
-      repeated.const_set(:DATATYPE, Nl::DataTypes::Scalar[Nl::Endian::Host::U32].new(check: nil))
+      datatype = Nl::DataTypes::Scalar[Nl::Endian::Host::U32].new(check: nil)
+      singular = Nl::AttributeSet::Definition.new(id: 1, name: :singular, datatype:)
+      repeated = Nl::AttributeSet::Definition.new(id: 2, name: :repeated, datatype:, multi: true)
 
       set.const_set(:Singular, singular)
       set.const_set(:Repeated, repeated)
@@ -30,8 +23,8 @@ RSpec.describe Nl::AttributeSet do
     attributes.encode(encoder)
     decoded = attribute_set.decode(Nl::Decoder.new(encoder.buffer))
 
-    expect(decoded[:singular].value).to eq 10
-    expect(decoded[2].map(&:value)).to eq [20, 30]
+    expect(decoded[:singular]).to eq 10
+    expect(decoded[2]).to eq [20, 30]
   end
 
   it 'returns an empty array when a repeated attribute is absent' do
@@ -46,12 +39,57 @@ RSpec.describe Nl::AttributeSet do
   end
 
   it 'retains singular lookup behavior' do
-    attributes = attribute_set.new([
-      attribute_set::Singular.new(10),
-      attribute_set::Singular.new(20),
-    ])
+    attributes = attribute_set.new
+    attributes.append(:singular, 10)
+    attributes.append(:singular, 20)
 
-    expect(attributes[:singular].value).to eq 10
+    expect(attributes[:singular]).to eq 10
+  end
+
+  it 'preserves repeated and duplicate singular values when re-encoding' do
+    bytes = [8, 1, 10, 8, 2, 20, 8, 2, 30, 8, 1, 40].pack('SSL' * 4)
+    attributes = attribute_set.decode(Nl::Decoder.new(IO::Buffer.for(bytes)))
+    encoder = Nl::Encoder.new
+
+    attributes.encode(encoder)
+
+    expect(attributes[:singular]).to eq(10)
+    expect(attributes[:repeated]).to eq([20, 30])
+    expect(encoder.buffer.get_string).to eq(bytes)
+  end
+
+  it 'skips unknown attributes without losing subsequent values' do
+    bytes = [8, 99, 123, 8, 1, 10].pack('SSL' * 2)
+
+    attributes = attribute_set.decode(Nl::Decoder.new(IO::Buffer.for(bytes)))
+
+    expect(attributes[:singular]).to eq(10)
+    expect(attributes[:repeated]).to eq([])
+  end
+
+  it 'shares immutable schema definitions between attribute sets' do
+    definition = attribute_set.by_name(:singular)
+
+    expect(definition).to equal(attribute_set.by_type(1))
+    expect(definition).to be_a(Nl::AttributeSet::Definition)
+    expect(definition).to be_frozen
+    expect(definition.datatype).to be_a(Nl::DataTypes::Scalar)
+    expect(definition.id).to eq(1)
+    expect(definition.name).to eq(:singular)
+  end
+
+  it 'retains false and nil values when appending' do
+    attributes = attribute_set.new
+    attributes.append(:singular, false)
+    attributes.append(:repeated, nil)
+    attributes.append(:repeated, false)
+
+    expect(attributes[:singular]).to be(false)
+    expect(attributes[:repeated]).to eq([nil, false])
+  end
+
+  it 'returns nil for an absent singular attribute' do
+    expect(attribute_set.new[:singular]).to be_nil
   end
 
   it 'rejects an attribute shorter than its header' do

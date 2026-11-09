@@ -19,8 +19,8 @@ RSpec.describe Nl::Linux::NlctrlResolver do
 
     it 'builds family info from the nlctrl reply' do
       group = {
-        name: instance_double(Nl::AttributeSet::Attribute, value: 'monitor'),
-        id: instance_double(Nl::AttributeSet::Attribute, value: 7),
+        name: 'monitor',
+        id: 7,
       }
       reply = instance_double(
         Nl::Linux::Nlctrl::Messages::DoGetfamilyReply,
