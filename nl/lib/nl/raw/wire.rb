@@ -83,7 +83,13 @@ module Nl
       # @return [NlMsgHdr] the decoded header
       # @rbs (Decoder decoder) -> instance
       def self.decode(decoder)
-        obj = new(*decoder.get_values(FORMAT))
+        obj = new(
+          decoder.get_host_u32,
+          decoder.get_host_u16,
+          decoder.get_host_u16,
+          decoder.get_host_u32,
+          decoder.get_host_u32,
+        )
         decoder.align_to(Constants::NLMSG_ALIGNTO)
         obj
       end
