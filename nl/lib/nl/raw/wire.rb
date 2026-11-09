@@ -68,13 +68,14 @@ module Nl
     )
 
     class NlMsgHdr
-      FORMAT = Ractor.make_shareable([
+      FORMAT = [
         Endian::Host::U32,
         Endian::Host::U16,
         Endian::Host::U16,
         Endian::Host::U32,
         Endian::Host::U32,
-      ])
+      ].freeze
+      Ractor.make_shareable(FORMAT) if defined?(Ractor)
       private_constant :FORMAT
 
       # Decodes a header from the decoder's current position.
@@ -121,10 +122,11 @@ module Nl
     )
 
     class NlAttr
-      FORMAT = Ractor.make_shareable([
+      FORMAT = [
         Endian::Host::U16,
         Endian::Host::U16,
-      ])
+      ].freeze
+      Ractor.make_shareable(FORMAT) if defined?(Ractor)
       private_constant :FORMAT
 
       # Decodes an attribute header from the decoder's current position.
