@@ -2,6 +2,48 @@
 
 require 'spec_helper'
 
+RSpec.describe Nl::DataTypes::Scalar do
+  {
+    U8: ['C', 255], S8: ['c', -128],
+    u16: ['S<', 0xfedc], U16: ['S>', 0xfedc],
+    s16: ['s<', -12345], S16: ['s>', -12345],
+    u32: ['L<', 0xfedcba98], U32: ['L>', 0xfedcba98],
+    s32: ['l<', -123456789], S32: ['l>', -123456789],
+    u64: ['Q<', 0xfedcba9876543210], U64: ['Q>', 0xfedcba9876543210],
+    s64: ['q<', -123456789012345], S64: ['q>', -123456789012345],
+    f32: ['e', 1.25], F32: ['g', 1.25],
+    f64: ['E', -1.25], F64: ['G', -1.25],
+  }.each do |type, (format, value)|
+    it "encodes and decodes #{type} with its wire representation" do
+      datatype = described_class[type].new
+      bytes = [value].pack(format)
+      encoder = Nl::Encoder.new
+
+      datatype.encode(encoder, value)
+
+      expect(encoder.buffer.get_string).to eq(bytes)
+      expect(datatype.decode(Nl::Decoder.new(IO::Buffer.for(bytes)))).to eq(value)
+      expect(datatype).to be_a(described_class)
+      expect(Ractor.make_shareable(datatype)).to equal(datatype)
+    end
+  end
+
+  it 'applies checks during encoding and decoding' do
+    datatype = described_class[:U8].new(check: ->(value) { raise RangeError if value > 10 })
+
+    expect { datatype.encode(Nl::Encoder.new, 11) }.to raise_error(RangeError)
+    expect { datatype.decode(Nl::Decoder.new(IO::Buffer.for("\x0b"))) }.to raise_error(RangeError)
+  end
+
+  it 'encodes a missing value as zero' do
+    encoder = Nl::Encoder.new
+
+    described_class[:U16].new.encode(encoder, nil)
+
+    expect(encoder.buffer.get_string).to eq("\0\0")
+  end
+end
+
 RSpec.describe Nl::DataTypes::Bitfield32 do
   subject(:datatype) { described_class.new }
 
@@ -150,7 +192,7 @@ RSpec.describe Nl::DataTypes::IndexedArray do
     encoder = Nl::Encoder.new
     encoder.put_value(Nl::Endian::Host::U16, Nl::Raw::NLA_HDRLEN - 1)
     encoder.put_value(Nl::Endian::Host::U16, 1)
-    element = Nl::DataTypes::Scalar.new(Nl::Endian::Host::U32, check: nil)
+    element = Nl::DataTypes::Scalar[Nl::Endian::Host::U32].new(check: nil)
 
     expect { described_class.new(element).decode(Nl::Decoder.new(encoder.buffer)) }
       .to raise_error(

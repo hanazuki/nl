@@ -101,8 +101,8 @@ module Nl
     class << self
       private def decode1(decoder, context)
         # Inline NlAttr.decode to avoid allocating a header object.
-        length = decoder.get_value(Endian::Host::U16)
-        type = decoder.get_value(Endian::Host::U16)
+        length = decoder.get_host_u16
+        type = decoder.get_host_u16
         if length < Raw::NLA_HDRLEN
           raise Decoder::Error,
             "attribute length must be at least #{Raw::NLA_HDRLEN} bytes, got #{length}"

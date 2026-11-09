@@ -10,7 +10,7 @@ workflows:
         - 'actions/upload-artifact@v7.0.1'
         - 'actions/upload-pages-artifact@v5.0.0'
         - 'coverallsapp/github-action@v2.3.8'
-        - 'release-gems/action@v1.2.1'
+        - 'release-gems/action@v1.2.2'
         - 'ruby/setup-ruby@v1.321.0'
     '.github/workflows/prperf.yml':
         - 'actions/checkout@v6.1.0'
@@ -61,9 +61,9 @@ dependencies:
         commit: 'sha1-8d6379e14d29928660c4ba802d8e85393440b329'
         owner_id: 16691566
         repo_id: 200696780
-    'release-gems/action@v1.2.1':
-        ref: 'v1.2.1'
-        commit: 'sha1-4aaa7904a8e9de7f0f4a5b646e3cfe8f1e225c2b'
+    'release-gems/action@v1.2.2':
+        ref: 'v1.2.2'
+        commit: 'sha1-56896f930b60817aaabee0319315c094861d3d39'
         owner_id: 266065782
         repo_id: 1173508084
     'rperf-dev/prperf-action@v1':

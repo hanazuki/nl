@@ -129,8 +129,8 @@ module Nl
       def self.decode(decoder)
         # Unrolling get_values improves performance for this small header.
         obj = new(
-          decoder.get_value(Endian::Host::U16),
-          decoder.get_value(Endian::Host::U16),
+          decoder.get_host_u16,
+          decoder.get_host_u16,
         )
         decoder.align_to(Constants::NLA_ALIGNTO)
         obj

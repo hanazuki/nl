@@ -8,7 +8,7 @@ RSpec.describe Nl::DataTypes::NestedAttributes do
       attribute.const_set(:NAME, :value)
       attribute.const_set(
         :DATATYPE,
-        Nl::DataTypes::Scalar.new(Nl::Endian::Host::U32, check: nil),
+        Nl::DataTypes::Scalar[Nl::Endian::Host::U32].new(check: nil),
       )
       attribute_set.const_set(:Value, attribute)
       attribute_set.const_set(:BY_NAME, { value: attribute }.freeze)
