@@ -56,23 +56,23 @@ module Nl
               raise ProtocolViolation, "expected zero or negative NLMSG_ERROR errno, got #{errno}"
             end
 
-            errno == 0 ? AckFrame.new(header:) : ErrorFrame.new(header:, errno: -errno)
+            errno == 0 ? AckFrame.new(header) : ErrorFrame.new(header, -errno)
           when Raw::NLMSG_DONE
-            return DoneFrame.new(header:, errno: nil) unless decoder.available?
+            return DoneFrame.new(header, nil) unless decoder.available?
 
             errno = decoder.get_host_sint
             if errno.positive?
               raise ProtocolViolation, "expected zero or negative NLMSG_DONE errno, got #{errno}"
             end
 
-            DoneFrame.new(header:, errno: errno < 0 ? -errno : nil)
+            DoneFrame.new(header, errno < 0 ? -errno : nil)
           else
-            UnknownFrame.new(header:)
+            UnknownFrame.new(header)
           end
         else
           raise ArgumentError, 'reply class is required for a data message' unless message_class
 
-          DataFrame.new(header:, message: message_class.decode(decoder, type: header.type))
+          DataFrame.new(header, message_class.decode(decoder, type: header.type))
         end
       end
 
