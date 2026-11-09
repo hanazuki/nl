@@ -94,21 +94,18 @@ module Nl
         end
         flags = type & (Raw::NLA_F_NESTED | Raw::NLA_F_NET_BYTEORDER)
         id = type & Raw::NLA_TYPE_MASK
-        definition = definitions[id]
-        value = decoder.limit(length - Raw::NLA_HDRLEN) do
-          if definition
+        if definition = definitions[id]
+          value = decoder.limit(length - Raw::NLA_HDRLEN) do
             definition.datatype.decode(decoder, context:, nlattr_type_flags: flags)
-          else
-            decoder.skip
           end
-        end
-        decoder.align_to(Raw::NLA_ALIGNTO)
-        if definition
           attributes.push(id, value)
           if slot = definition.selector_slot
             context.set_local(slot, value)
           end
+        else
+          decoder.skip(length - Raw::NLA_HDRLEN)
         end
+        decoder.align_to(Raw::NLA_ALIGNTO)
       end
 
       def decode(decoder, external_selectors: Selector::EMPTY_VALUES)
