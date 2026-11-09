@@ -1,12 +1,14 @@
+require 'rbconfig/sizeof'
+
 module Nl
   # Byte-order helpers
   module Endian
     # sizeof(int)
-    SIZEOF_INT = [1].pack('i!').bytesize
+    SIZEOF_INT = RbConfig::SIZEOF.fetch('int')
     # sizeof(long)
-    SIZEOF_LONG = [1].pack('l!').bytesize
+    SIZEOF_LONG = RbConfig::SIZEOF.fetch('long')
     # sizeof(long long)
-    SIZEOF_LLONG = [1].pack('q!').bytesize
+    SIZEOF_LLONG = RbConfig::SIZEOF.fetch('long long') { RbConfig::SIZEOF.fetch('long_long') }
 
     # Little-endian scalar types.
     module Little
