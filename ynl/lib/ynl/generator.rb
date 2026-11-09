@@ -239,7 +239,6 @@ module Ynl
                     "datatype: #{to_datatype(attr.type, attr.checks, owner: attr_set)}, " \
                     "multi: #{attr.multi?}, order: #{@attribute_orders.fetch(attr_set).fetch(attr)}, " \
                     "selector_slot: #{slot.inspect})"
-                  emit_comment(attribute_doc(attr))
                   write("#{attr.value} => #{definition},")
                 end
               end
