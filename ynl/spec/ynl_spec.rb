@@ -160,7 +160,7 @@ RSpec.describe Ynl do
       expect(generated.string).to include(':"inner", #: Structs::Inner')
       expect(generated.string).to include('bytes: ::Nl::DataTypes::Binary.new(length: 3)')
       expect(generated.string).to include('inner: ::Nl::DataTypes::Struct.new(Structs::Inner)')
-      expect(generated.string).to include('MEMBERS[:"prefix"].decode(decoder)')
+      expect(generated.string).to include('decoder.get_host_u8,')
       expect(generated.string).to include('MEMBERS[:"prefix"].encode(encoder, public_send(:"prefix"))')
       expect(generated.string).to include('MEMBERS[:"prefix"].coerce(params.fetch(:"prefix", 0), context:)')
       expect(generated.string).not_to include('.map {|name, datatype|')
@@ -177,6 +177,46 @@ RSpec.describe Ynl do
       expect(encoder.buffer.get_string).to eq("\0\0".b)
       expect { cls::Structs::Inner.from_params({value: nil}).encode(Nl::Encoder.new) }
         .to raise_error(TypeError)
+    end
+
+    it 'preserves scalar widths, signedness, and byte order in generated structs' do
+      cls = Ynl::Family.build(Pathname(__dir__) + 'fixtures/fixed_struct_members.yaml')
+      values = [0xfedcba98, 254, -3, 0xfedc, -1234, 0xfedcba98,
+                -123456, 0xfedcba9876543210, -123456789012345, -42]
+      bytes = values.pack('LCcS<s>L>l< Q<q>i!')
+      encoder = Nl::Encoder.new
+
+      cls::Structs::Scalars.new(*values).encode(encoder)
+      decoder = Nl::Decoder.new(IO::Buffer.for(bytes))
+
+      expect(encoder.buffer.get_string).to eq(bytes)
+      expect(cls::Structs::Scalars.decode(decoder).to_a).to eq(values)
+      expect(decoder.remaining).to eq(0)
+      expect { cls::Structs::Scalars.decode(Nl::Decoder.new(IO::Buffer.for(bytes.chop))) }
+        .to raise_error(Nl::Decoder::OutOfBounds)
+    end
+
+    it 'retains variable-width integer encoding in struct members' do
+      cls = Ynl::Family.build(Pathname(__dir__) + 'fixtures/fixed_struct_members.yaml')
+
+      [42, 0xffffffffffffffff].zip([4, 8]).each do |value, size|
+        encoder = Nl::Encoder.new
+        cls::Structs::VariableInteger.new(value).encode(encoder)
+
+        expect(encoder.position).to eq(size)
+        expect(cls::Structs::VariableInteger.decode(Nl::Decoder.new(encoder.buffer)).value).to eq(value)
+      end
+    end
+
+    it 'preserves padding between generated scalar fields' do
+      cls = Ynl::Family.build(Pathname(__dir__) + 'fixtures/fixed_struct_members.yaml')
+      record = cls::Structs::Padded.new(1, nil, 0x12345678)
+      encoder = Nl::Encoder.new
+
+      record.encode(encoder)
+
+      expect(encoder.buffer.get_string).to eq([1, 0x12345678].pack('Cx3L'))
+      expect(cls::Structs::Padded.decode(Nl::Decoder.new(encoder.buffer))).to eq(record)
     end
 
     it 'encodes and decodes structured binary attributes' do
