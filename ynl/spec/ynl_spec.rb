@@ -636,6 +636,65 @@ RSpec.describe Ynl do
       expect(attrs.const_defined?(:X3Way, false)).to be(false)
     end
 
+    describe 'numeric attribute lookup tables' do
+      let(:attrs) do
+        source = <<~YAML
+          name: sparse-attributes
+          protocol: genetlink
+          attribute-sets:
+            - name: attrs
+              attributes:
+                - {name: first, type: u32}
+                - {name: last, type: u32, value: 2048}
+            - name: empty
+              attributes: []
+        YAML
+        generated = StringIO.new
+        Ynl::Family.generate(source, generated)
+        scope = Module.new
+        scope.module_eval(generated.string)
+        scope::SparseAttributes::AttributeSets
+      end
+
+      it 'uses a frozen array including gaps and high IDs' do
+        table = attrs::Attrs::BY_TYPE
+
+        expect(table).to be_an(Array)
+        expect(table).to be_frozen
+        expect(table.length).to eq(2049)
+        expect(table[2]).to be_nil
+        expect(attrs::Attrs.by_type(2048)).to equal(attrs::Attrs.by_name(:last))
+        [0, 2, 2049, -1].each do |id|
+          expect { attrs::Attrs.by_type(id) }.to raise_error(KeyError)
+        end
+      end
+
+      it 'skips unknown IDs within and beyond the array without losing known values' do
+        bytes = [8, 2, 10, 8, 2049, 20, 8, 2048, 30, 8, 1, 40].pack('SSL' * 4)
+        values = attrs::Attrs.decode(Nl::Decoder.new(IO::Buffer.for(bytes)))
+        encoder = Nl::Encoder.new
+        values.encode(encoder)
+
+        expect(values.first).to eq(40)
+        expect(values.last).to eq(30)
+        expect(encoder.buffer.get_string).to eq([8, 1, 40, 8, 2048, 30].pack('SSL' * 2))
+      end
+
+      it 'decodes an empty table and uses a subclass replacement table' do
+        bytes = [8, 1, 42].pack('SSL')
+        empty = attrs::Empty.decode(Nl::Decoder.new(IO::Buffer.for(bytes)))
+        expect(empty.instance_variable_get(:@attributes)).to eq([])
+
+        definition = attrs::Attrs.by_name(:last).with(id: 1, datatype: Nl::DataTypes::Binary.new)
+        subclass = Class.new(attrs::Attrs)
+        subclass.const_set(:BY_TYPE, [nil, definition].freeze)
+        values = subclass.decode(Nl::Decoder.new(IO::Buffer.for(bytes)))
+
+        expect(subclass::BY_TYPE[1]).to equal(definition)
+        expect(values.instance_variable_get(:@attributes)).to eq([1, [42].pack('L')])
+      end
+    end
+
     it 'generates array APIs for multi-attributes' do
       path = Pathname(__dir__) + 'fixtures/multi_attr.yaml'
       generated = StringIO.new

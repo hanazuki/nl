@@ -269,7 +269,7 @@ module Ynl
                 )
                 emit_yard_param('type', 'Integer')
                 emit_yard_return('Nl::AttributeSet::Definition')
-                emit_getter('by_type(type)', 'BY_TYPE.fetch(type)')
+                emit_getter('by_type(type)', '(type >= 0 && BY_TYPE[type]) || raise(::KeyError, "unknown attribute type: #{type}")')
               end
             end
           end
@@ -283,7 +283,8 @@ module Ynl
           @ynl.attribute_sets.each do |name, attr_set|
             emit_class(name.as_class_name) do
               emit_internal
-              write('BY_TYPE = {')
+              size = (attr_set.attributes.map(&:value).max || -1) + 1
+              write("BY_TYPE = ::Array.new(#{size}).tap do |definitions|")
               indent do
                 attr_set.attributes.each do |attr|
                   slot = @local_selectors.fetch(attr_set).index(attr.name)
@@ -292,14 +293,14 @@ module Ynl
                     "datatype: #{to_datatype(attr.type, attr.checks, owner: attr_set)}, " \
                     "multi: #{attr.multi?}, order: #{@attribute_orders.fetch(attr_set).fetch(attr)}, " \
                     "selector_slot: #{slot.inspect})"
-                  write("#{attr.value} => #{definition},")
+                  write("definitions[#{attr.value}] = #{definition}")
                 end
               end
-              write('}.freeze #: Hash[::Integer, ::Nl::AttributeSet::Definition]')
+              write('end.freeze #: Array[::Nl::AttributeSet::Definition?]')
               write('Ractor.make_shareable(BY_TYPE) if defined?(Ractor)')
               emit_const(
                 'BY_NAME',
-                'BY_TYPE.values.to_h { [it.name, it] }.freeze',
+                'BY_TYPE.compact.to_h { [it.name, it] }.freeze',
                 rbs: 'Hash[::Symbol, ::Nl::AttributeSet::Definition]',
                 internal: true,
               )
