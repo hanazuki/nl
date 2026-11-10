@@ -230,13 +230,53 @@ RSpec.describe Ynl do
 
     it 'preserves padding between generated scalar fields' do
       cls = Ynl::Family.build(Pathname(__dir__) + 'fixtures/fixed_struct_members.yaml')
-      record = cls::Structs::Padded.new(1, nil, 0x12345678)
+      record = cls::Structs::Padded.from_params({prefix: 1, suffix: 0x12345678})
       encoder = Nl::Encoder.new
 
       record.encode(encoder)
 
       expect(encoder.buffer.get_string).to eq([1, 0x12345678].pack('Cx3L'))
+      expect(cls::Structs::Padded.members).to eq([:prefix, :suffix])
+      expect(cls::Structs::Padded::MEMBERS.keys).to eq([:prefix, :suffix])
       expect(cls::Structs::Padded.decode(Nl::Decoder.new(encoder.buffer))).to eq(record)
+    end
+
+    it 'ignores nonzero padding inside a grouped u32 read' do
+      cls = Ynl::Family.build(Pathname(__dir__) + 'fixtures/fixed_struct_members.yaml')
+      bytes = [0x12, 0xff, 0x3456].pack('CCS')
+      decoder = Nl::Decoder.new(IO::Buffer.for(bytes))
+      expect(decoder).to receive(:get_u32).once.and_call_original
+
+      record = cls::Structs::InternalPad.decode(decoder)
+
+      expect(record.to_h).to eq(prefix: 0x12, suffix: 0x3456)
+      encoder = Nl::Encoder.new
+      record.encode(encoder)
+      expect(encoder.buffer.get_string).to eq([0x12, 0x3456].pack('CxS'))
+    end
+
+    it 'skips padding outside grouped reads without exposing a field' do
+      cls = Ynl::Family.build(Pathname(__dir__) + 'fixtures/fixed_struct_members.yaml')
+      bytes = "\xff" * 5 + [0x12345678].pack('L') + "\xff\xff"
+
+      record = cls::Structs::UngroupedPad.decode(Nl::Decoder.new(IO::Buffer.for(bytes)))
+
+      expect(record.to_h).to eq(value: 0x12345678)
+      encoder = Nl::Encoder.new
+      record.encode(encoder)
+      expect(encoder.buffer.get_string).to eq([0x12345678].pack('x5Lx2'))
+    end
+
+    it 'generates an empty Struct for a padding-only layout' do
+      cls = Ynl::Family.build(Pathname(__dir__) + 'fixtures/fixed_struct_members.yaml')
+      record = cls::Structs::OnlyPad.from_params({})
+      encoder = Nl::Encoder.new
+
+      record.encode(encoder)
+
+      expect(record.to_h).to eq({})
+      expect(encoder.buffer.get_string).to eq("\0\0")
+      expect(cls::Structs::OnlyPad.decode(Nl::Decoder.new(encoder.buffer))).to eq(record)
     end
 
     it 'encodes and decodes structured binary attributes' do

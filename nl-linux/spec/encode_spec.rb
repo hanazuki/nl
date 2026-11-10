@@ -5,7 +5,7 @@ RSpec.describe Nl::Linux::RtLink do
 
   describe 'Structs::Ifinfomsg' do
     # ifi_family(U8), pad(ignored), ifi_type(U16), ifi_index(S32), ifi_flags(U32), ifi_change(U32)
-    subject(:struct) { described_class::Structs::Ifinfomsg.new(0xAB, nil, 0xCDEF, 0x12345678, 0xDEADBEEF, 0xCAFEBABE) }
+    subject(:struct) { described_class::Structs::Ifinfomsg.new(0xAB, 0xCDEF, 0x12345678, 0xDEADBEEF, 0xCAFEBABE) }
 
     it 'encodes each field at the correct offset' do
       struct.encode(encoder)

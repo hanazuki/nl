@@ -54,6 +54,25 @@ definitions:
       - { name: prefix, type: u8 }
       - { name: reserved, type: pad, len: 3 }
       - { name: suffix, type: u32 }
+  -
+    name: internal-pad
+    type: struct
+    members:
+      - { name: prefix, type: u8 }
+      - { name: reserved, type: pad, len: 1 }
+      - { name: suffix, type: u16 }
+  -
+    name: ungrouped-pad
+    type: struct
+    members:
+      - { name: leading, type: pad, len: 5 }
+      - { name: value, type: u32 }
+      - { name: trailing, type: pad, len: 2 }
+  -
+    name: only-pad
+    type: struct
+    members:
+      - { name: reserved, type: pad, len: 2 }
 attribute-sets:
   -
     name: attrs

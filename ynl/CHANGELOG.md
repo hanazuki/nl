@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Reserved fields declared as `pad` are no longer available as members of
+  generated structs. Omit their arguments when constructing structs.
 - Stop generating per-attribute classes and constants. Attribute definitions
   are shared `Nl::AttributeSet::Definition` records indexed by `BY_NAME` and
   `BY_TYPE`. Replace references such as `Attrs::Mtu::TYPE` with

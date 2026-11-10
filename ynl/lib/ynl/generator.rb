@@ -88,23 +88,24 @@ module Ynl
         deferred_struct_consts = []
         emit_module('Structs') do
           @ynl.structs.each do |name, struct|
+            fields = struct.members.reject { it.type.is_a?(Types::Pad) }
             emit_comment(struct.doc)
             write(name.as_class_name, " = Struct.new(")
             indent do
-              struct.members.each do |member|
+              fields.each do |member|
                 write(member.name.as_variable_name.as_symbol_literal, ', #: ', struct_member_rbs_type(member.type))
               end
             end
             write(')')
             emit_class(name.as_class_name) do
-              struct.members.each do |member|
+              fields.each do |member|
                 emit_yard_attribute(
                   member.name.as_method_name,
                   struct_member_yard_type(member.type),
                   member.doc,
                 )
               end
-              members = struct.members.map do |member|
+              members = fields.map do |member|
                 "#{member.name.as_variable_name}: #{to_struct_member_datatype(member.type)}"
               end
               members = "{#{members.join(', ')}}.freeze"
@@ -122,7 +123,7 @@ module Ynl
                 write('raise ArgumentError, "unknown struct members: #{unknown.join(\', \')}" unless unknown.empty?')
                 write('self.new(')
                 indent do
-                  struct.members.each do |member|
+                  fields.each do |member|
                     member_name = member.name.as_variable_name.as_symbol_literal
                     value = if member.type.is_a?(Types::Scalar)
                       "params.fetch(#{member_name}, 0)"
@@ -151,7 +152,7 @@ module Ynl
                   group = []
                   size = 0
                   struct.members.drop(index).each do |member|
-                    width = small_scalar_width(member.type)
+                    width = grouped_member_width(member.type)
                     break unless width && size + width <= 4
                     group << member
                     size += width
@@ -163,14 +164,21 @@ module Ynl
                     write('word = decoder.get_u32')
                     offset = 0
                     group.each do |member|
-                      value = "value_#{index}"
-                      write("#{value} = #{grouped_scalar_value(member.type, offset)}")
-                      values << value
-                      offset += small_scalar_width(member.type)
+                      unless member.type.is_a?(Types::Pad)
+                        value = "value_#{index}"
+                        write("#{value} = #{grouped_scalar_value(member.type, offset)}")
+                        values << value
+                      end
+                      offset += grouped_member_width(member.type)
                       index += 1
                     end
                   else
                     member = struct.members[index]
+                    if member.type.is_a?(Types::Pad)
+                      write("decoder.skip(#{member.type.length})")
+                      index += 1
+                      next
+                    end
                     member_name = member.name.as_variable_name.as_symbol_literal
                     value = "value_#{index}"
                     if reader = struct_member_reader(member.type)
@@ -196,6 +204,12 @@ module Ynl
               write('def encode(encoder)')
               indent do
                 struct.members.each do |member|
+                  if member.type.is_a?(Types::Pad)
+                    if member.type.length
+                      write("encoder.put_string(#{("\0" * member.type.length).dump})")
+                    end
+                    next
+                  end
                   member_name = member.name.as_variable_name.as_symbol_literal
                   write("MEMBERS[#{member_name}].encode(encoder, public_send(#{member_name}))")
                 end
@@ -1215,7 +1229,8 @@ module Ynl
       end
     end
 
-    private def small_scalar_width(type)
+    private def grouped_member_width(type)
+      return type.length if type.is_a?(Types::Pad)
       return unless type.is_a?(Types::Scalar)
 
       case type.type
@@ -1226,7 +1241,7 @@ module Ynl
 
     private def grouped_scalar_value(type, offset)
       low = "((word >> #{offset * 8}) & 0xff)"
-      if small_scalar_width(type) == 1
+      if grouped_member_width(type) == 1
         value = low
         sign = '0x80'
       else
