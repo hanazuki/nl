@@ -143,6 +143,12 @@ RSpec.describe Ynl do
       expect(generated.string).to include('selector_bindings: [::Nl::Selector::Local.new(0)]')
       expect(generated.string).to include('selector_bindings: [::Nl::Selector::External.new(0)]')
       expect(cls::AttributeSets::OuterAttrs.by_name(:kind).selector_slot).to eq(0)
+      expect(cls::AttributeSets::OuterAttrs::LOCAL_SELECTOR_NAMES).to eq([:kind])
+      expect(cls::AttributeSets::OuterAttrs::LOCAL_SELECTOR_NAMES).to be_frozen
+      expect(cls::AttributeSets::OuterAttrs::EXTERNAL_SELECTOR_NAMES).to equal(Nl::AttributeSet::EXTERNAL_SELECTOR_NAMES)
+      expect(cls::AttributeSets::ChildAttrs::LOCAL_SELECTOR_NAMES).to equal(Nl::AttributeSet::LOCAL_SELECTOR_NAMES)
+      expect(cls::AttributeSets::ChildAttrs::EXTERNAL_SELECTOR_NAMES).to eq([:kind])
+      expect(cls::AttributeSets::ChildAttrs::EXTERNAL_SELECTOR_NAMES).to be_frozen
       expect(generated.string).not_to include('SELECTOR_SLOTS_BY_')
       expect(generated.string).to include('# @rbs return: AttributeSets::ChildAttrs')
       expect(generated.string).to include('def child; self[:"child"]; end')
@@ -224,6 +230,20 @@ RSpec.describe Ynl do
       end.to raise_error(
         Nl::Decoder::Error,
         'selector :kind must precede the dependent attribute',
+      )
+
+      expect do
+        cls::AttributeSets::LeafAttrs.decode(Nl::Decoder.new(encoded.buffer))
+      end.to raise_error(
+        Nl::Decoder::Error,
+        'selector :kind must precede the dependent attribute',
+      )
+
+      expect do
+        cls::AttributeSets::LeafAttrs.new([1, attrs[:data]]).encode(Nl::Encoder.new)
+      end.to raise_error(
+        ArgumentError,
+        'selector :kind is required by a dependent attribute',
       )
 
       expect do

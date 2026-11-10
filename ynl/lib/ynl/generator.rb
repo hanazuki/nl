@@ -233,10 +233,18 @@ module Ynl
             emit_class(name.as_class_name, '::Nl::AttributeSet') do
               selector_names = @local_selectors.fetch(attr_set)
               external_selector_names = @external_selectors.fetch(attr_set)
-              unless selector_names.empty? && external_selector_names.empty?
+              unless selector_names.empty?
                 emit_const(
-                  'SELECTOR_NAMES',
-                  "{local: [#{selector_names.map { it.as_variable_name.as_symbol_literal }.join(', ')}], external: [#{external_selector_names.map { it.as_variable_name.as_symbol_literal }.join(', ')}]}.freeze",
+                  'LOCAL_SELECTOR_NAMES',
+                  "[#{selector_names.map { it.as_variable_name.as_symbol_literal }.join(', ')}].freeze",
+                  internal: true,
+                  make_shareable: true,
+                )
+              end
+              unless external_selector_names.empty?
+                emit_const(
+                  'EXTERNAL_SELECTOR_NAMES',
+                  "[#{external_selector_names.map { it.as_variable_name.as_symbol_literal }.join(', ')}].freeze",
                   internal: true,
                   make_shareable: true,
                 )
