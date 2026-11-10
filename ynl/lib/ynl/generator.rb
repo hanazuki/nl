@@ -149,7 +149,12 @@ module Ynl
                 indent do
                   struct.members.each do |member|
                     member_name = member.name.as_variable_name.as_symbol_literal
-                    write("MEMBERS[#{member_name}].decode(decoder),")
+                    if reader = struct_member_reader(member.type)
+                      # Inline scalar decoding to avoid datatype lookup and dispatch.
+                      write("decoder.#{reader},")
+                    else
+                      write("MEMBERS[#{member_name}].decode(decoder),")
+                    end
                   end
                 end
                 write(')')
@@ -1182,6 +1187,20 @@ module Ynl
         "::Nl::DataTypes::CheckedPayload.new(#{datatype}, check: #{to_checks(checks)})"
       else
         datatype
+      end
+    end
+
+    private def struct_member_reader(type)
+      return unless type.is_a?(Types::Scalar)
+      return if ['uint', 'sint'].include?(type.type)
+
+      case type.byte_order
+      when :host
+        "get_host_#{type.type}"
+      when :big
+        "get_#{type.type.upcase}"
+      when :little
+        "get_#{['u8', 's8'].include?(type.type) ? type.type.upcase : type.type}"
       end
     end
 

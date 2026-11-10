@@ -14,6 +14,32 @@ definitions:
     type: struct
     members:
       - { name: value, type: u16 }
+  -
+    name: scalars
+    type: struct
+    members:
+      - { name: host, type: u32 }
+      - { name: little-byte, type: u8, byte-order: little-endian }
+      - { name: big-byte, type: s8, byte-order: big-endian }
+      - { name: little-short, type: u16, byte-order: little-endian }
+      - { name: big-short, type: s16, byte-order: big-endian }
+      - { name: big-word, type: u32, byte-order: big-endian }
+      - { name: little-word, type: s32, byte-order: little-endian }
+      - { name: little-long, type: u64, byte-order: little-endian }
+      - { name: big-long, type: s64, byte-order: big-endian }
+      - { name: native-int, type: int }
+  -
+    name: variable-integer
+    type: struct
+    members:
+      - { name: value, type: uint }
+  -
+    name: padded
+    type: struct
+    members:
+      - { name: prefix, type: u8 }
+      - { name: reserved, type: pad, len: 3 }
+      - { name: suffix, type: u32 }
 attribute-sets:
   -
     name: attrs
