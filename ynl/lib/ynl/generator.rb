@@ -55,7 +55,6 @@ module Ynl
     # @rbs (?superclass: String?, ?namespace: String?, ?default_resolver: String?) -> void
     def generate(superclass: nil, namespace: nil, default_resolver: nil)
       raw = @ynl.protocol == 'netlink-raw'
-      @wire = raw ? '::Nl::Raw' : '::Nl::Genl'
       superclass ||= raw ? '::Nl::Raw::Family' : '::Nl::Genl::Family'
       build_selector_plan
 
@@ -622,10 +621,18 @@ module Ynl
 
     private def emit_message_class(name, message, fixed_header:, attribute_set:, doc:)
       emit_comment(doc)
-      emit_class(name, "#@wire::Message") do
+      emit_class(name, '::Nl::Message') do
         emit_const('TYPE', message.value)
         emit_const('FIXED_HEADER', fixed_header&.then { 'Structs::' + it.name.as_class_name } || 'nil')
         emit_const('ATTRIBUTE_SET', "AttributeSets::#{attribute_set.name.as_class_name}")
+        emit_comment('Decodes the family-specific payload after the protocol headers.')
+        emit_rbs_comment('(::Nl::Decoder decoder) -> instance')
+        write('def self.decode(decoder)')
+        indent do
+          header_decode = fixed_header ? 'FIXED_HEADER.decode(decoder)' : 'nil'
+          write("new(#{header_decode}, ATTRIBUTE_SET.decode(decoder))")
+        end
+        write('end')
         attribute_params = attribute_set.attributes.map(&:name) & message.attributes
         emit_const('ATTRIBUTES', "%i[#{attribute_params.map { it.as_variable_name }.join(' ')}].freeze")
         fixed_header&.members&.each do |member|
@@ -688,6 +695,16 @@ module Ynl
       emit_class(name, '::Nl::SubMessage') do
         emit_const('FIXED_HEADER', format.fixed_header&.then { 'Structs::' + it.name.as_class_name } || 'nil')
         emit_const('ATTRIBUTE_SET', format.attribute_set&.then { 'AttributeSets::' + it.name.as_class_name } || 'nil')
+
+        emit_comment('Decodes the selector-specific payload.')
+        emit_rbs_comment('(::Nl::Decoder decoder, ?external_selectors: ::Array[untyped]) -> instance')
+        write('def self.decode(decoder, external_selectors: ::Nl::Selector::EMPTY_VALUES)')
+        indent do
+          header_decode = format.fixed_header ? 'FIXED_HEADER.decode(decoder)' : 'nil'
+          attributes_decode = format.attribute_set ? 'ATTRIBUTE_SET.decode(decoder, external_selectors:)' : 'nil'
+          write("new(#{header_decode}, #{attributes_decode})")
+        end
+        write('end')
 
         format.fixed_header&.members&.each do |member|
           next if member.type.is_a?(Types::Pad)

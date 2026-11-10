@@ -22,6 +22,105 @@ RSpec.describe Ynl do
   end
 
   describe Ynl::Family do
+    %w[netlink-raw genetlink].each do |wire_protocol|
+      context "with generated #{wire_protocol} message decoders" do
+        let(:generated) { StringIO.new }
+        let(:family_class) do
+          source = <<~YAML
+            name: payload-codec
+            protocol: #{wire_protocol}
+            #{wire_protocol == 'netlink-raw' ? 'protonum: 0' : 'version: 1'}
+            definitions:
+              - name: header
+                type: struct
+                members:
+                  - {name: tag, type: u32}
+            attribute-sets:
+              - name: attrs
+                attributes:
+                  - {name: value, type: u32}
+            operations:
+              list:
+                - name: echo
+                  value: 24
+                  fixed-header: header
+                  attribute-set: attrs
+                  do:
+                    request:
+                      attributes: [value]
+                    reply:
+                      attributes: [value]
+                - name: no-header
+                  value: 25
+                  attribute-set: attrs
+                  do:
+                    reply:
+                      attributes: [value]
+          YAML
+          Ynl::Family.generate(StringIO.new(source), generated)
+          Module.new.module_eval(generated.string + "\nPayloadCodec")
+        end
+        let(:message_class) { family_class::Messages::DoEchoReply }
+
+        it 'round-trips the family payload through the protocol' do
+          expect(message_class.superclass).to equal(Nl::Message)
+          message = message_class.from_params(tag: 7, value: 42)
+          if wire_protocol == 'netlink-raw'
+            protocol = Nl::Raw::Protocol.new(0)
+            endpoint = Nl::Raw::Endpoint.new(family_class)
+          else
+            protocol = Nl::Genl::Protocol.new
+            info = Nl::Genl::FamilyInfo.new(id: 42, multicast_groups: {})
+            endpoint = Nl::Genl::Endpoint.new(family_class, info)
+          end
+          request = Nl::Raw::Request.new(type: endpoint.frame_type(message_class), flags: 0, message:)
+          encoder = Nl::Encoder.new
+          protocol.encode_message(encoder, endpoint, request, seq: 1, pid: 77)
+          decoder = Nl::Decoder.new(encoder.buffer)
+          header = Nl::Raw::NlMsgHdr.decode(decoder)
+
+          decoded = protocol.decode_frame(endpoint, header, decoder, message_class).message
+
+          expect(decoded).to have_attributes(tag: 7, value: 42)
+          expect(decoder.remaining).to eq(0)
+        end
+
+        it 'decodes payloads directly without protocol headers or a type argument' do
+          message = message_class.from_params(tag: 7, value: 42)
+          encoder = Nl::Encoder.new
+          message.encode(encoder)
+
+          decoded = message_class.decode(Nl::Decoder.new(encoder.buffer))
+
+          expect(decoded).to have_attributes(tag: 7, value: 42)
+        end
+
+        it 'decodes messages with no family-specific fixed header' do
+          klass = family_class::Messages::DoNoHeaderReply
+          encoder = Nl::Encoder.new
+          klass.from_params(value: 42).encode(encoder)
+
+          decoded = klass.decode(Nl::Decoder.new(encoder.buffer))
+
+          expect(decoded.fixed_header).to be_nil
+          expect(decoded.value).to eq(42)
+        end
+
+        it 'inherits the generated layout without looking up subclass constants' do
+          subclass = Class.new(message_class)
+          subclass.const_set(:FIXED_HEADER, nil)
+          subclass.const_set(:ATTRIBUTE_SET, nil)
+          encoder = Nl::Encoder.new
+          message_class.from_params(tag: 7, value: 42).encode(encoder)
+
+          decoded = subclass.decode(Nl::Decoder.new(encoder.buffer))
+
+          expect(decoded).to be_a(subclass)
+          expect(decoded).to have_attributes(tag: 7, value: 42)
+        end
+      end
+    end
+
     it 'generates and round-trips statically selected sub-messages' do
       path = Pathname(__dir__) + 'fixtures/sub_messages.yaml'
       generated = StringIO.new
@@ -51,6 +150,33 @@ RSpec.describe Ynl do
         '# @rbs return: SubMessages::PayloadMessage::Foo | SubMessages::PayloadMessage::Bar | ::Nl::RawSubMessage',
       )
       expect(generated.string).to include('def data; self[:"data"]; end')
+    end
+
+    it 'decodes an empty sub-message format' do
+      cls = Ynl::Family.build(Pathname(__dir__) + 'fixtures/sub_messages.yaml')
+      klass = cls::SubMessages::PayloadMessage::Bar
+      decoder = Nl::Decoder.new(IO::Buffer.for(''))
+
+      decoded = klass.decode(decoder)
+
+      expect(decoded).to be_a(klass)
+      expect(decoded.fixed_header).to be_nil
+      expect(decoded.attributes).to be_nil
+    end
+
+    it 'inherits the generated sub-message layout without looking up subclass constants' do
+      cls = Ynl::Family.build(Pathname(__dir__) + 'fixtures/sub_messages.yaml')
+      klass = cls::SubMessages::PayloadMessage::Foo
+      subclass = Class.new(klass)
+      subclass.const_set(:FIXED_HEADER, nil)
+      subclass.const_set(:ATTRIBUTE_SET, nil)
+      encoder = Nl::Encoder.new
+      klass.from_params(header_value: 7, payload_value: 42).encode(encoder)
+
+      decoded = subclass.decode(Nl::Decoder.new(encoder.buffer))
+
+      expect(decoded).to be_a(subclass)
+      expect(decoded).to have_attributes(header_value: 7, payload_value: 42)
     end
 
     it 'compiles enum selector names to their integer values' do
@@ -741,8 +867,7 @@ RSpec.describe Ynl do
         header = Nl::Raw::NlMsgHdr.decode(decoder)
         payload = decoder
 
-        selected = protocol.notification_class(endpoint, header, payload, family_class::NOTIFICATIONS)
-        notification = protocol.decode_notification(endpoint, header, payload, selected)
+        notification = protocol.decode_notification(endpoint, header, payload, family_class::NOTIFICATIONS)
 
         expect(notification).to be_a(message_class)
         expect(notification.item_id).to eq 7

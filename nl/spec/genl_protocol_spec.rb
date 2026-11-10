@@ -14,7 +14,11 @@ RSpec.describe Nl::Genl::Protocol do
   GenlNotificationAttributes.const_set(:BY_TYPE, {}.freeze)
   GenlNotificationAttributes.const_set(:BY_NAME, {}.freeze)
 
-  GenlNotification = Class.new(Nl::Genl::Message)
+  GenlNotification = Class.new(Nl::Message) do
+    def self.decode(decoder)
+      new(nil, GenlNotificationAttributes.decode(decoder))
+    end
+  end
   GenlNotification.const_set(:TYPE, 9)
   GenlNotification.const_set(:FIXED_HEADER, nil)
   GenlNotification.const_set(:ATTRIBUTE_SET, GenlNotificationAttributes)
@@ -28,6 +32,59 @@ RSpec.describe Nl::Genl::Protocol do
   let(:info) { Nl::Genl::FamilyInfo.new(id: 42, multicast_groups: {}) }
   let(:endpoint) { Nl::Genl::Endpoint.new(family, info) }
   subject(:protocol) { described_class.new }
+
+  def reply_payload(command = 9)
+    Nl::Decoder.new(IO::Buffer.for([command, 1, 0].pack('CCS!')))
+  end
+
+  it 'consumes the Generic header before decoding a reply payload' do
+    header = Nl::Raw::NlMsgHdr.new(20, 42, 0, 1, 77)
+    payload = reply_payload
+    expect(Nl::Genl::GenlMsgHdr).to receive(:decode).once.and_call_original
+
+    frame = protocol.decode_frame(endpoint, header, payload, GenlNotification)
+
+    expect(frame.header).to equal(header)
+    expect(frame.message).to be_a(GenlNotification)
+    expect(payload.remaining).to eq(0)
+  end
+
+  it 'rejects an unexpected reply command before decoding the family payload' do
+    header = Nl::Raw::NlMsgHdr.new(20, 42, 0, 1, 77)
+    expect(GenlNotification).not_to receive(:decode)
+
+    expect do
+      protocol.decode_frame(endpoint, header, reply_payload(8), GenlNotification)
+    end.to raise_error(Nl::ProtocolViolation, 'Expected command 9, got 8')
+  end
+
+  it 'rejects replies from another family before reading the Generic header' do
+    header = Nl::Raw::NlMsgHdr.new(20, 43, 0, 1, 77)
+    expect(Nl::Genl::GenlMsgHdr).not_to receive(:decode)
+
+    expect do
+      protocol.decode_frame(endpoint, header, reply_payload, GenlNotification)
+    end.to raise_error(Nl::ProtocolViolation, 'Expected family ID 42, got 43')
+  end
+
+  it 'rejects a truncated Generic header' do
+    header = Nl::Raw::NlMsgHdr.new(19, 42, 0, 1, 77)
+    payload = Nl::Decoder.new(IO::Buffer.for([9, 1, 0].pack('CCC')))
+    expect(GenlNotification).not_to receive(:decode)
+
+    expect do
+      protocol.decode_frame(endpoint, header, payload, GenlNotification)
+    end.to raise_error(Nl::Decoder::OutOfBounds)
+  end
+
+  it 'decodes control frames without expecting a Generic header' do
+    header = Nl::Raw::NlMsgHdr.new(16, Nl::Raw::NLMSG_DONE, 0, 1, 77)
+    expect(Nl::Genl::GenlMsgHdr).not_to receive(:decode)
+
+    frame = protocol.decode_frame(endpoint, header, Nl::Decoder.new(IO::Buffer.for('')), nil)
+
+    expect(frame).to eq(Nl::Raw::DoneFrame.new(header, nil))
+  end
 
   it 'keeps the family ID in the frame header and the command ID in the message' do
     request = protocol.build_request(endpoint, :do, GenlRequest, {})
@@ -45,9 +102,25 @@ RSpec.describe Nl::Genl::Protocol do
     classes = {9 => GenlNotification}
 
     expect(protocol.notification_frame?(endpoint, header, payload)).to be(true)
-    message_class = protocol.notification_class(endpoint, header, payload, classes)
-    expect(message_class).to equal(GenlNotification)
-    expect(protocol.decode_notification(endpoint, header, payload, message_class)).to be_a(GenlNotification)
+    expect(Nl::Genl::GenlMsgHdr).to receive(:decode).once.and_call_original
+    expect(protocol.decode_notification(endpoint, header, payload, classes)).to be_a(GenlNotification)
+    expect(payload.remaining).to eq(0)
+  end
+
+  it 'ignores an unknown notification command after consuming its Generic header' do
+    header = Nl::Raw::NlMsgHdr.new(20, 42, 0, 0, 0)
+    payload = reply_payload(8)
+
+    expect(protocol.decode_notification(endpoint, header, payload, {9 => GenlNotification})).to be_nil
+    expect(payload.remaining).to eq(0)
+  end
+
+  it 'ignores notifications from another family without consuming their payload' do
+    header = Nl::Raw::NlMsgHdr.new(20, 43, 0, 0, 0)
+    payload = reply_payload
+
+    expect(protocol.decode_notification(endpoint, header, payload, {9 => GenlNotification})).to be_nil
+    expect(payload.remaining).to eq(4)
   end
 
   it 'resolves multicast groups from family information' do

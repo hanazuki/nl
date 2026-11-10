@@ -43,8 +43,7 @@ RSpec.describe Nl::NotificationRouter do
     def notification_route_keys(endpoint, _classes) = [endpoint]
     def notification_frame_key(header) = header.type
     def notification_frame?(_endpoint, _header, _payload) = true
-    def notification_class(_endpoint, _header, _payload, _classes) = nil
-    def decode_notification(*) = raise 'must not decode an unknown notification'
+    def decode_notification(_endpoint, _header, _payload, _classes) = nil
   end
 
   it 'consumes a notification without a decoder without enqueueing it' do

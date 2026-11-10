@@ -47,7 +47,7 @@ module Nl
       end
 
       # Decodes one frame using the reply class associated with its sequence.
-      def decode_frame(_endpoint, header, decoder, message_class)
+      def decode_frame(endpoint, header, decoder, message_class)
         if header.type < Raw::NLMSG_MIN_TYPE
           case header.type
           when Raw::NLMSG_ERROR
@@ -72,8 +72,16 @@ module Nl
         else
           raise ArgumentError, 'reply class is required for a data message' unless message_class
 
-          DataFrame.new(header, message_class.decode(decoder, type: header.type))
+          DataFrame.new(header, decode_message(endpoint, header, decoder, message_class))
         end
+      end
+
+      private def decode_message(_endpoint, header, decoder, message_class)
+        unless message_class::TYPE == header.type
+          raise ProtocolViolation, "Expected message type #{message_class::TYPE}, got #{header.type}"
+        end
+
+        message_class.decode(decoder)
       end
 
       def send_message(socket, endpoint, request, seq:, pid:)
@@ -99,12 +107,8 @@ module Nl
         header.type >= Raw::NLMSG_MIN_TYPE
       end
 
-      def notification_class(_endpoint, header, _payload, classes)
-        classes[header.type]
-      end
-
-      def decode_notification(endpoint, header, payload, message_class)
-        decode_frame(endpoint, header, payload, message_class).message
+      def decode_notification(_endpoint, header, payload, classes)
+        classes[header.type]&.decode(payload)
       end
     end
   end

@@ -13,9 +13,6 @@ RSpec.describe 'Ractor compatibility of generated families', fork: true do
   def encode_message(message)
     ractor_value(Ractor.new(message) do |value|
       encoder = Nl::Encoder.new
-      if value.is_a?(Nl::Genl::Message)
-        Nl::Genl::GenlMsgHdr.new(value.class::TYPE, 1, 0).encode(encoder)
-      end
       value.encode(encoder)
       encoder.buffer.get_string
     end)
@@ -23,7 +20,7 @@ RSpec.describe 'Ractor compatibility of generated families', fork: true do
 
   def decode_message(message_class, bytes)
     ractor_value(Ractor.new(message_class, bytes) do |klass, wire|
-      klass.decode(Nl::Decoder.new(IO::Buffer.for(wire)), type: klass::TYPE)
+      klass.decode(Nl::Decoder.new(IO::Buffer.for(wire)))
     end)
   end
 

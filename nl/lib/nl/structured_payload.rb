@@ -42,12 +42,6 @@ module Nl
         new(fixed_header, attributes)
       end
 
-      def decode(decoder, external_selectors: Selector::EMPTY_VALUES)
-        fixed_header = self::FIXED_HEADER&.decode(decoder)
-        attributes = self::ATTRIBUTE_SET&.decode(decoder, external_selectors:)
-        new(fixed_header, attributes)
-      end
-
       private def attribute_names
         self::ATTRIBUTE_SET::BY_NAME.keys
       end

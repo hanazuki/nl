@@ -352,8 +352,7 @@ RSpec.describe Nl::Async do
       def notification_frame_key(_header) = nil
       def frame_type(message_class) = message_class::TYPE
       def notification_frame?(_endpoint, header, _payload) = header.type == 43
-      def notification_class(_endpoint, header, _payload, classes) = classes[header.type]
-      def decode_notification(_endpoint, _header, payload, _message_class) = payload.get_string
+      def decode_notification(_endpoint, _header, payload, _classes) = payload.get_string
     end
 
     def frame(type:, sequence:, flags: 0, payload: ''.b)
