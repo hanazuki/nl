@@ -29,6 +29,20 @@ definitions:
       - { name: big-long, type: s64, byte-order: big-endian }
       - { name: native-int, type: int }
   -
+    name: grouped
+    type: struct
+    members:
+      - { name: byte-a, type: u8 }
+      - { name: byte-b, type: s8 }
+      - { name: byte-c, type: u8 }
+      - { name: byte-d, type: s8 }
+      - { name: short-a, type: u16 }
+      - { name: short-b, type: s16 }
+      - { name: mixed-a, type: u8 }
+      - { name: mixed-b, type: s16, byte-order: big-endian }
+      - { name: mixed-c, type: u8 }
+      - { name: tail, type: u8 }
+  -
     name: variable-integer
     type: struct
     members:

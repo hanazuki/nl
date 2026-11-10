@@ -160,7 +160,7 @@ RSpec.describe Ynl do
       expect(generated.string).to include(':"inner", #: Structs::Inner')
       expect(generated.string).to include('bytes: ::Nl::DataTypes::Binary.new(length: 3)')
       expect(generated.string).to include('inner: ::Nl::DataTypes::Struct.new(Structs::Inner)')
-      expect(generated.string).to include('decoder.get_host_u8,')
+      expect(generated.string).to include('decoder.get_host_u8')
       expect(generated.string).to include('MEMBERS[:"prefix"].encode(encoder, public_send(:"prefix"))')
       expect(generated.string).to include('MEMBERS[:"prefix"].coerce(params.fetch(:"prefix", 0), context:)')
       expect(generated.string).not_to include('.map {|name, datatype|')
@@ -194,6 +194,26 @@ RSpec.describe Ynl do
       expect(decoder.remaining).to eq(0)
       expect { cls::Structs::Scalars.decode(Nl::Decoder.new(IO::Buffer.for(bytes.chop))) }
         .to raise_error(Nl::Decoder::OutOfBounds)
+    end
+
+    it 'decodes grouped small integers with signed and mixed-endian fields' do
+      cls = Ynl::Family.build(Pathname(__dir__) + 'fixtures/fixed_struct_members.yaml')
+      values = [255, -128, 128, -1, 0xfedc, -32768, 254, -1234, 253, 252]
+      bytes = values.pack('CcCcSsCs>CC')
+      decoder = Nl::Decoder.new(IO::Buffer.for(bytes))
+      expect(decoder).to receive(:get_u32).exactly(3).times.and_call_original
+
+      expect(cls::Structs::Grouped.decode(decoder).to_a).to eq(values)
+      expect(decoder.remaining).to eq(0)
+    end
+
+    it 'rejects a grouped read crossing the decoder limit' do
+      cls = Ynl::Family.build(Pathname(__dir__) + 'fixtures/fixed_struct_members.yaml')
+      decoder = Nl::Decoder.new(IO::Buffer.for("\0" * 13))
+
+      expect do
+        decoder.limit(3) { cls::Structs::Grouped.decode(decoder) }
+      end.to raise_error(Nl::Decoder::OutOfBounds)
     end
 
     it 'retains variable-width integer encoding in struct members' do
