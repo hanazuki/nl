@@ -20,6 +20,18 @@ RSpec.describe Nl::DataTypes::NestTypeValue do
     expect(decoder).not_to be_available
   end
 
+  it 'writes nested headers with measured lengths and nested flags at each level' do
+    leaf = Object.new
+    def leaf.encode(encoder) = encoder.put_string('x')
+    encoder = Nl::Encoder.new(1)
+
+    described_class.new(leaf_type, 2).encode(encoder, {7 => {9 => leaf}})
+
+    nested = Nl::Raw::NLA_F_NESTED
+    expected = [12, nested | 7, 5, nested | 9].pack('SSSS') + "x\0\0\0"
+    expect(encoder.buffer.get_string).to eq(expected)
+  end
+
   it 'coerces hashes at the innermost level to attribute sets' do
     attribute_set = Class.new(Nl::AttributeSet).tap do |set|
       attribute = Nl::AttributeSet::Definition.new(

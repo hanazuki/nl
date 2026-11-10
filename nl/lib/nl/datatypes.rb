@@ -313,9 +313,9 @@ module Nl
 
       private def encode_level(encoder, values, levels, external_selectors)
         values.each do |type, value|
-          nlattr = Raw::NlAttr.new(0, type | Raw::NLA_F_NESTED)
           encoder.measure(Endian::Host::U16) do
-            nlattr.encode(encoder)
+            encoder.put_value(Endian::Host::U16, 0)  # nla_len
+            encoder.put_value(Endian::Host::U16, type | Raw::NLA_F_NESTED)  # nla_type
             if levels == 1
               if external_selectors.empty?
                 value.encode(encoder)
@@ -348,7 +348,7 @@ module Nl
       private def decode_level(decoder, levels, external_selectors)
         result = {}
         while decoder.available?(Raw::NLA_HDRLEN)
-          # Inline NlAttr.decode to avoid allocating a header object.
+          # Read the attribute header without allocating a wrapper.
           length = decoder.get_host_u16
           type = decoder.get_host_u16 & Raw::NLA_TYPE_MASK
           if length < Raw::NLA_HDRLEN
@@ -383,9 +383,9 @@ module Nl
 
       def encode(encoder, values, context: nil)
         values.each_with_index do |value, i|
-          nlattr = Raw::NlAttr.new(0, i + 1)
           encoder.measure(Endian::Host::U16) do
-            nlattr.encode(encoder)
+            encoder.put_value(Endian::Host::U16, 0)  # nla_len
+            encoder.put_value(Endian::Host::U16, i + 1)  # nla_type
             @sub_type.encode(encoder, value, context:)
           end
           encoder.align_to(Raw::NLA_ALIGNTO)
@@ -399,7 +399,7 @@ module Nl
       def decode(decoder, context: nil, nlattr_type_flags: 0)
         result = []
         while decoder.available?
-          # Inline NlAttr.decode to avoid allocating a header object.
+          # Read the attribute header without allocating a wrapper.
           length = decoder.get_host_u16
           type = decoder.get_host_u16
           if length < Raw::NLA_HDRLEN

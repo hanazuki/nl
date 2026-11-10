@@ -48,9 +48,9 @@ module Nl
       datatype = definition.datatype
       flags = datatype.nlattr_type_flags(value, context:)
       type = definition.id | flags
-      nlattr = Raw::NlAttr.new(0, type)
       encoder.measure(Endian::Host::U16) do
-        nlattr.encode(encoder)
+        encoder.put_value(Endian::Host::U16, 0)  # nla_len
+        encoder.put_value(Endian::Host::U16, type)  # nla_type
         datatype.encode(encoder, value, context:)
       end
       encoder.align_to(Raw::NLA_ALIGNTO)

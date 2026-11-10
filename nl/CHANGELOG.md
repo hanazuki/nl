@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Remove `Raw::NlAttr`; attribute sets and array codecs write their headers
+  directly without allocating a header object.
 - Unify `Raw::Message` and `Genl::Message` as `Nl::Message`.
 - Avoid validation overhead for datatypes without checks by moving validation
   into opt-in wrappers. Replace datatype constructor `check:` arguments with
