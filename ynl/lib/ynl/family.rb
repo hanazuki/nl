@@ -12,7 +12,8 @@ module Ynl
     # @return [Class<Nl::Family>] the generated family class
     # @rbs (String | _PathLike path) -> Class
     def self.build(path)
-      buf = StringIO.new(Generator::PRELUDE.dup)
+      buf = StringIO.new
+      buf.write(Generator::PRELUDE)
       classname = File.open(path) {|f| generate(f, buf, namespace: 'self') }
 
       Module.new { eval(buf.string) }.const_get(classname)
