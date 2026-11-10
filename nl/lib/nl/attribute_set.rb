@@ -34,7 +34,8 @@ module Nl
       self
     end
 
-    SELECTOR_NAMES = {local: [].freeze, external: [].freeze}.freeze
+    LOCAL_SELECTOR_NAMES = [].freeze
+    EXTERNAL_SELECTOR_NAMES = [].freeze
 
     private def definition_for(type)
       case type
@@ -58,7 +59,7 @@ module Nl
 
     def encode(encoder, external_selectors: Selector::EMPTY_VALUES)
       definitions = self.class::BY_TYPE
-      local_count = self.class::SELECTOR_NAMES.fetch(:local).length
+      local_count = self.class::LOCAL_SELECTOR_NAMES.length
       context = Selector::State.for(local_count, external_selectors)
       unless local_count == 0
         i = 0
@@ -81,7 +82,8 @@ module Nl
     end
 
     private def selector_name(error)
-      self.class::SELECTOR_NAMES.fetch(error.scope).fetch(error.index)
+      names = error.scope == :local ? self.class::LOCAL_SELECTOR_NAMES : self.class::EXTERNAL_SELECTOR_NAMES
+      names.fetch(error.index)
     end
 
     class << self
@@ -115,7 +117,7 @@ module Nl
       end
 
       def decode(decoder, external_selectors: Selector::EMPTY_VALUES)
-        local_count = self::SELECTOR_NAMES.fetch(:local).length
+        local_count = self::LOCAL_SELECTOR_NAMES.length
         context = Selector::State.for(local_count, external_selectors)
         attributes = []
         definitions = self::BY_TYPE
@@ -134,11 +136,11 @@ module Nl
         raise ArgumentError, "unknown attributes: #{unknown.join(', ')}" unless unknown.empty?
 
         context = Selector::State.for(
-          self::SELECTOR_NAMES.fetch(:local).length,
+          self::LOCAL_SELECTOR_NAMES.length,
           external_selectors,
         )
         coerced_selectors = {}
-        self::SELECTOR_NAMES.fetch(:local).each_with_index do |name, slot|
+        self::LOCAL_SELECTOR_NAMES.each_with_index do |name, slot|
           next unless params.key?(name)
           definition = self::BY_NAME.fetch(name)
           value = definition.datatype.coerce(params.fetch(name))
@@ -173,7 +175,8 @@ module Nl
       end
 
       private def selector_name(error)
-        self::SELECTOR_NAMES.fetch(error.scope).fetch(error.index)
+        names = error.scope == :local ? self::LOCAL_SELECTOR_NAMES : self::EXTERNAL_SELECTOR_NAMES
+        names.fetch(error.index)
       end
     end
   end
