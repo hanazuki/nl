@@ -86,8 +86,14 @@ module Nl
 
     class << self
       private def decode1(decoder, context, attributes, definitions)
-        length = decoder.get_host_u16
-        type = decoder.get_host_u16
+        header = decoder.get_host_u32
+        if IO::Buffer::HOST_ENDIAN == IO::Buffer::LITTLE_ENDIAN
+          length = header & 0xffff
+          type = header >> 16
+        else
+          length = header >> 16
+          type = header & 0xffff
+        end
         if length < Raw::NLA_HDRLEN
           raise Decoder::Error,
             "attribute length must be at least #{Raw::NLA_HDRLEN} bytes, got #{length}"
