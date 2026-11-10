@@ -214,6 +214,8 @@ module Nl
       end
 
       private def selectors(context)
+        return Selector::EMPTY_VALUES if @selector_bindings.empty?
+
         @selector_bindings.map { it.read(context) }
       end
     end
@@ -280,6 +282,8 @@ module Nl
       end
 
       private def selectors(format, context)
+        return Selector::EMPTY_VALUES if format.selector_bindings.empty?
+
         format.selector_bindings.map { it.read(context) }
       end
     end
@@ -370,6 +374,8 @@ module Nl
       end
 
       private def selectors(context)
+        return Selector::EMPTY_VALUES if @selector_bindings.empty?
+
         @selector_bindings.map { it.read(context) }
       end
     end
