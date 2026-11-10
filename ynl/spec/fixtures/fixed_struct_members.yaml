@@ -29,6 +29,20 @@ definitions:
       - { name: big-long, type: s64, byte-order: big-endian }
       - { name: native-int, type: int }
   -
+    name: grouped
+    type: struct
+    members:
+      - { name: byte-a, type: u8 }
+      - { name: byte-b, type: s8 }
+      - { name: byte-c, type: u8 }
+      - { name: byte-d, type: s8 }
+      - { name: short-a, type: u16 }
+      - { name: short-b, type: s16 }
+      - { name: mixed-a, type: u8 }
+      - { name: mixed-b, type: s16, byte-order: big-endian }
+      - { name: mixed-c, type: u8 }
+      - { name: tail, type: u8 }
+  -
     name: variable-integer
     type: struct
     members:
@@ -40,6 +54,25 @@ definitions:
       - { name: prefix, type: u8 }
       - { name: reserved, type: pad, len: 3 }
       - { name: suffix, type: u32 }
+  -
+    name: internal-pad
+    type: struct
+    members:
+      - { name: prefix, type: u8 }
+      - { name: reserved, type: pad, len: 1 }
+      - { name: suffix, type: u16 }
+  -
+    name: ungrouped-pad
+    type: struct
+    members:
+      - { name: leading, type: pad, len: 5 }
+      - { name: value, type: u32 }
+      - { name: trailing, type: pad, len: 2 }
+  -
+    name: only-pad
+    type: struct
+    members:
+      - { name: reserved, type: pad, len: 2 }
 attribute-sets:
   -
     name: attrs
