@@ -112,7 +112,7 @@ module Ynl
               if struct.members.any? { it.type.is_a?(Types::Binary) && it.type.struct }
                 deferred_struct_consts << ["Structs::#{name.as_class_name}::MEMBERS", members]
               else
-                emit_const('MEMBERS', members, rbs: 'Hash[::Symbol, ::Nl::_DataType]', internal: true)
+                emit_const('MEMBERS', members, rbs: 'Hash[::Symbol, ::Nl::_DataType]', internal: true, make_shareable: true)
               end
 
               emit_internal
@@ -225,7 +225,7 @@ module Ynl
           end
         end
         deferred_struct_consts.each do |name, members|
-          emit_const(name, members, rbs: 'Hash[::Symbol, ::Nl::_DataType]', internal: true)
+          emit_const(name, members, rbs: 'Hash[::Symbol, ::Nl::_DataType]', internal: true, make_shareable: true)
         end
 
         emit_module('AttributeSets') do
@@ -239,6 +239,7 @@ module Ynl
                   'SELECTOR_NAMES',
                   "{local: [#{selector_names.map { it.as_variable_name.as_symbol_literal }.join(', ')}], external: [#{external_selector_names.map { it.as_variable_name.as_symbol_literal }.join(', ')}]}.freeze",
                   internal: true,
+                  make_shareable: true,
                 )
               end
 
@@ -493,7 +494,7 @@ module Ynl
       write('end')
     end
 
-    private def emit_const(name, value, rbs: nil, internal: false, make_shareable: true)
+    private def emit_const(name, value, rbs: nil, internal: false, make_shareable: false)
       emit_internal if internal
       write(name, ' = ', value, *([' #: ', rbs] if rbs))
       write('Ractor.make_shareable(', name, ') if defined?(Ractor)') if make_shareable
