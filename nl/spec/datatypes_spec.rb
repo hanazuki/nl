@@ -192,6 +192,17 @@ RSpec.describe Nl::DataTypes::Binary do
 end
 
 RSpec.describe Nl::DataTypes::IndexedArray do
+  it 'writes indexed headers whose lengths exclude alignment padding' do
+    datatype = described_class.new(Nl::DataTypes::Binary.new(length: 1))
+    encoder = Nl::Encoder.new(1)
+
+    datatype.encode(encoder, ['a', 'b'])
+
+    expected = [5, 1].pack('SS') + "a\0\0\0" + [5, 2].pack('SS') + "b\0\0\0"
+    expect(encoder.buffer.get_string).to eq(expected)
+    expect(datatype.decode(Nl::Decoder.new(encoder.buffer))).to eq(['a', 'b'])
+  end
+
   it 'rejects an attribute shorter than its header' do
     encoder = Nl::Encoder.new
     encoder.put_value(Nl::Endian::Host::U16, Nl::Raw::NLA_HDRLEN - 1)

@@ -212,7 +212,8 @@ RSpec.describe Ynl do
       )
       attrs[:data].then do |data|
         encoded.measure(Nl::Endian::Host::U16) do
-          Nl::Raw::NlAttr.new(0, cls::AttributeSets::EnumAttrs.by_name(:data).id | Nl::Raw::NLA_F_NESTED).encode(encoded)
+          encoded.put_value(Nl::Endian::Host::U16, 0)  # nla_len
+          encoded.put_value(Nl::Endian::Host::U16, cls::AttributeSets::EnumAttrs.by_name(:data).id | Nl::Raw::NLA_F_NESTED)  # nla_type
           data.encode(encoded)
         end
         encoded.align_to(Nl::Raw::NLA_ALIGNTO)
@@ -471,7 +472,8 @@ RSpec.describe Ynl do
       )
       encoder = Nl::Encoder.new
       encoder.measure(Nl::Endian::Host::U16) do
-        Nl::Raw::NlAttr.new(0, 2).encode(encoder)
+        encoder.put_value(Nl::Endian::Host::U16, 0)  # nla_len
+        encoder.put_value(Nl::Endian::Host::U16, 2)  # nla_type
         outer.encode(encoder)
         encoder.put_string("\xaa\xbb".b)
       end

@@ -113,51 +113,5 @@ module Nl
         encoder.put_values(FORMAT, to_a)
       end
     end
-
-    # Fixed-format header prepended to every Netlink attribute.
-    #
-    # This corresponds to Linux's +struct nlattr+.
-    #
-    # @!attribute [rw] len
-    #   @return [Integer] attribute length in bytes, including this header but
-    #     excluding trailing alignment padding
-    # @!attribute [rw] type
-    #   @return [Integer] attribute type combined with optional +NLA_F_+ flags
-    NlAttr = Struct.new(
-      :len, #: Integer
-      :type, #: Integer
-    )
-
-    class NlAttr
-      FORMAT = [
-        Endian::Host::U16,
-        Endian::Host::U16,
-      ].freeze
-      Ractor.make_shareable(FORMAT) if defined?(Ractor)
-      private_constant :FORMAT
-
-      # Decodes an attribute header from the decoder's current position.
-      #
-      # @param [Decoder] decoder the source decoder
-      # @return [NlAttr] the decoded header
-      # @rbs (Decoder decoder) -> instance
-      def self.decode(decoder)
-        # Unrolling get_values improves performance for this small header.
-        new(
-          decoder.get_host_u16,
-          decoder.get_host_u16,
-        )
-      end
-
-      # Encodes this attribute header at the encoder's current position.
-      #
-      # @param [Encoder] encoder the destination encoder
-      # @return [void]
-      # @rbs (Encoder encoder) -> void
-      def encode(encoder)
-        encoder.reserve(Constants::NLA_HDRLEN)
-        encoder.put_values(FORMAT, to_a)
-      end
-    end
   end
 end
