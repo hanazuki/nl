@@ -43,6 +43,25 @@ definitions:
       - { name: mixed-c, type: u8 }
       - { name: tail, type: u8 }
   -
+    name: byte-pair
+    type: struct
+    members:
+      - { name: flags, type: u8 }
+      - { name: mask, type: u8 }
+  -
+    name: three-bytes
+    type: struct
+    members:
+      - { name: first, type: s8 }
+      - { name: second, type: u8 }
+      - { name: third, type: u8 }
+  -
+    name: padded-byte
+    type: struct
+    members:
+      - { name: value, type: u8 }
+      - { name: reserved, type: pad, len: 1 }
+  -
     name: variable-integer
     type: struct
     members:

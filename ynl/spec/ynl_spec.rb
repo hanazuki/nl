@@ -207,6 +207,33 @@ RSpec.describe Ynl do
       expect(decoder.remaining).to eq(0)
     end
 
+    it 'reads two adjacent u8 fields with a single u16 load' do
+      cls = Ynl::Family.build(Pathname(__dir__) + 'fixtures/fixed_struct_members.yaml')
+      decoder = Nl::Decoder.new(IO::Buffer.for([0x81, 0xfe].pack('CC')))
+      expect(decoder).to receive(:get_u16).once.and_call_original
+
+      expect(cls::Structs::BytePair.decode(decoder).to_h).to eq(flags: 0x81, mask: 0xfe)
+      expect(decoder.remaining).to eq(0)
+    end
+
+    it 'uses a u16 load for a byte pair followed by one leftover byte' do
+      cls = Ynl::Family.build(Pathname(__dir__) + 'fixtures/fixed_struct_members.yaml')
+      decoder = Nl::Decoder.new(IO::Buffer.for([-128, 0xfe, 0xff].pack('cCC')))
+      expect(decoder).to receive(:get_u16).once.and_call_original
+
+      expect(cls::Structs::ThreeBytes.decode(decoder).to_a).to eq([-128, 0xfe, 0xff])
+      expect(decoder.remaining).to eq(0)
+    end
+
+    it 'ignores padding in a grouped u16 load' do
+      cls = Ynl::Family.build(Pathname(__dir__) + 'fixtures/fixed_struct_members.yaml')
+      decoder = Nl::Decoder.new(IO::Buffer.for([0x81, 0xff].pack('CC')))
+      expect(decoder).to receive(:get_u16).once.and_call_original
+
+      expect(cls::Structs::PaddedByte.decode(decoder).to_h).to eq(value: 0x81)
+      expect(decoder.remaining).to eq(0)
+    end
+
     it 'rejects a grouped read crossing the decoder limit' do
       cls = Ynl::Family.build(Pathname(__dir__) + 'fixtures/fixed_struct_members.yaml')
       decoder = Nl::Decoder.new(IO::Buffer.for("\0" * 13))

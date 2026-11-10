@@ -151,19 +151,25 @@ module Ynl
                 while index < struct.members.length
                   group = []
                   size = 0
+                  load_size = nil
+                  group_length = 0
                   struct.members.drop(index).each do |member|
                     width = grouped_member_width(member.type)
                     break unless width && size + width <= 4
                     group << member
                     size += width
+                    if [2, 4].include?(size) && group.length > 1
+                      load_size = size
+                      group_length = group.length
+                    end
                     break if size == 4
                   end
 
-                  if size == 4
+                  if load_size
                     # A fixed load order keeps byte extraction independent of the host.
-                    write('word = decoder.get_u32')
+                    write("word = decoder.get_u#{load_size * 8}")
                     offset = 0
-                    group.each do |member|
+                    group.take(group_length).each do |member|
                       unless member.type.is_a?(Types::Pad)
                         value = "value_#{index}"
                         write("#{value} = #{grouped_scalar_value(member.type, offset)}")
