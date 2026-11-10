@@ -84,10 +84,20 @@ module Nl
       # @return [NlMsgHdr] the decoded header
       # @rbs (Decoder decoder) -> instance
       def self.decode(decoder)
+        len = decoder.get_host_u32
+        type_flags = decoder.get_host_u32
+        if IO::Buffer::HOST_ENDIAN == IO::Buffer::LITTLE_ENDIAN
+          type = type_flags & 0xffff
+          flags = type_flags >> 16
+        else
+          type = type_flags >> 16
+          flags = type_flags & 0xffff
+        end
+
         new(
-          decoder.get_host_u32,
-          decoder.get_host_u16,
-          decoder.get_host_u16,
+          len,
+          type,
+          flags,
           decoder.get_host_u32,
           decoder.get_host_u32,
         )
