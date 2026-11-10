@@ -1,8 +1,7 @@
 require_relative 'family'
 require_relative 'raw/protocol'
 require_relative 'raw/client'
-require_relative 'attribute_set'
-require_relative 'structured_payload'
+require_relative 'message'
 
 module Nl
   # Classic (Raw) Netlink families.
@@ -48,53 +47,6 @@ module Nl
         rescue Exception
           owner&.close
           raise
-        end
-      end
-    end
-
-    # Base class for raw Netlink messages.
-    #
-    # A message may contain a fixed header followed by a set of Netlink
-    # attributes.
-    class Message
-      include Nl::StructuredPayload
-
-      # @param [Object, nil] fixed_header the family-specific fixed header
-      # @param [AttributeSet, nil] attributes the message's attributes
-      # @rbs (?untyped fixed_header, ?AttributeSet? attributes) -> void
-      def initialize(fixed_header = nil, attributes = self.class::ATTRIBUTE_SET.new)
-        super
-      end
-
-      # Appends an attribute value, identified by name or wire type.
-      #
-      # @rbs (Symbol | Integer type, untyped value) -> void
-      def append_attribute(type, value)
-        @attributes.append(type, value)
-      end
-
-      # Decodes a raw Netlink message payload.
-      #
-      # @param [Decoder] decoder the source decoder
-      # @param [Integer] type the message type from its Netlink header
-      # @return [Message] the decoded message
-      # @raise [RuntimeError] if +type+ does not match the message class's type
-      # @rbs (Decoder decoder, type: Integer) -> instance
-      def self.decode(decoder, type:)
-        unless self::TYPE == type
-          raise "Expected message type #{self::TYPE}, got #{type}"
-        end
-
-        super(decoder)
-      end
-
-      class << self
-        # Returns the attribute names accepted by this message.
-        #
-        # @return [Array<Symbol>] the attribute names
-        # @rbs () -> Array[Symbol]
-        private def attribute_names
-          self::ATTRIBUTES
         end
       end
     end

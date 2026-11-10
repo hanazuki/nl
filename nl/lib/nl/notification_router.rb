@@ -58,11 +58,8 @@ module Nl
       return false unless entry
       return false unless @protocol.notification_frame?(entry.endpoint, header, payload)
 
-      message_class = @protocol.notification_class(entry.endpoint, header, payload, entry.classes)
-      return true unless message_class
-
-      notification = @protocol.decode_notification(entry.endpoint, header, payload, message_class)
-      entry.channel.push(notification)
+      notification = @protocol.decode_notification(entry.endpoint, header, payload, entry.classes)
+      entry.channel.push(notification) if notification
       true
     rescue => error
       entry&.channel&.fail(error)

@@ -30,6 +30,19 @@ module Nl
         super(Raw::NETLINK_GENERIC)
       end
 
+      private def decode_message(endpoint, header, decoder, message_class)
+        unless header.type == endpoint.family_id
+          raise ProtocolViolation, "Expected family ID #{endpoint.family_id}, got #{header.type}"
+        end
+
+        command = GenlMsgHdr.decode(decoder).cmd
+        unless message_class::TYPE == command
+          raise ProtocolViolation, "Expected command #{message_class::TYPE}, got #{command}"
+        end
+
+        message_class.decode(decoder)
+      end
+
       def encode_message(encoder, endpoint, request, seq:, pid:)
         message = request.message
         header = Raw::NlMsgHdr.new(0, request.type, request.flags, seq, pid)
@@ -48,11 +61,11 @@ module Nl
         header.type == endpoint.family_id
       end
 
-      def notification_class(endpoint, header, payload, classes)
+      def decode_notification(endpoint, header, payload, classes)
         return unless notification_frame?(endpoint, header, payload)
 
-        command = payload.lookahead { Nl::Genl::GenlMsgHdr.decode(it).cmd }
-        classes[command]
+        command = GenlMsgHdr.decode(payload).cmd
+        classes[command]&.decode(payload)
       end
     end
   end

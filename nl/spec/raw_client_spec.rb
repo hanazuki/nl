@@ -12,8 +12,8 @@ RSpec.describe Nl::Raw::Client do
   end
 
   RawClientNotification = Class.new do
-    def self.decode(decoder, type:)
-      [type, decoder.get_string]
+    def self.decode(decoder)
+      decoder.get_string
     end
   end
 
@@ -66,8 +66,8 @@ RSpec.describe Nl::Raw::Client do
     router.route(first_header, IO::Buffer.for('first'))
     router.route(second_header, IO::Buffer.for('second'))
 
-    expect(first.receive_notification(timeout: 0)).to eq([41, 'first'])
-    expect(second.receive_notification(timeout: 0)).to eq([42, 'second'])
+    expect(first.receive_notification(timeout: 0)).to eq('first')
+    expect(second.receive_notification(timeout: 0)).to eq('second')
   ensure
     client&.close
   end

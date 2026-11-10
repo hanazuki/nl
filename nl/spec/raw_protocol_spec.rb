@@ -6,9 +6,7 @@ RSpec.describe Nl::Raw::Protocol do
   FrameMessage = Class.new do
     const_set(:TYPE, 42)
 
-    def self.decode(decoder, type:)
-      raise "expected type #{self::TYPE}, got #{type}" unless type == self::TYPE
-
+    def self.decode(decoder)
       decoder.get_string
     end
   end
@@ -60,5 +58,29 @@ RSpec.describe Nl::Raw::Protocol do
       FrameMessage,
     )
     expect(frame).to eq(Nl::Raw::DataFrame.new(header:, message: 'reply'))
+  end
+
+  it 'rejects an unexpected reply type before decoding its payload' do
+    header = Nl::Raw::NlMsgHdr.new(0, FrameMessage::TYPE + 1, 0, 1, 77)
+    expect(FrameMessage).not_to receive(:decode)
+
+    expect do
+      protocol.decode_frame(endpoint, header, Nl::Decoder.new(IO::Buffer.for('reply')), FrameMessage)
+    end.to raise_error(Nl::ProtocolViolation, 'Expected message type 42, got 43')
+  end
+
+  it 'selects a notification decoder by wire type' do
+    header = Nl::Raw::NlMsgHdr.new(0, FrameMessage::TYPE, 0, 0, 0)
+    payload = Nl::Decoder.new(IO::Buffer.for('notification'))
+
+    expect(protocol.decode_notification(endpoint, header, payload, {42 => FrameMessage})).to eq('notification')
+  end
+
+  it 'ignores unknown notification types without decoding the payload' do
+    header = Nl::Raw::NlMsgHdr.new(0, 43, 0, 0, 0)
+    payload = Nl::Decoder.new(IO::Buffer.for('unknown'))
+
+    expect(protocol.decode_notification(endpoint, header, payload, {42 => FrameMessage})).to be_nil
+    expect(payload.remaining).to eq(7)
   end
 end

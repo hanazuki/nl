@@ -48,24 +48,6 @@ module Nl
         end
       end
     end
-
-    # Base class for Generic Netlink messages.
-    #
-    # A Generic Netlink message payload begins with a {GenlMsgHdr}, followed by
-    # the optional fixed header and attributes handled by {Raw::Message}.
-    class Message < Raw::Message
-      # Decodes a Generic Netlink message payload.
-      #
-      # @param [Decoder] decoder the source decoder
-      # @param [Integer] type the family ID from the Netlink message header
-      # @return [Message] the decoded message
-      # @raise [RuntimeError] if the command does not match the message class's type
-      # @rbs (Decoder decoder, type: Integer) -> instance
-      def self.decode(decoder, type:)
-        genlhdr = GenlMsgHdr.decode(decoder)
-        super(decoder, type: genlhdr.cmd)
-      end
-    end
   end
 end
 
