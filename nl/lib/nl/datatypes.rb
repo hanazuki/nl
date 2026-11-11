@@ -79,7 +79,7 @@ module Nl
       end
 
       def decode(decoder, context: nil, nlattr_type_flags: 0)
-        decoder.get_string(@length || decoder.remaining)
+        @length ? decoder.get_string(@length) : decoder.get_string
       end
     end
 
