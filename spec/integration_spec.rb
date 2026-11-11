@@ -37,7 +37,7 @@ RSpec.describe do
         lo = r.find { it.ifname == 'lo' }
         expect(lo).to be_a Nl::Linux::RtLink::Messages::DumpGetlinkReply
 
-        expect(lo.fixed_header.ifi_type).to eq 772  # ARPHRD_LOOPBACK
+        expect(lo.ifi_type).to eq 772  # ARPHRD_LOOPBACK
       end
     end
 
@@ -80,9 +80,9 @@ RSpec.describe do
         reply = rtlink.do_getlink(ifi_index: 1)
         expect(reply).to be_a Nl::Linux::RtLink::Messages::DoGetlinkReply
 
-        expect(reply.fixed_header.ifi_index).to eq 1
+        expect(reply.ifi_index).to eq 1
         expect(reply.ifname).to eq 'lo'
-        expect(reply.fixed_header.ifi_type).to eq 772  # ARPHRD_LOOPBACK
+        expect(reply.ifi_type).to eq 772  # ARPHRD_LOOPBACK
       end
     end
 
@@ -106,8 +106,8 @@ RSpec.describe do
         lo = r.find { it.label == 'lo' }
         expect(lo).to be_a Nl::Linux::RtAddr::Messages::DumpGetaddrReply
 
-        expect(lo.fixed_header.ifa_family).to eq 2  # AF_INET
-        expect(lo.fixed_header.ifa_index).to eq 1  # loopback interface index is always 1
+        expect(lo.ifa_family).to eq 2  # AF_INET
+        expect(lo.ifa_index).to eq 1  # loopback interface index is always 1
       end
     end
   end

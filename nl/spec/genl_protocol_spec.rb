@@ -15,8 +15,12 @@ RSpec.describe Nl::Genl::Protocol do
   GenlNotificationAttributes.const_set(:BY_NAME, {}.freeze)
 
   GenlNotification = Class.new(Nl::Message) do
+    def initialize(attributes = [])
+      @attributes = attributes
+    end
+
     def self.decode(decoder)
-      new(nil, GenlNotificationAttributes.decode(decoder))
+      new(decode_attributes(decoder, GenlNotificationAttributes::BY_TYPE, 0))
     end
   end
   GenlNotification.const_set(:TYPE, 9)

@@ -3,9 +3,21 @@ require 'nl/linux/rt_link'
 require 'nl/linux/tc'
 
 RSpec.describe 'generated Linux sub-messages' do
+  it 'downcases field names in constructor parameters and accessors' do
+    klass = Nl::Linux::Tc::SubMessages::OptionsMsg::Sfq
+
+    expect(klass.instance_method(:initialize).parameters.map(&:last)).to eq(
+      %i[v0 depth headdrop limit qth_min qth_max wlog plog scell_log flags max_p stats],
+    )
+    value = klass.new(*(1..12).to_a)
+    expect(value.wlog).to eq(7)
+    expect(value.plog).to eq(8)
+    expect(value.scell_log).to eq(9)
+  end
+
   def round_trip(attribute_set, values)
     encoder = Nl::Encoder.new
-    attribute_set.build_attributes(values).encode(encoder)
+    attribute_set.build_instance(values).encode(encoder)
     attribute_set.decode(Nl::Decoder.new(encoder.buffer))
   end
 

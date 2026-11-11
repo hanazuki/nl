@@ -198,7 +198,7 @@ module Nl
       end
 
       def coerce(value, context: nil)
-        value.is_a?(Hash) ? @attribute_set.build_attributes(value, external_selectors: selectors(context)) : value
+        value.is_a?(Hash) ? @attribute_set.build_instance(value, external_selectors: selectors(context)) : value
       end
 
       def encode(encoder, value, context: nil)
@@ -253,7 +253,7 @@ module Nl
 
         format = @selector.select(context, @formats)
         return value if value.is_a?(format.type)
-        return format.type.from_params(value, external_selectors: selectors(format, context)) if value.is_a?(Hash)
+        return format.type.build_instance(value, external_selectors: selectors(format, context)) if value.is_a?(Hash)
 
         raise TypeError, "value must be a Hash or an instance of #{format.type}"
       end
@@ -338,8 +338,8 @@ module Nl
         values.transform_values do |value|
           if levels == 1
             if value.is_a?(Hash)
-              external_selectors.empty? ? @attribute_set.build_attributes(value) :
-                @attribute_set.build_attributes(value, external_selectors:)
+              external_selectors.empty? ? @attribute_set.build_instance(value) :
+                @attribute_set.build_instance(value, external_selectors:)
             else
               value
             end

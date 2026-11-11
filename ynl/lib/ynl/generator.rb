@@ -15,7 +15,7 @@ module Ynl
         end
 
         def as_variable_name
-          split(WORD_DELIM).join('_').tap {|s| s.prepend('x_') unless s.start_with?(/[A-Z]/i) }
+          split(WORD_DELIM).join('_').downcase.tap {|s| s.prepend('x_') unless s.start_with?(/[a-z]/) }
         end
         alias as_method_name as_variable_name
 
@@ -145,56 +145,7 @@ module Ynl
               emit_yard_return('self')
               write('def self.decode(decoder)')
               indent do
-                values = []
-                index = 0
-                while index < struct.members.length
-                  group = []
-                  size = 0
-                  load_size = nil
-                  group_length = 0
-                  struct.members.drop(index).each do |member|
-                    width = grouped_member_width(member.type)
-                    break unless width && size + width <= 4
-                    group << member
-                    size += width
-                    if [2, 4].include?(size) && group.length > 1
-                      load_size = size
-                      group_length = group.length
-                    end
-                    break if size == 4
-                  end
-
-                  if load_size
-                    # A fixed load order keeps byte extraction independent of the host.
-                    write("word = decoder.get_u#{load_size * 8}")
-                    offset = 0
-                    group.take(group_length).each do |member|
-                      unless member.type.is_a?(Types::Pad)
-                        value = "value_#{index}"
-                        write("#{value} = #{grouped_scalar_value(member.type, offset)}")
-                        values << value
-                      end
-                      offset += grouped_member_width(member.type)
-                      index += 1
-                    end
-                  else
-                    member = struct.members[index]
-                    if member.type.is_a?(Types::Pad)
-                      write("decoder.skip(#{member.type.length})")
-                      index += 1
-                      next
-                    end
-                    member_name = member.name.as_variable_name.as_symbol_literal
-                    value = "value_#{index}"
-                    if reader = struct_member_reader(member.type)
-                      write("#{value} = decoder.#{reader}")
-                    else
-                      write("#{value} = MEMBERS[#{member_name}].decode(decoder)")
-                    end
-                    values << value
-                    index += 1
-                  end
-                end
+                values = emit_fixed_field_decode(struct)
                 write("self.new(#{values.join(', ')})")
               end
               write('end')
@@ -231,54 +182,45 @@ module Ynl
           @ynl.attribute_sets.each do |name, attr_set|
             emit_comment(attr_set.doc)
             emit_class(name.as_class_name, '::Nl::AttributeSet') do
-              selector_names = @local_selectors.fetch(attr_set)
-              external_selector_names = @external_selectors.fetch(attr_set)
-              unless selector_names.empty?
-                emit_const(
-                  'LOCAL_SELECTOR_NAMES',
-                  "[#{selector_names.map { it.as_variable_name.as_symbol_literal }.join(', ')}].freeze",
-                  internal: true,
-                  make_shareable: true,
-                )
-              end
-              unless external_selector_names.empty?
-                emit_const(
-                  'EXTERNAL_SELECTOR_NAMES',
-                  "[#{external_selector_names.map { it.as_variable_name.as_symbol_literal }.join(', ')}].freeze",
-                  internal: true,
-                  make_shareable: true,
-                )
-              end
+              emit_module('Definitions') do
+                selector_names = @local_selectors.fetch(attr_set)
+                external_selector_names = @external_selectors.fetch(attr_set)
+                unless selector_names.empty?
+                  emit_const(
+                    'LOCAL_SELECTOR_NAMES',
+                    "[#{selector_names.map { it.as_variable_name.as_symbol_literal }.join(', ')}].freeze",
+                    internal: true,
+                    make_shareable: true,
+                  )
+                end
+                unless external_selector_names.empty?
+                  emit_const(
+                    'EXTERNAL_SELECTOR_NAMES',
+                    "[#{external_selector_names.map { it.as_variable_name.as_symbol_literal }.join(', ')}].freeze",
+                    internal: true,
+                    make_shareable: true,
+                  )
+                end
 
-              attr_set.attributes.each do |attribute|
-                next if attribute.type.is_a?(Types::Pad)
+                attr_set.attributes.each do |attribute|
+                  next if attribute.type.is_a?(Types::Pad)
 
-                emit_comment(attribute_doc(attribute))
-                emit_rbs_comment('return: ' + attribute_rbs_type(attribute))
-                emit_yard_return(attribute_yard_type(attribute))
-                expression = "self[#{attribute.name.as_variable_name.as_symbol_literal}]"
-                emit_getter(attribute.name.as_method_name, expression)
+                  emit_comment(attribute_doc(attribute))
+                  emit_rbs_comment('return: ' + attribute_rbs_type(attribute))
+                  emit_yard_return(attribute_yard_type(attribute))
+                  expression = "self[#{attribute.name.as_variable_name.as_symbol_literal}]"
+                  emit_getter(attribute.name.as_method_name, expression)
+                end
               end
-
-              emit_singleton_class do
-                emit_comment('Looks up an attribute definition by name.')
-                emit_rbs_comment(
-                  'name: Symbol',
-                  'return: ::Nl::AttributeSet::Definition',
-                )
-                emit_yard_param('name', 'Symbol')
-                emit_yard_return('Nl::AttributeSet::Definition')
-                emit_getter('by_name(name)', 'BY_NAME.fetch(name)')
-
-                emit_comment('Looks up an attribute definition by numeric ID.')
-                emit_rbs_comment(
-                  'type: Integer',
-                  'return: ::Nl::AttributeSet::Definition',
-                )
-                emit_yard_param('type', 'Integer')
-                emit_yard_return('Nl::AttributeSet::Definition')
-                emit_getter('by_type(type)', '(type >= 0 && BY_TYPE[type]) || raise(::KeyError, "unknown attribute type: #{type}")')
+              write('include Definitions')
+              emit_comment('Decodes attributes from the decoder into a new attribute set.')
+              emit_rbs_comment('(::Nl::Decoder decoder, ?external_selectors: ::Array[untyped]) -> instance')
+              write('def self.decode(decoder, external_selectors: ::Nl::Selector::EMPTY_VALUES)')
+              indent do
+                count = @local_selectors.fetch(attr_set).length
+                write("super(decoder, BY_TYPE, #{count}, external_selectors)")
               end
+              write('end')
             end
           end
         end
@@ -290,28 +232,30 @@ module Ynl
         emit_module('AttributeSets') do
           @ynl.attribute_sets.each do |name, attr_set|
             emit_class(name.as_class_name) do
-              emit_internal
-              size = (attr_set.attributes.map(&:value).max || -1) + 1
-              write("BY_TYPE = ::Array.new(#{size}).tap do |definitions|")
-              indent do
-                attr_set.attributes.each do |attr|
-                  slot = @local_selectors.fetch(attr_set).index(attr.name)
-                  definition = "::Nl::AttributeSet::Definition.new(" \
-                    "id: #{attr.value}, name: #{attr.name.as_variable_name.as_symbol_literal}, " \
-                    "datatype: #{to_datatype(attr.type, attr.checks, owner: attr_set)}, " \
-                    "multi: #{attr.multi?}, order: #{@attribute_orders.fetch(attr_set).fetch(attr)}, " \
-                    "selector_slot: #{slot.inspect})"
-                  write("definitions[#{attr.value}] = #{definition}")
+              emit_module('Definitions') do
+                emit_internal
+                size = (attr_set.attributes.map(&:value).max || -1) + 1
+                write("BY_TYPE = ::Array.new(#{size}).tap do |definitions|")
+                indent do
+                  attr_set.attributes.each do |attr|
+                    slot = @local_selectors.fetch(attr_set).index(attr.name)
+                    definition = "::Nl::AttributeSet::Definition.new(" \
+                      "id: #{attr.value}, name: #{attr.name.as_variable_name.as_symbol_literal}, " \
+                      "datatype: #{to_datatype(attr.type, attr.checks, owner: attr_set)}, " \
+                      "multi: #{attr.multi?}, order: #{@attribute_orders.fetch(attr_set).fetch(attr)}, " \
+                      "selector_slot: #{slot.inspect})"
+                    write("definitions[#{attr.value}] = #{definition}")
+                  end
                 end
+                write('end.freeze #: Array[::Nl::AttributeSet::Definition?]')
+                write('Ractor.make_shareable(BY_TYPE) if defined?(Ractor)')
+                emit_const(
+                  'BY_NAME',
+                  'BY_TYPE.compact.to_h { [it.name, it] }.freeze',
+                  rbs: 'Hash[::Symbol, ::Nl::AttributeSet::Definition]',
+                  internal: true,
+                )
               end
-              write('end.freeze #: Array[::Nl::AttributeSet::Definition?]')
-              write('Ractor.make_shareable(BY_TYPE) if defined?(Ractor)')
-              emit_const(
-                'BY_NAME',
-                'BY_TYPE.compact.to_h { [it.name, it] }.freeze',
-                rbs: 'Hash[::Symbol, ::Nl::AttributeSet::Definition]',
-                internal: true,
-              )
             end
           end
         end
@@ -628,22 +572,132 @@ module Ynl
       end
     end
 
+    private def emit_fixed_field_decode(struct, members: 'MEMBERS')
+      values = []
+      index = 0
+      while index < struct.members.length
+        group = []
+        size = 0
+        load_size = nil
+        group_length = 0
+        struct.members.drop(index).each do |member|
+          width = grouped_member_width(member.type)
+          break unless width && size + width <= 4
+          group << member
+          size += width
+          if [2, 4].include?(size) && group.length > 1
+            load_size = size
+            group_length = group.length
+          end
+          break if size == 4
+        end
+
+        if load_size
+          # A fixed load order keeps byte extraction independent of the host.
+          write("word = decoder.get_u#{load_size * 8}")
+          offset = 0
+          group.take(group_length).each do |member|
+            unless member.type.is_a?(Types::Pad)
+              value = "value_#{index}"
+              write("#{value} = #{grouped_scalar_value(member.type, offset)}")
+              values << value
+            end
+            offset += grouped_member_width(member.type)
+            index += 1
+          end
+        else
+          member = struct.members[index]
+          if member.type.is_a?(Types::Pad)
+            write("decoder.skip(#{member.type.length})")
+            index += 1
+            next
+          end
+          member_name = member.name.as_variable_name.as_symbol_literal
+          value = "value_#{index}"
+          if reader = struct_member_reader(member.type)
+            write("#{value} = decoder.#{reader}")
+          else
+            write("#{value} = #{members}[#{member_name}].decode(decoder)")
+          end
+          values << value
+          index += 1
+        end
+      end
+      values
+    end
+
+    private def emit_payload_storage(header, attribute_set, external:)
+      write('include ATTRIBUTE_SET::Definitions') if attribute_set
+      fields = header ? header.members.reject { it.type.is_a?(Types::Pad) } : []
+      parameters = fields.map { it.name.as_variable_name }
+      parameters << 'attributes = []' if attribute_set
+      write("def initialize(#{parameters.join(', ')})")
+      indent do
+        fields.zip(parameters).each { |field, parameter| write("@#{field.name.as_variable_name} = #{parameter}") }
+        write('@attributes = attributes') if attribute_set
+      end
+      write('end')
+
+      emit_internal
+      write('def self.build_instance(params, external_selectors: ::Nl::Selector::EMPTY_VALUES)')
+      indent do
+        header_names = header ? 'FIXED_HEADER.members' : '::Nl::StructuredPayload::EMPTY_FIELD_NAMES'
+        write("validate_payload_params(params, #{header_names}, ATTRIBUTES)")
+        write('new(')
+        indent do
+          fields.each do |field|
+            name = field.name.as_variable_name.as_symbol_literal
+            value = field.type.is_a?(Types::Scalar) ? "params.fetch(#{name}, 0)" : "params[#{name}]"
+            write("FIXED_HEADER::MEMBERS[#{name}].coerce(#{value}),")
+          end
+          write('build_attributes(params.slice(*ATTRIBUTES), external_selectors:),') if attribute_set
+        end
+        write(')')
+      end
+      write('end')
+
+      args = 'decoder'
+      args += ', external_selectors: ::Nl::Selector::EMPTY_VALUES' if external
+      emit_comment('Decodes a message payload from the decoder into a new instance.')
+      signature = '::Nl::Decoder decoder'
+      signature += ', ?external_selectors: ::Array[untyped]' if external
+      emit_rbs_comment("(#{signature}) -> instance")
+      write("def self.decode(#{args})")
+      indent do
+        values = header ? emit_fixed_field_decode(header, members: 'FIXED_HEADER::MEMBERS') : []
+        if attribute_set
+          arguments = "decoder, BY_TYPE, #{@local_selectors.fetch(attribute_set).length}"
+          arguments += ', external_selectors:' if external
+          values << "decode_attributes(#{arguments})"
+        end
+        write("new(#{values.join(', ')})")
+      end
+      write('end')
+
+      write('def encode(encoder, external_selectors: ::Nl::Selector::EMPTY_VALUES)')
+      indent do
+        header&.members&.each do |field|
+          if field.type.is_a?(Types::Pad)
+            write("encoder.put_string(#{("\0" * field.type.length).dump})") if field.type.length
+          else
+            name = field.name.as_variable_name
+            write("FIXED_HEADER::MEMBERS[#{name.as_symbol_literal}].encode(encoder, @#{name})")
+          end
+        end
+        write('encode_attributes(encoder, external_selectors:)') if attribute_set
+      end
+      write('end')
+    end
+
     private def emit_message_class(name, message, fixed_header:, attribute_set:, doc:)
       emit_comment(doc)
       emit_class(name, '::Nl::Message') do
         emit_const('TYPE', message.value)
         emit_const('FIXED_HEADER', fixed_header&.then { 'Structs::' + it.name.as_class_name } || 'nil')
         emit_const('ATTRIBUTE_SET', "AttributeSets::#{attribute_set.name.as_class_name}")
-        emit_comment('Decodes the family-specific payload after the protocol headers.')
-        emit_rbs_comment('(::Nl::Decoder decoder) -> instance')
-        write('def self.decode(decoder)')
-        indent do
-          header_decode = fixed_header ? 'FIXED_HEADER.decode(decoder)' : 'nil'
-          write("new(#{header_decode}, ATTRIBUTE_SET.decode(decoder))")
-        end
-        write('end')
         attribute_params = attribute_set.attributes.map(&:name) & message.attributes
         emit_const('ATTRIBUTES', "%i[#{attribute_params.map { it.as_variable_name }.join(' ')}].freeze")
+        emit_payload_storage(fixed_header, attribute_set, external: false)
         fixed_header&.members&.each do |member|
           param = member.name
           datatype = member.type
@@ -652,7 +706,7 @@ module Ynl
           emit_comment(member.doc)
           emit_rbs_comment('return: ' + struct_member_rbs_type(datatype))
           emit_yard_return(struct_member_yard_type(datatype))
-          emit_getter(param.as_method_name, "fixed_header.#{param.as_method_name}")
+          emit_getter(param.as_method_name, "@#{param.as_variable_name}")
         end
         attribute_params.each do |param|
           attribute = attribute_set.attributes.find { it.name == param }
@@ -668,13 +722,13 @@ module Ynl
           emit_rbs_comment('return: ' + attribute_rbs_type(attribute))
           emit_yard_return(attribute_yard_type(attribute))
           if attribute.multi?
-            emit_getter(param.as_method_name, "attributes[#{param.as_variable_name.as_symbol_literal}]")
+            emit_getter(param.as_method_name, "self[#{param.as_variable_name.as_symbol_literal}]")
             next
           end
           if extending
-            emit_getter(param.as_method_name, "attributes[#{param.as_variable_name.as_symbol_literal}] || fixed_header.#{param.as_method_name}")
+            emit_getter(param.as_method_name, "self[#{param.as_variable_name.as_symbol_literal}] || @#{param.as_variable_name}")
           else
-            emit_getter(param.as_method_name, "attributes[#{param.as_variable_name.as_symbol_literal}]")
+            emit_getter(param.as_method_name, "self[#{param.as_variable_name.as_symbol_literal}]")
           end
         end
       end
@@ -705,15 +759,9 @@ module Ynl
         emit_const('FIXED_HEADER', format.fixed_header&.then { 'Structs::' + it.name.as_class_name } || 'nil')
         emit_const('ATTRIBUTE_SET', format.attribute_set&.then { 'AttributeSets::' + it.name.as_class_name } || 'nil')
 
-        emit_comment('Decodes the selector-specific payload.')
-        emit_rbs_comment('(::Nl::Decoder decoder, ?external_selectors: ::Array[untyped]) -> instance')
-        write('def self.decode(decoder, external_selectors: ::Nl::Selector::EMPTY_VALUES)')
-        indent do
-          header_decode = format.fixed_header ? 'FIXED_HEADER.decode(decoder)' : 'nil'
-          attributes_decode = format.attribute_set ? 'ATTRIBUTE_SET.decode(decoder, external_selectors:)' : 'nil'
-          write("new(#{header_decode}, #{attributes_decode})")
-        end
-        write('end')
+        names = format.attribute_set&.attributes&.map(&:name) || []
+        emit_const('ATTRIBUTES', "%i[#{names.map { it.as_variable_name }.join(' ')}].freeze")
+        emit_payload_storage(format.fixed_header, format.attribute_set, external: true)
 
         format.fixed_header&.members&.each do |member|
           next if member.type.is_a?(Types::Pad)
@@ -722,7 +770,7 @@ module Ynl
           emit_comment(member.doc)
           emit_rbs_comment('return: ' + struct_member_rbs_type(member.type))
           emit_yard_return(struct_member_yard_type(member.type))
-          emit_getter(member.name.as_method_name, "fixed_header.#{member.name.as_method_name}")
+          emit_getter(member.name.as_method_name, "@#{member.name.as_variable_name}")
         end
 
         format.attribute_set&.attributes&.each do |attribute|
@@ -732,11 +780,11 @@ module Ynl
           emit_rbs_comment('return: ' + attribute_rbs_type(attribute))
           emit_yard_return(attribute_yard_type(attribute))
           expression = if attribute.multi?
-            "attributes[#{attribute.name.as_variable_name.as_symbol_literal}]"
+            "self[#{attribute.name.as_variable_name.as_symbol_literal}]"
           elsif extending
-            "attributes[#{attribute.name.as_variable_name.as_symbol_literal}] || fixed_header.#{attribute.name.as_method_name}"
+            "self[#{attribute.name.as_variable_name.as_symbol_literal}] || @#{attribute.name.as_variable_name}"
           else
-            "attributes[#{attribute.name.as_variable_name.as_symbol_literal}]"
+            "self[#{attribute.name.as_variable_name.as_symbol_literal}]"
           end
           emit_getter(attribute.name.as_method_name, expression)
         end
