@@ -25,8 +25,8 @@ RSpec.describe Nl::DataTypes::NestedAttributes do
   end
 
   it 'encodes an attribute set as a nested attribute payload' do
-    inner = inner_attribute_set.build_attributes(value: 0x12345678)
-    outer = outer_attribute_set.build_attributes(nested: inner)
+    inner = inner_attribute_set.build_instance({ value: 0x12345678 })
+    outer = outer_attribute_set.build_instance({ nested: inner })
     encoder = Nl::Encoder.new
 
     outer.encode(encoder)
@@ -38,7 +38,7 @@ RSpec.describe Nl::DataTypes::NestedAttributes do
   end
 
   it 'builds nested attributes from a hash' do
-    outer = outer_attribute_set.build_attributes(nested: { value: 0x12345678 })
+    outer = outer_attribute_set.build_instance({ nested: { value: 0x12345678 } })
     encoder = Nl::Encoder.new
 
     outer.encode(encoder)
@@ -50,7 +50,7 @@ RSpec.describe Nl::DataTypes::NestedAttributes do
   end
 
   it 'rejects values that are neither hashes nor nested attribute sets' do
-    outer = outer_attribute_set.build_attributes(nested: 123)
+    outer = outer_attribute_set.build_instance({ nested: 123 })
 
     expect { outer.encode(Nl::Encoder.new) }
       .to raise_error(TypeError, /value must be an instance of/)

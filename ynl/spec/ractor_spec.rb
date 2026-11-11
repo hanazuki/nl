@@ -87,7 +87,7 @@ RSpec.describe 'Ractor compatibility of generated families', fork: true do
     end
 
     it 'encodes and decodes a valid checked attribute' do
-      attributes = attribute_set_class.build_attributes(payload: 'abcd')
+      attributes = attribute_set_class.build_instance({ payload: 'abcd' })
       bytes = ractor_value(Ractor.new(attributes) do |value|
         encoder = Nl::Encoder.new
         value.encode(encoder)
@@ -101,7 +101,7 @@ RSpec.describe 'Ractor compatibility of generated families', fork: true do
     end
 
     it 'rejects an invalid attribute when encoding inside the Ractor' do
-      attributes = attribute_set_class.build_attributes(payload: 'abcde')
+      attributes = attribute_set_class.build_instance({ payload: 'abcde' })
       error = ractor_value(Ractor.new(attributes) do |value|
         value.encode(Nl::Encoder.new)
       rescue ArgumentError => caught

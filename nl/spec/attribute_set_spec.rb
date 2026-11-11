@@ -10,14 +10,18 @@ RSpec.describe Nl::AttributeSet do
       set.const_set(:Singular, singular)
       set.const_set(:Repeated, repeated)
       set.const_set(:BY_NAME, {singular:, repeated:}.freeze)
-      set.const_set(:BY_TYPE, {1 => singular, 2 => repeated}.freeze)
+      definitions = {1 => singular, 2 => repeated}.freeze
+      set.const_set(:BY_TYPE, definitions)
+      set.define_singleton_method(:decode) do |decoder, external_selectors: Nl::Selector::EMPTY_VALUES|
+        super(decoder, definitions, 0, external_selectors)
+      end
       set.define_singleton_method(:by_name) { const_get(:BY_NAME, false).fetch(it) }
       set.define_singleton_method(:by_type) { const_get(:BY_TYPE, false).fetch(it) }
     end
   end
 
   it 'builds, encodes, and decodes repeated attributes in order' do
-    attributes = attribute_set.build_attributes(singular: 10, repeated: [20, 30])
+    attributes = attribute_set.build_instance({ singular: 10, repeated: [20, 30] })
     encoder = Nl::Encoder.new
 
     attributes.encode(encoder)
@@ -28,13 +32,13 @@ RSpec.describe Nl::AttributeSet do
   end
 
   it 'returns an empty array when a repeated attribute is absent' do
-    attributes = attribute_set.build_attributes(singular: 10)
+    attributes = attribute_set.build_instance({ singular: 10 })
 
     expect(attributes[:repeated]).to eq []
   end
 
   it 'requires an array when building a repeated attribute' do
-    expect { attribute_set.build_attributes(repeated: 20) }
+    expect { attribute_set.build_instance({ repeated: 20 }) }
       .to raise_error(TypeError, 'value for multi-attribute repeated must be an Array')
   end
 

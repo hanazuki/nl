@@ -173,7 +173,7 @@ RSpec.describe Ynl::Parser, 'model linking' do
 
   it 'generates codecs that round-trip finite values through recursive schemas' do
     cls = Ynl::Family.build(path)
-    attributes = cls::AttributeSets::Outer.build_attributes(encap: { child: { parent: {} } })
+    attributes = cls::AttributeSets::Outer.build_instance({ encap: { child: { parent: {} } } })
     encoded = Nl::Encoder.new
     attributes.encode(encoded)
 

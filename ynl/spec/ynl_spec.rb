@@ -22,6 +22,36 @@ RSpec.describe Ynl do
   end
 
   describe Ynl::Family do
+    it 'allows an attribute named external_selectors in from_params' do
+      source = <<~YAML
+        name: constructor-keywords
+        protocol: genetlink
+        attribute-sets:
+          - name: attrs
+            attributes:
+              - {name: external-selectors, type: u32}
+        operations:
+          list:
+            - name: echo
+              attribute-set: attrs
+              do:
+                request:
+                  attributes: [external-selectors]
+      YAML
+      generated = StringIO.new
+      Ynl::Family.generate(source, generated)
+      scope = Module.new
+      scope.module_eval(generated.string)
+      klass = scope::ConstructorKeywords::Messages::DoEchoRequest
+
+      message = klass.from_params(external_selectors: 42)
+      encoder = Nl::Encoder.new
+      message.encode(encoder)
+      decoded = klass.decode(Nl::Decoder.new(encoder.buffer))
+
+      expect(decoded.external_selectors).to eq(42)
+    end
+
     %w[netlink-raw genetlink].each do |wire_protocol|
       context "with generated #{wire_protocol} message decoders" do
         let(:generated) { StringIO.new }
@@ -62,6 +92,13 @@ RSpec.describe Ynl do
         end
         let(:message_class) { family_class::Messages::DoEchoReply }
 
+        it 'names positional constructor parameters after the fixed-header fields' do
+          expect(message_class.instance_method(:initialize).parameters).to eq(
+            [[:req, :tag], [:opt, :attributes]],
+          )
+          expect(message_class.new(7, [1, 42])).to have_attributes(tag: 7, value: 42)
+        end
+
         it 'round-trips the family payload through the protocol' do
           expect(message_class.superclass).to equal(Nl::Message)
           message = message_class.from_params(tag: 7, value: 42)
@@ -95,6 +132,25 @@ RSpec.describe Ynl do
           expect(decoded).to have_attributes(tag: 7, value: 42)
         end
 
+        it 'stores header fields and ordered attribute values in the message itself' do
+          encoder = Nl::Encoder.new
+          message_class.from_params(tag: 7, value: 42).encode(encoder)
+          decoded = message_class.decode(Nl::Decoder.new(encoder.buffer))
+
+          expect(decoded.instance_variables).to contain_exactly(:@tag, :@attributes)
+          expect(decoded.instance_variable_get(:@tag)).to eq(7)
+          expect(decoded.instance_variable_get(:@attributes)).to eq([1, 42])
+          expect(message_class::BY_TYPE).to equal(family_class::AttributeSets::Attrs::BY_TYPE)
+
+          decoded.append_attribute(:value, 99)
+          encoded = Nl::Encoder.new
+          decoded.encode(encoded)
+          round_trip = message_class.decode(Nl::Decoder.new(encoded.buffer))
+
+          expect(round_trip.value).to eq(42)
+          expect(round_trip.instance_variable_get(:@attributes)).to eq([1, 42, 1, 99])
+        end
+
         it 'decodes messages with no family-specific fixed header' do
           klass = family_class::Messages::DoNoHeaderReply
           encoder = Nl::Encoder.new
@@ -102,7 +158,7 @@ RSpec.describe Ynl do
 
           decoded = klass.decode(Nl::Decoder.new(encoder.buffer))
 
-          expect(decoded.fixed_header).to be_nil
+          expect(decoded.instance_variables).to eq([:@attributes])
           expect(decoded.value).to eq(42)
         end
 
@@ -110,6 +166,7 @@ RSpec.describe Ynl do
           subclass = Class.new(message_class)
           subclass.const_set(:FIXED_HEADER, nil)
           subclass.const_set(:ATTRIBUTE_SET, nil)
+          subclass.const_set(:BY_TYPE, [].freeze)
           encoder = Nl::Encoder.new
           message_class.from_params(tag: 7, value: 42).encode(encoder)
 
@@ -127,10 +184,10 @@ RSpec.describe Ynl do
       path.open { |source| Ynl::Family.generate(source, generated) }
       cls = Ynl::Family.build(path)
 
-      attributes = cls::AttributeSets::OuterAttrs.build_attributes(
+      attributes = cls::AttributeSets::OuterAttrs.build_instance({
         child: {leaf: {data: {header_value: 7, payload_value: 11}}},
         kind: 'foo',
-      )
+      })
       encoder = Nl::Encoder.new
       attributes.encode(encoder)
       decoded = cls::AttributeSets::OuterAttrs.decode(Nl::Decoder.new(encoder.buffer))
@@ -166,8 +223,7 @@ RSpec.describe Ynl do
       decoded = klass.decode(decoder)
 
       expect(decoded).to be_a(klass)
-      expect(decoded.fixed_header).to be_nil
-      expect(decoded.attributes).to be_nil
+      expect(decoded.instance_variables).to be_empty
     end
 
     it 'inherits the generated sub-message layout without looking up subclass constants' do
@@ -176,6 +232,7 @@ RSpec.describe Ynl do
       subclass = Class.new(klass)
       subclass.const_set(:FIXED_HEADER, nil)
       subclass.const_set(:ATTRIBUTE_SET, nil)
+      subclass.const_set(:BY_TYPE, [].freeze)
       encoder = Nl::Encoder.new
       klass.from_params(header_value: 7, payload_value: 42).encode(encoder)
 
@@ -191,10 +248,10 @@ RSpec.describe Ynl do
       path.open { |source| Ynl::Family.generate(source, generated) }
       cls = Ynl::Family.build(path)
 
-      attributes = cls::AttributeSets::EnumAttrs.build_attributes(
+      attributes = cls::AttributeSets::EnumAttrs.build_instance({
         data: {header_value: 3, payload_value: 5},
         kind: 10,
-      )
+      })
       encoder = Nl::Encoder.new
       attributes.encode(encoder)
       decoded = cls::AttributeSets::EnumAttrs.decode(Nl::Decoder.new(encoder.buffer))
@@ -212,10 +269,10 @@ RSpec.describe Ynl do
     it 'rejects a sub-message whose selector has not appeared on the wire' do
       cls = Ynl::Family.build(Pathname(__dir__) + 'fixtures/sub_messages.yaml')
       encoded = Nl::Encoder.new
-      attrs = cls::AttributeSets::EnumAttrs.build_attributes(
+      attrs = cls::AttributeSets::EnumAttrs.build_instance({
         kind: 10,
         data: {header_value: 3, payload_value: 5},
-      )
+      })
       attrs[:data].then do |data|
         encoded.measure(Nl::Endian::Host::U16) do
           encoded.put_value(Nl::Endian::Host::U16, 0)  # nla_len
@@ -247,9 +304,9 @@ RSpec.describe Ynl do
       )
 
       expect do
-        cls::AttributeSets::LeafAttrs.build_attributes(
+        cls::AttributeSets::LeafAttrs.build_instance({
           data: {header_value: 3, payload_value: 5},
-        )
+        })
       end.to raise_error(
         ArgumentError,
         'selector :kind is required by a dependent attribute',
@@ -262,7 +319,7 @@ RSpec.describe Ynl do
         "\x01\x02\x03\x04".b,
         nlattr_type_flags: Nl::Raw::NLA_F_NESTED,
       )
-      attributes = cls::AttributeSets::EnumAttrs.build_attributes(kind: 99, data: raw)
+      attributes = cls::AttributeSets::EnumAttrs.build_instance({ kind: 99, data: raw })
       encoded = Nl::Encoder.new
       attributes.encode(encoded)
 
@@ -284,7 +341,7 @@ RSpec.describe Ynl do
         nlattr_type_flags: Nl::Raw::NLA_F_NESTED,
       )
 
-      attributes = cls::AttributeSets::EnumAttrs.build_attributes(kind: 10, data: raw)
+      attributes = cls::AttributeSets::EnumAttrs.build_instance({ kind: 10, data: raw })
       encoder = Nl::Encoder.new
 
       expect { attributes.encode(encoder) }.not_to raise_error
@@ -464,7 +521,7 @@ RSpec.describe Ynl do
         inner: {value: 0x0504},
         suffix: 6,
       }
-      attributes = cls::AttributeSets::Attrs.build_attributes(record: values)
+      attributes = cls::AttributeSets::Attrs.build_instance({ record: values })
       encoder = Nl::Encoder.new
 
       attributes.encode(encoder)
@@ -607,7 +664,7 @@ RSpec.describe Ynl do
         'unless it.bytesize <= Constants::TEST_MAXIMUM_LENGTH',
       )
       expect do
-        attributes = cls::AttributeSets::Attrs.build_attributes(payload: '12345')
+        attributes = cls::AttributeSets::Attrs.build_instance({ payload: '12345' })
         attributes.encode(Nl::Encoder.new)
       end.to raise_error(ArgumentError, 'Value "12345" is longer than maximum length 4')
     end
@@ -648,7 +705,7 @@ RSpec.describe Ynl do
       scope.module_eval(generated.string)
       attrs = scope::NumberedAttributes::AttributeSets::Attrs
 
-      values = attrs.build_attributes(x_3_way: 42)
+      values = attrs.build_instance({ x_3_way: 42 })
 
       expect(values.x_3_way).to eq(42)
       expect(attrs.by_name(:x_3_way)).to equal(attrs.by_type(1))
@@ -700,7 +757,7 @@ RSpec.describe Ynl do
         expect(encoder.buffer.get_string).to eq([8, 1, 40, 8, 2048, 30].pack('SSL' * 2))
       end
 
-      it 'decodes an empty table and uses a subclass replacement table' do
+      it 'decodes an empty table and inherits the generated definitions in subclasses' do
         bytes = [8, 1, 42].pack('SSL')
         empty = attrs::Empty.decode(Nl::Decoder.new(IO::Buffer.for(bytes)))
         expect(empty.instance_variable_get(:@attributes)).to eq([])
@@ -711,7 +768,8 @@ RSpec.describe Ynl do
         values = subclass.decode(Nl::Decoder.new(IO::Buffer.for(bytes)))
 
         expect(subclass::BY_TYPE[1]).to equal(definition)
-        expect(values.instance_variable_get(:@attributes)).to eq([1, [42].pack('L')])
+        expect(values.first).to eq(42)
+        expect(values.instance_variable_get(:@attributes)).to eq([1, 42])
       end
     end
 
@@ -725,7 +783,7 @@ RSpec.describe Ynl do
       message = message_class.from_params(ids: [10, 20])
 
       expect(message.ids).to eq [10, 20]
-      expect(message.attributes[:ids]).to eq [10, 20]
+      expect(message[:ids]).to eq [10, 20]
       expect(message_class.from_params({}).ids).to eq []
       expect(cls::AttributeSets::Subset.by_name(:ids).multi).to be true
       expect(generated.string).to include('?ids: ::Array[::Integer]')

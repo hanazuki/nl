@@ -51,14 +51,14 @@ module Nl
     end
 
     class State
-      def self.for(local_count, external)
-        return EMPTY if local_count == 0 && external.empty?
+      def self.for(local_selector_count, external)
+        return EMPTY if local_selector_count == 0 && external.empty?
 
-        new(local_count, external)
+        new(local_selector_count, external)
       end
 
-      def initialize(local_count, external)
-        @local = Array.new(local_count)
+      def initialize(local_selector_count, external)
+        @local = Array.new(local_selector_count)
         @external = external
       end
 
