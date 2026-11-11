@@ -116,7 +116,7 @@ RSpec.describe Ynl do
           decoder = Nl::Decoder.new(encoder.buffer)
           header = Nl::Raw::NlMsgHdr.decode(decoder)
 
-          decoded = protocol.decode_frame(endpoint, header, decoder, message_class).message
+          decoded = protocol.decode_frame(endpoint, header, decoder, message_class)
 
           expect(decoded).to have_attributes(tag: 7, value: 42)
           expect(decoder.remaining).to eq(0)

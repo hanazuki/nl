@@ -48,8 +48,7 @@ RSpec.describe Nl::Genl::Protocol do
 
     frame = protocol.decode_frame(endpoint, header, payload, GenlNotification)
 
-    expect(frame.header).to equal(header)
-    expect(frame.message).to be_a(GenlNotification)
+    expect(frame).to be_a(GenlNotification)
     expect(payload.remaining).to eq(0)
   end
 
@@ -87,7 +86,7 @@ RSpec.describe Nl::Genl::Protocol do
 
     frame = protocol.decode_frame(endpoint, header, Nl::Decoder.new(IO::Buffer.for('')), nil)
 
-    expect(frame).to eq(Nl::Raw::DoneFrame.new(header, nil))
+    expect(frame).to equal(Nl::Raw::DONE)
   end
 
   it 'keeps the family ID in the frame header and the command ID in the message' do

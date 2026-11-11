@@ -41,8 +41,8 @@ module Nl
       result = [] unless block_given?
 
       until exchange.complete?
-        receive(endpoint, key, reply_class) do |message|
-          case outcome = exchange.accept(message)
+        receive(endpoint, key, reply_class) do |header, message|
+          case outcome = exchange.accept(header, message)
           when Exchange::Item
             block_given? ? yield(outcome.value) : result << outcome.value
           when Exchange::Failure
@@ -99,7 +99,7 @@ module Nl
       Datagram.each_frame(receive_datagram) do |header, payload|
         actual_key = [header.seq, header.pid]
         if actual_key == expected_key
-          yield @protocol.decode_frame(endpoint, header, payload, reply_class)
+          yield header, @protocol.decode_frame(endpoint, header, payload, reply_class)
         elsif header.seq == 0
           @notifications.route(header, payload)
         else

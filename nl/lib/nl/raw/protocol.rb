@@ -6,11 +6,13 @@ require_relative '../socket'
 
 module Nl
   module Raw
-    AckFrame = Data.define(:header)
-    ErrorFrame = Data.define(:header, :errno)
-    DoneFrame = Data.define(:header, :errno)
-    UnknownFrame = Data.define(:header)
-    DataFrame = Data.define(:header, :message)
+    Ack = Data.define
+    Error = Data.define(:errno)
+    Done = Data.define(:errno)
+    Unknown = Data.define
+    ACK = Ack.new
+    DONE = Done.new(nil)
+    UNKNOWN = Unknown.new
     Request = Data.define(:type, :flags, :message)
 
     # A generated raw Netlink family bound to its fixed wire identity.
@@ -46,7 +48,8 @@ module Nl
         end
       end
 
-      # Decodes one frame using the reply class associated with its sequence.
+      # Returns a decoded reply or control result for one Netlink frame.
+      # @rbs (Endpoint endpoint, NlMsgHdr header, Decoder decoder, Class? message_class) -> (Message | Ack | Done | Error | Unknown)
       def decode_frame(endpoint, header, decoder, message_class)
         if header.type < Raw::NLMSG_MIN_TYPE
           case header.type
@@ -56,23 +59,23 @@ module Nl
               raise ProtocolViolation, "expected zero or negative NLMSG_ERROR errno, got #{errno}"
             end
 
-            errno == 0 ? AckFrame.new(header) : ErrorFrame.new(header, -errno)
+            errno == 0 ? ACK : Error.new(-errno)
           when Raw::NLMSG_DONE
-            return DoneFrame.new(header, nil) unless decoder.available?
+            return DONE unless decoder.available?
 
             errno = decoder.get_host_sint
             if errno.positive?
               raise ProtocolViolation, "expected zero or negative NLMSG_DONE errno, got #{errno}"
             end
 
-            DoneFrame.new(header, errno < 0 ? -errno : nil)
+            errno < 0 ? Done.new(-errno) : DONE
           else
-            UnknownFrame.new(header)
+            UNKNOWN
           end
         else
           raise ArgumentError, 'reply class is required for a data message' unless message_class
 
-          DataFrame.new(header, decode_message(endpoint, header, decoder, message_class))
+          decode_message(endpoint, header, decoder, message_class)
         end
       end
 

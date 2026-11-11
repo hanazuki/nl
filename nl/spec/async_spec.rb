@@ -324,6 +324,11 @@ RSpec.describe Nl::Async do
     end
 
     FakeProtocol = Class.new do
+      DispatcherReply = Class.new(Nl::Message) do
+        attr_reader :value
+        def initialize(value) = @value = value
+      end
+
       attr_reader :sent
 
       def initialize
@@ -343,7 +348,7 @@ RSpec.describe Nl::Async do
         if header.type < Nl::Raw::NLMSG_MIN_TYPE
           @raw.decode_frame(endpoint, header, payload, nil)
         else
-          Nl::Raw::DataFrame.new(header:, message: payload.get_string)
+          DispatcherReply.new(payload.get_string)
         end
       end
 
@@ -413,7 +418,7 @@ RSpec.describe Nl::Async do
           control_frame(type: Nl::Raw::NLMSG_ERROR, sequence: 1, errno: 0),
       )
 
-      expect(future.await(timeout: 1)).to eq('reply')
+      expect(future.await(timeout: 1).value).to eq('reply')
     end
 
     it 'routes interleaved replies by sequence number' do
@@ -426,8 +431,8 @@ RSpec.describe Nl::Async do
           control_frame(type: Nl::Raw::NLMSG_ERROR, sequence: 1, errno: 0),
       )
 
-      expect(first.await(timeout: 1)).to eq('first')
-      expect(second.await(timeout: 1)).to eq('second')
+      expect(first.await(timeout: 1).value).to eq('first')
+      expect(second.await(timeout: 1).value).to eq('second')
     end
 
     it 'routes unsolicited notifications without disturbing a pending exchange' do
@@ -439,7 +444,7 @@ RSpec.describe Nl::Async do
           control_frame(type: Nl::Raw::NLMSG_ERROR, sequence: 1, errno: 0),
       )
 
-      expect(future.await(timeout: 1)).to eq('reply')
+      expect(future.await(timeout: 1).value).to eq('reply')
       expect(@dispatcher.receive_notification(@protocol, timeout: 1)).to eq('notice')
     end
 
@@ -484,7 +489,7 @@ RSpec.describe Nl::Async do
         frame(type: 42, sequence: 2, payload: 'reply') +
           control_frame(type: Nl::Raw::NLMSG_ERROR, sequence: 2, errno: 0),
       )
-      expect(next_exchange.value).to eq('reply')
+      expect(next_exchange.value.value).to eq('reply')
     end
 
     it 'retains a request when ACK arrives before its reply' do
@@ -494,7 +499,7 @@ RSpec.describe Nl::Async do
           frame(type: 42, sequence: 1, payload: 'reply'),
       )
 
-      expect(future.await(timeout: 1)).to eq('reply')
+      expect(future.await(timeout: 1).value).to eq('reply')
     end
 
     it 'streams multipart replies until DONE' do
@@ -505,7 +510,7 @@ RSpec.describe Nl::Async do
           control_frame(type: Nl::Raw::NLMSG_DONE, sequence: 1, errno: 0),
       )
 
-      expect(stream.to_a).to eq(%w[one two])
+      expect(stream.to_a.map(&:value)).to eq(%w[one two])
     end
 
     it 'returns the first multipart do reply after header-only DONE' do
@@ -517,7 +522,7 @@ RSpec.describe Nl::Async do
           control_frame(type: Nl::Raw::NLMSG_DONE, sequence: 1),
       )
 
-      expect(future.await(timeout: 1)).to eq('one')
+      expect(future.await(timeout: 1).value).to eq('one')
     end
 
     it 'fails a multipart do reply with inconsistent data flags' do
@@ -548,7 +553,7 @@ RSpec.describe Nl::Async do
       expect do
         stream.each { replies << it }
       end.to raise_error(Errno::EINVAL)
-      expect(replies).to eq(['one'])
+      expect(replies.map(&:value)).to eq(['one'])
     end
 
     it 'fails only an overflowing stream' do
