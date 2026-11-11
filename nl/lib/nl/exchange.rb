@@ -1,5 +1,6 @@
 require_relative 'error'
 require_relative 'raw/protocol'
+require_relative 'message'
 
 module Nl
   # State machine for one Netlink request/reply exchange.
@@ -46,27 +47,27 @@ module Nl
       @mutex = Mutex.new
     end
 
-    def accept(frame)
+    def accept(header, message)
       @mutex.synchronize do
         return if @complete
 
-        case frame
-        when Raw::UnknownFrame
+        case message
+        when Raw::Unknown
           nil
-        when Raw::ErrorFrame
-          @cancelled ? complete(nil) : fail_with(SystemCallError.new(frame.errno))
-        when Raw::DoneFrame
-          if frame.errno && !@cancelled
-            fail_with(SystemCallError.new(frame.errno))
+        when Raw::Error
+          @cancelled ? complete(nil) : fail_with(SystemCallError.new(message.errno))
+        when Raw::Done
+          if message.errno && !@cancelled
+            fail_with(SystemCallError.new(message.errno))
           else
             complete(@reply)
           end
-        when Raw::AckFrame
+        when Raw::Ack
           accept_ack
-        when Raw::DataFrame
-          accept_reply(frame)
+        when Message
+          accept_reply(header, message)
         else
-          raise ArgumentError, "unexpected exchange input: #{frame.inspect}"
+          raise ArgumentError, "unexpected exchange input: #{message.inspect}"
         end
       end
     end
@@ -87,13 +88,13 @@ module Nl
       end
     end
 
-    private def accept_reply(frame)
+    private def accept_reply(header, message)
       return if @cancelled
 
-      multipart = (frame.header.flags.to_i & Raw::NLM_F_MULTI) != 0
+      multipart = (header.flags.to_i & Raw::NLM_F_MULTI) != 0
       case @state
       when :dump
-        return Item.new(frame.message)
+        return Item.new(message)
       when :no_reply
         return fail_with(ProtocolViolation.new('unexpected data message in a no-reply Netlink response'))
       when :initial
@@ -106,8 +107,8 @@ module Nl
         end
       end
 
-      @reply ||= frame.message
-      complete(frame.message) if @acked && @state == :single
+      @reply ||= message
+      complete(message) if @acked && @state == :single
     end
 
     private def complete(value)

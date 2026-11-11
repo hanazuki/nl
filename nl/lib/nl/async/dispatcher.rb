@@ -135,7 +135,7 @@ module Nl
 
           begin
             message = @protocol.decode_frame(pending.endpoint, header, payload, pending.reply_class)
-            dispatch_outcome(key, pending, pending.exchange.accept(message))
+            dispatch_outcome(key, pending, pending.exchange.accept(header, message))
           rescue Exception => error
             fail_pending(key, error) if pending
           end

@@ -13,6 +13,11 @@ RSpec.describe Nl::BlockingTransport do
   end
 
   BlockingFakeProtocol = Class.new do
+    BlockingReply = Class.new(Nl::Message) do
+      attr_reader :value
+      def initialize(value) = @value = value
+    end
+
     Sent = Data.define(:request, :seq, :pid)
 
       attr_reader :sent
@@ -34,7 +39,7 @@ RSpec.describe Nl::BlockingTransport do
       if header.type < Nl::Raw::NLMSG_MIN_TYPE
         @raw.decode_frame(endpoint, header, payload, nil)
       else
-        Nl::Raw::DataFrame.new(header:, message: payload.get_string)
+        BlockingReply.new(payload.get_string)
       end
     end
 
@@ -90,7 +95,7 @@ RSpec.describe Nl::BlockingTransport do
 
     result = build_transport(socket, protocol:).exchange(protocol, :do, Object, String, {})
 
-    expect(result).to eq('reply')
+    expect(result.value).to eq('reply')
     expect(protocol.sent.first.to_h).to include(seq: 1, pid: 77)
   end
 
@@ -103,7 +108,7 @@ RSpec.describe Nl::BlockingTransport do
 
     result = build_transport(socket).exchange(BlockingFakeProtocol.new, :do, Object, String, {})
 
-    expect(result).to eq('one')
+    expect(result.value).to eq('one')
   end
 
   it 'collects a multipart dump' do
@@ -114,7 +119,7 @@ RSpec.describe Nl::BlockingTransport do
 
     result = build_transport(socket).exchange(BlockingFakeProtocol.new, :dump, Object, String, {})
 
-    expect(result).to eq(%w[one two])
+    expect(result.map(&:value)).to eq(%w[one two])
   end
 
   it 'streams a multipart dump through a block' do
@@ -126,7 +131,7 @@ RSpec.describe Nl::BlockingTransport do
     end
 
     expect(result).to be_nil
-    expect(values).to eq(['one'])
+    expect(values.map(&:value)).to eq(['one'])
   end
 
   it 'raises NLMSG_ERROR as the first dump response' do
@@ -197,7 +202,7 @@ RSpec.describe Nl::BlockingTransport do
     transport = build_transport(socket)
     register_notifications(transport, protocol, 43 => String)
 
-    expect(transport.exchange(protocol, :do, Object, String, {})).to eq('reply')
+    expect(transport.exchange(protocol, :do, Object, String, {}).value).to eq('reply')
     expect(transport.receive_notification(protocol)).to eq('notice')
   end
 
