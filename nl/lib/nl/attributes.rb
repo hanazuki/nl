@@ -1,6 +1,20 @@
 require_relative 'datatypes'
 
 module Nl
+  # An opaque attribute payload with the flags needed to re-encode it.
+  class RawAttributeValue
+    attr_reader :payload, :nlattr_type_flags
+
+    def initialize(payload, nlattr_type_flags:)
+      @payload = payload
+      @nlattr_type_flags = nlattr_type_flags
+    end
+
+    def encode(encoder, external_selectors: Selector::EMPTY_VALUES)
+      encoder.put_string(payload)
+    end
+  end
+
   # Ordered attribute operations shared by nested sets and generated payloads.
   module Attributes
     def self.included(base)

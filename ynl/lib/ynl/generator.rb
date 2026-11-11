@@ -908,14 +908,14 @@ module Ynl
       formats = type.sub_message.formats.map do |format|
         "SubMessages::#{type.sub_message.name.as_class_name}::#{format.value.as_class_name}"
       end
-      (formats << '::Nl::RawSubMessage').join(' | ')
+      (formats << '::Nl::RawAttributeValue').join(' | ')
     end
 
     private def sub_message_yard_type(type)
       formats = type.sub_message.formats.map do |format|
         "SubMessages::#{type.sub_message.name.as_class_name}::#{format.value.as_class_name}"
       end
-      (formats << 'Nl::RawSubMessage').join(', ')
+      (formats << 'Nl::RawAttributeValue').join(', ')
     end
 
     private def yard_type(type)
@@ -935,7 +935,7 @@ module Ynl
         type.type_values.length.times { value_type = "Hash<Integer, #{value_type}>" }
         value_type
       when Types::SubMessage
-        'Nl::Message, Nl::RawSubMessage'
+        'Nl::Message, Nl::RawAttributeValue'
       when Types::Pad
         'nil'
       when Types::Bitfield32

@@ -165,7 +165,7 @@ RSpec.describe Ynl::Parser do
     end
 
     it 'types sub-message payloads as sub-message values' do
-      expect(Ynl::Types::SubMessage.new.rbs_type).to eq('::Nl::Message | ::Nl::RawSubMessage')
+      expect(Ynl::Types::SubMessage.new.rbs_type).to eq('::Nl::Message | ::Nl::RawAttributeValue')
     end
 
     it 'preserves an indexed array element type' do

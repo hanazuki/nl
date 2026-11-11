@@ -6,7 +6,7 @@
   directly without allocating a header object.
 - Unify `Raw::Message` and `Genl::Message` as `Nl::Message`.
 - Use `Nl::Message` for decoded selector-specific messages too; remove
-  `Nl::SubMessage`. Unrecognized payloads remain standalone `RawSubMessage`
+  `Nl::SubMessage`. Unrecognized payloads remain standalone `RawAttributeValue`
   objects.
 - Avoid validation overhead for datatypes without checks by moving validation
   into opt-in wrappers. Replace datatype constructor `check:` arguments with

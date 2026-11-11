@@ -233,7 +233,7 @@ module Nl
       end
 
       def nlattr_type_flags(value = nil, context:)
-        if value.is_a?(RawSubMessage)
+        if value.is_a?(RawAttributeValue)
           @selector.read(context)
           return value.nlattr_type_flags
         end
@@ -246,7 +246,7 @@ module Nl
       end
 
       def coerce(value, context:)
-        if value.is_a?(RawSubMessage)
+        if value.is_a?(RawAttributeValue)
           @selector.read(context)  # ensure selector value is present
           return value
         end
@@ -259,7 +259,7 @@ module Nl
       end
 
       def encode(encoder, value, context: nil)
-        if value.is_a?(RawSubMessage)
+        if value.is_a?(RawAttributeValue)
           @selector.read(context)
           return value.encode(encoder)
         end
@@ -273,7 +273,7 @@ module Nl
 
       def decode(decoder, context:, nlattr_type_flags: 0)
         format = @selector.select(context, @formats) do
-          return RawSubMessage.new(
+          return RawAttributeValue.new(
             decoder.get_string,
             nlattr_type_flags:,
           )

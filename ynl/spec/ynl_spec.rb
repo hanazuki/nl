@@ -211,7 +211,7 @@ RSpec.describe Ynl do
       expect(generated.string).to include('# @rbs return: AttributeSets::ChildAttrs')
       expect(generated.string).to include('def child; self[:"child"]; end')
       expect(generated.string).to include(
-        '# @rbs return: SubMessages::PayloadMessage::Foo | SubMessages::PayloadMessage::Bar | ::Nl::RawSubMessage',
+        '# @rbs return: SubMessages::PayloadMessage::Foo | SubMessages::PayloadMessage::Bar | ::Nl::RawAttributeValue',
       )
       expect(generated.string).to include('def data; self[:"data"]; end')
     end
@@ -316,7 +316,7 @@ RSpec.describe Ynl do
 
     it 'preserves an unknown sub-message format as raw data' do
       cls = Ynl::Family.build(Pathname(__dir__) + 'fixtures/sub_messages.yaml')
-      raw = Nl::RawSubMessage.new(
+      raw = Nl::RawAttributeValue.new(
         "\x01\x02\x03\x04".b,
         nlattr_type_flags: Nl::Raw::NLA_F_NESTED,
       )
@@ -329,7 +329,7 @@ RSpec.describe Ynl do
       reencoded = Nl::Encoder.new
       decoded.encode(reencoded)
 
-      expect(value).to be_a(Nl::RawSubMessage)
+      expect(value).to be_a(Nl::RawAttributeValue)
       expect(value.payload).to eq("\x01\x02\x03\x04".b)
       expect(value.nlattr_type_flags).to eq(Nl::Raw::NLA_F_NESTED)
       expect(reencoded.buffer.get_string).to eq(encoded.buffer.get_string)
@@ -337,7 +337,7 @@ RSpec.describe Ynl do
 
     it 'allows raw data after its selector format becomes known' do
       cls = Ynl::Family.build(Pathname(__dir__) + 'fixtures/sub_messages.yaml')
-      raw = Nl::RawSubMessage.new(
+      raw = Nl::RawAttributeValue.new(
         "\x01\x02\x03\x04".b,
         nlattr_type_flags: Nl::Raw::NLA_F_NESTED,
       )

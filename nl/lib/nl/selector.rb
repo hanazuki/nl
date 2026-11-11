@@ -81,18 +81,4 @@ module Nl
       Ractor.make_shareable(EMPTY) if defined?(Ractor)
     end
   end
-
-  # An unrecognized selector-specific payload retained without interpretation.
-  class RawSubMessage
-    attr_reader :payload, :nlattr_type_flags
-
-    def initialize(payload, nlattr_type_flags:)
-      @payload = payload
-      @nlattr_type_flags = nlattr_type_flags
-    end
-
-    def encode(encoder, external_selectors: Selector::EMPTY_VALUES)
-      encoder.put_string(payload)
-    end
-  end
 end
