@@ -21,7 +21,7 @@ RSpec.describe Nl::AttributeSet do
   end
 
   it 'builds, encodes, and decodes repeated attributes in order' do
-    attributes = attribute_set.build_instance({ singular: 10, repeated: [20, 30] })
+    attributes = attribute_set.from_params({ singular: 10, repeated: [20, 30] })
     encoder = Nl::Encoder.new
 
     attributes.encode(encoder)
@@ -32,13 +32,13 @@ RSpec.describe Nl::AttributeSet do
   end
 
   it 'returns an empty array when a repeated attribute is absent' do
-    attributes = attribute_set.build_instance({ singular: 10 })
+    attributes = attribute_set.from_params({ singular: 10 })
 
     expect(attributes[:repeated]).to eq []
   end
 
   it 'requires an array when building a repeated attribute' do
-    expect { attribute_set.build_instance({ repeated: 20 }) }
+    expect { attribute_set.from_params({ repeated: 20 }) }
       .to raise_error(TypeError, 'value for multi-attribute repeated must be an Array')
   end
 

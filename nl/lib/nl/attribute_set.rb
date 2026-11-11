@@ -21,6 +21,12 @@ module Nl
     end
 
     class << self
+      # Builds an attribute set from attribute names and values.
+      # @rbs (?Hash[Symbol, untyped] params) -> instance
+      def from_params(params = {})
+        build_instance(params)
+      end
+
       def decode(decoder, definitions, local_selector_count, external_selectors)
         new(decode_attributes(decoder, definitions, local_selector_count, external_selectors:))
       end

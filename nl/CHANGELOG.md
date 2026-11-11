@@ -13,7 +13,7 @@
   wrapper objects. Replace `attributes[:name].value` with `attributes[:name]`.
 - Replace `AttributeSet#<<` with `append_attribute(name_or_id, value)`.
   Construct empty sets with `AttributeSet.new`, and use
-  `build_instance(params)` instead of passing an array of attribute wrappers
+  `from_params(params)` instead of passing an array of attribute wrappers
   to the constructor.
 - Change `Message#append_attribute` to accept an attribute name or numeric
   ID and its value: `message.append_attribute(:mtu, 1500)`.
