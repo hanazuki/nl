@@ -5,7 +5,5 @@ module Nl
   # Family payload with fixed-header fields and attribute values stored inline.
   class Message
     include StructuredPayload
-
-    alias append_attribute append
   end
 end

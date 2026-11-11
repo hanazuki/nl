@@ -44,8 +44,8 @@ RSpec.describe Nl::AttributeSet do
 
   it 'retains singular lookup behavior' do
     attributes = attribute_set.new
-    attributes.append(:singular, 10)
-    attributes.append(:singular, 20)
+    attributes.append_attribute(:singular, 10)
+    attributes.append_attribute(:singular, 20)
 
     expect(attributes[:singular]).to eq 10
   end
@@ -84,9 +84,9 @@ RSpec.describe Nl::AttributeSet do
 
   it 'retains false and nil values when appending' do
     attributes = attribute_set.new
-    attributes.append(:singular, false)
-    attributes.append(:repeated, nil)
-    attributes.append(:repeated, false)
+    attributes.append_attribute(:singular, false)
+    attributes.append_attribute(:repeated, nil)
+    attributes.append_attribute(:repeated, false)
 
     expect(attributes[:singular]).to be(false)
     expect(attributes[:repeated]).to eq([nil, false])

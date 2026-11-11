@@ -22,7 +22,7 @@ module Nl
       values
     end
 
-    def append(type, value)
+    def append_attribute(type, value)
       @attributes.push(definition_for(type).id, value)
       self
     end
@@ -50,7 +50,7 @@ module Nl
       encoder.align_to(Raw::NLA_ALIGNTO)
     end
 
-    def encode_attributes(encoder, external_selectors: Selector::EMPTY_VALUES)
+    private def encode_attributes(encoder, external_selectors: Selector::EMPTY_VALUES)
       definitions = self.class::BY_TYPE
       local_selector_count = self.class::LOCAL_SELECTOR_NAMES.length
       context = Selector::State.for(local_selector_count, external_selectors)
