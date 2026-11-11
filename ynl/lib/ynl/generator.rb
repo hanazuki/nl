@@ -641,8 +641,8 @@ module Ynl
       emit_internal
       write('def self.build_instance(params, external_selectors: ::Nl::Selector::EMPTY_VALUES)')
       indent do
-        header_names = header ? 'FIXED_HEADER.members' : '::Nl::StructuredPayload::EMPTY_FIELD_NAMES'
-        write("validate_payload_params(params, #{header_names}, ATTRIBUTES)")
+        header_names = header ? 'FIXED_HEADER.members' : '::Nl::Message::EMPTY_FIELD_NAMES'
+        write("validate_params(params, #{header_names}, ATTRIBUTES)")
         write('new(')
         indent do
           fields.each do |field|
