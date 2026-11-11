@@ -14,7 +14,7 @@ module Nl
         header = Raw::NlMsgHdr.decode(decoder)
         payload_size = header.len - Raw::NLMSG_HDRLEN
         payload = decoder.slice(payload_size)
-        decoder.align_to(Raw::NLMSG_ALIGNTO)
+        decoder.align_to_4  # NLMSG_ALIGNTO
         yield header, payload
       end
     end

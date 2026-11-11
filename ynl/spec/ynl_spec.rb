@@ -280,7 +280,7 @@ RSpec.describe Ynl do
           encoded.put_value(Nl::Endian::Host::U16, cls::AttributeSets::EnumAttrs.by_name(:data).id | Nl::Raw::NLA_F_NESTED)  # nla_type
           data.encode(encoded)
         end
-        encoded.align_to(Nl::Raw::NLA_ALIGNTO)
+        encoded.align_to_4  # NLA_ALIGNTO
       end
 
       expect do
@@ -555,7 +555,7 @@ RSpec.describe Ynl do
         outer.encode(encoder)
         encoder.put_string("\xaa\xbb".b)
       end
-      encoder.align_to(Nl::Raw::NLA_ALIGNTO)
+      encoder.align_to_4  # NLA_ALIGNTO
 
       attributes = cls::AttributeSets::Attrs.decode(Nl::Decoder.new(encoder.buffer))
 

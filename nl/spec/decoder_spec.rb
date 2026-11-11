@@ -81,6 +81,34 @@ RSpec.describe Nl::Decoder do
     end
   end
 
+  describe '#align_to_4' do
+    it 'rounds the position up to a four-byte boundary, including the end' do
+      bytes = '0123456789ab'
+      {0 => 0, 1 => 4, 2 => 4, 3 => 4, 4 => 4, 5 => 8, 8 => 8, 9 => 12, 12 => 12}.each do |offset, expected|
+        decoder = described_class.new(IO::Buffer.for(bytes), offset)
+
+        decoder.align_to_4
+
+        expect(decoder.get_string).to eq(bytes.byteslice(expected..))
+      end
+    end
+
+    it 'aligns relative to the backing buffer rather than the slice start' do
+      decoder = described_class.new(IO::Buffer.for('01234567'), 1, 3)
+
+      decoder.align_to_4
+
+      expect(decoder.remaining).to eq(0)
+    end
+
+    it 'rejects alignment beyond the payload limit without advancing' do
+      decoder = described_class.new(IO::Buffer.for('01234567'), 1, 2)
+
+      expect { decoder.align_to_4 }.to raise_error(Nl::Decoder::OutOfBounds)
+      expect(decoder.get_string).to eq('12')
+    end
+  end
+
   describe '#lookahead' do
     it 'restores the position after reading' do
       decoder = described_class.new(IO::Buffer.for('data'))

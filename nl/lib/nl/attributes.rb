@@ -61,7 +61,7 @@ module Nl
         encoder.put_value(Endian::Host::U16, type)  # nla_type
         datatype.encode(encoder, value, context:)
       end
-      encoder.align_to(Raw::NLA_ALIGNTO)
+      encoder.align_to_4  # NLA_ALIGNTO
     end
 
     private def encode_attributes(encoder, external_selectors: Selector::EMPTY_VALUES)
@@ -126,7 +126,7 @@ module Nl
         else
           decoder.skip(length - Raw::NLA_HDRLEN)
         end
-        decoder.align_to(Raw::NLA_ALIGNTO)
+        decoder.align_to_4  # NLA_ALIGNTO
       end
 
       private def decode_attributes(decoder, definitions, local_selector_count, external_selectors: Selector::EMPTY_VALUES)

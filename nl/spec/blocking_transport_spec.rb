@@ -73,7 +73,7 @@ RSpec.describe Nl::BlockingTransport do
       Nl::Raw::NlMsgHdr.new(0, type, flags, sequence, 77).encode(encoder)
       encoder.put_string(payload)
     end
-    encoder.align_to(Nl::Raw::NLMSG_ALIGNTO)
+    encoder.align_to_4  # NLMSG_ALIGNTO
     encoder.buffer.get_string
   end
 
