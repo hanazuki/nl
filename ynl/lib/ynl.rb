@@ -64,7 +64,7 @@ module Ynl
     end
     SubMessage = Struct.new(:sub_message, :selector) do
       def rbs_type
-        '::Nl::SubMessage'
+        '::Nl::Message | ::Nl::RawSubMessage'
       end
     end
 

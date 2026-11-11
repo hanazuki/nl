@@ -1,5 +1,3 @@
-require_relative 'structured_payload'
-
 module Nl
   module Selector
     EMPTY_VALUES = [].freeze
@@ -84,14 +82,8 @@ module Nl
     end
   end
 
-  # A selector-specific payload containing an optional fixed header followed by
-  # an optional set of Netlink attributes.
-  class SubMessage
-    include StructuredPayload
-  end
-
   # An unrecognized selector-specific payload retained without interpretation.
-  class RawSubMessage < SubMessage
+  class RawSubMessage
     attr_reader :payload, :nlattr_type_flags
 
     def initialize(payload, nlattr_type_flags:)

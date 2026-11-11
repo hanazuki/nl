@@ -183,6 +183,7 @@ RSpec.describe Ynl do
       generated = StringIO.new
       path.open { |source| Ynl::Family.generate(source, generated) }
       cls = Ynl::Family.build(path)
+      expect(cls::SubMessages::PayloadMessage::Foo).to be < Nl::Message
 
       attributes = cls::AttributeSets::OuterAttrs.build_instance({
         child: {leaf: {data: {header_value: 7, payload_value: 11}}},

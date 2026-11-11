@@ -755,7 +755,7 @@ module Ynl
     end
 
     private def emit_sub_message_class(name, format)
-      emit_class(name, '::Nl::SubMessage') do
+      emit_class(name, '::Nl::Message') do
         emit_const('FIXED_HEADER', format.fixed_header&.then { 'Structs::' + it.name.as_class_name } || 'nil')
         emit_const('ATTRIBUTE_SET', format.attribute_set&.then { 'AttributeSets::' + it.name.as_class_name } || 'nil')
 
@@ -935,7 +935,7 @@ module Ynl
         type.type_values.length.times { value_type = "Hash<Integer, #{value_type}>" }
         value_type
       when Types::SubMessage
-        'Nl::SubMessage'
+        'Nl::Message, Nl::RawSubMessage'
       when Types::Pad
         'nil'
       when Types::Bitfield32
