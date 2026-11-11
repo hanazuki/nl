@@ -139,8 +139,8 @@ module Nl
       values
     end
 
-    def align_to(alignment)
-      nposition = (@position + alignment - 1) & ~(alignment - 1)
+    def align_to_4
+      nposition = (@position + 3) & -4
       raise OutOfBounds if nposition > @limit
       @position = nposition
     end

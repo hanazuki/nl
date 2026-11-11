@@ -330,7 +330,7 @@ module Nl
               encode_level(encoder, value, levels - 1, external_selectors)
             end
           end
-          encoder.align_to(Raw::NLA_ALIGNTO)
+          encoder.align_to_4  # NLA_ALIGNTO
         end
       end
 
@@ -367,7 +367,7 @@ module Nl
               decode_level(decoder, levels - 1, external_selectors)
             end
           end
-          decoder.align_to(Raw::NLA_ALIGNTO)
+          decoder.align_to_4  # NLA_ALIGNTO
           result[type] = value
         end
         result
@@ -394,7 +394,7 @@ module Nl
             encoder.put_value(Endian::Host::U16, i + 1)  # nla_type
             @sub_type.encode(encoder, value, context:)
           end
-          encoder.align_to(Raw::NLA_ALIGNTO)
+          encoder.align_to_4  # NLA_ALIGNTO
         end
       end
 
@@ -416,7 +416,7 @@ module Nl
           element = decoder.limit(length - Raw::NLA_HDRLEN) do
             @sub_type.decode(decoder, context:, nlattr_type_flags: flags)
           end
-          decoder.align_to(Raw::NLA_ALIGNTO)
+          decoder.align_to_4  # NLA_ALIGNTO
           result << element
         end
         result

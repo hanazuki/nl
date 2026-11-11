@@ -35,12 +35,10 @@ module Nl
       @position = @buffer.set_values(types, @position, values)
     end
 
-    def align_to(alignment)
-      if alignment > 1
-        nposition = (@position + alignment - 1) & ~(alignment - 1)
-        reserve(nposition - @position)
-        @position = nposition
-      end
+    def align_to_4
+      nposition = (@position + 3) & -4
+      reserve(nposition - @position)
+      @position = nposition
     end
 
     def put_value_at(offset, type, value)
