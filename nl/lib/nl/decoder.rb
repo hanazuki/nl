@@ -26,9 +26,10 @@ module Nl
       # Emit a literal buffer type so the JIT can specialize the load.
       class_eval <<~RUBY, __FILE__, __LINE__ + 1
         def #{reader}
-          nposition = @position + #{IO::Buffer.size_of(type)}
+          position = @position
+          nposition = position + #{IO::Buffer.size_of(type)}
           raise OutOfBounds if nposition > @limit
-          value = @buffer.get_value(#{type.inspect}, @position)
+          value = @buffer.get_value(#{type.inspect}, position)
           @position = nposition
           value
         end
@@ -99,23 +100,25 @@ module Nl
     end
 
     def get_string(length = @limit - @position)
-      nposition = @position + length
+      position = @position
+      nposition = position + length
       raise OutOfBounds if length < 0 || nposition > @limit
-      value = @buffer.get_string(@position, length)
+      value = @buffer.get_string(position, length)
       @position = nposition
       value
     end
 
     def slice(length = @limit - @position)
-      nposition = @position + length
+      position = @position
+      nposition = position + length
       raise OutOfBounds if length < 0 || nposition > @limit
-      value = self.class.new(@buffer, @position, length)
+      value = self.class.new(@buffer, position, length)
       @position = nposition
       value
     end
 
     def get_zstring(unterminated_ok: false)
-      nposition = @position
+      position = nposition = @position
       nul_found = false
       while nposition < @limit
         c = @buffer.get_value(:U8, nposition)
@@ -126,15 +129,16 @@ module Nl
         end
       end
       raise Unterminated if !nul_found && !unterminated_ok
-      value = @buffer.get_string(@position, nposition - @position - (nul_found ? 1 : 0))
+      value = @buffer.get_string(position, nposition - position - (nul_found ? 1 : 0))
       @position = nposition
       value
     end
 
     def get_values(types)
-      nposition = @position + IO::Buffer.size_of(types)
+      position = @position
+      nposition = position + IO::Buffer.size_of(types)
       raise OutOfBounds if nposition > @limit
-      values = @buffer.get_values(types, @position)
+      values = @buffer.get_values(types, position)
       @position = nposition
       values
     end
