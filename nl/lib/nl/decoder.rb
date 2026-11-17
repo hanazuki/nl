@@ -77,8 +77,8 @@ module Nl
       raise OutOfBounds if size < 0 || new_limit > orig_limit
 
       @limit = new_limit
-      result = yield self
-      if @limit != @position
+      result = yield
+      if @position != new_limit
         raise "Not all bytes upto specified limit is consumed"
       end
       result
