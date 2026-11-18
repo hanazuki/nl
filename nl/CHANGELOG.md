@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+Optimized performance with API changes.
+
 - Remove `Raw::NlAttr`; attribute sets and array codecs write their headers
   directly without allocating a header object.
 - Unify `Raw::Message` and `Genl::Message` as `Nl::Message`.
