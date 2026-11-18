@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.5.0 (2026-11-18)
+
 - Reserved fields declared as `pad` are no longer available as members of
   generated structs. Omit their arguments when constructing structs.
 

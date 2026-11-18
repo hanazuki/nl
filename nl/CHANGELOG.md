@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.5.0 (2026-11-18)
+
 Optimized performance with API changes.
 
 - Remove `Raw::NlAttr`; attribute sets and array codecs write their headers
