@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Update kernel YNL specification from Linux 7.3.6.
+
 ## v0.5.0 (2026-11-18)
 
 - Update kernel YNL specification from Linux 7.3.
